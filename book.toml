@@ -1,0 +1,23 @@
+[book]
+title = "Skylet - Execution Engine"
+description = "Secure, extensible plugin runtime for autonomous agents and microservices"
+authors = ["Vincents AI Team"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+theme = "docs/theme"
+additional-css = ["docs/theme/skylet.css"]
+default-theme = "light"
+preferred-dark-theme = "coal"
+smart-punctuation = true
+mathjax-support = true
+edit-url-template = "https://github.com/vincents-ai/skylet/edit/main/{path}"
+
+[preprocessor.index]
+
+[preprocessor.links]

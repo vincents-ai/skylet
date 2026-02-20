@@ -1,0 +1,55 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  push:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  licenses:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Check licenses
+        run: |
+          # Define allowed licenses (permissive open source)
+          ALLOWED='Apache-2.0|MIT|BSD-2-Clause|BSD-3-Clause|ISC|Unlicense|Zlib|BSL-1.0|CC0-1.0|Unicode-3.0|Unicode-DFS-2016'
+
+          # Check for disallowed licenses (GPL, LGPL, AGPL, proprietary)
+          DISALLOWED=$(cargo license --json | \
+            jq -r '.[] | select(.license != null) | .license' | \
+            grep -v -E "^($ALLOWED)( OR ($ALLOWED))*( WITH .+)?$" | \
+            grep -E "^(GPL|LGPL|AGPL|Commercial|Proprietary)" || true)
+
+          if [ -n "$DISALLOWED" ]; then
+            echo "Found disallowed licenses:"
+            echo "$DISALLOWED"
+            exit 1
+          fi
+
+          echo "All licenses OK (permissive open source)"

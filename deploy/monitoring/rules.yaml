@@ -1,0 +1,201 @@
+groups:
+  - name: skylet_plugins
+    interval: 30s
+    rules:
+      - alert: PluginLoadFailures
+        expr: rate(skylet_plugin_load_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: plugin
+        annotations:
+          summary: "Plugin load failures detected"
+          description: "Rate of plugin load failures is {{ $value | printf \"%.2f\" }} per second. Check plugin logs for details."
+
+      - alert: PluginExecutionFailures
+        expr: rate(skylet_plugin_failed_calls_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: plugin
+        annotations:
+          summary: "Plugin execution failures detected"
+          description: "Plugin {{ $labels.plugin }} has a failure rate of {{ $value | printf \"%.2f\" }} per second."
+
+      - alert: PluginHighMemoryUsage
+        expr: skylet_plugin_memory_mb > 256
+        for: 5m
+        labels:
+          severity: warning
+          component: plugin
+        annotations:
+          summary: "Plugin memory usage is high"
+          description: "Plugin {{ $labels.plugin }} is using {{ $value }}MB of memory."
+
+      - alert: PluginHighCPUUsage
+        expr: skylet_plugin_cpu_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: plugin
+        annotations:
+          summary: "Plugin CPU usage is high"
+          description: "Plugin {{ $labels.plugin }} is using {{ $value }}% CPU."
+
+      - alert: NoActivePlugins
+        expr: skylet_plugins_active == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: plugin
+        annotations:
+          summary: "No active plugins"
+          description: "Skylet has no active plugins loaded. Check configuration."
+
+  - name: skylet_system
+    interval: 30s
+    rules:
+      - alert: SkyletDown
+        expr: up{job="skylet"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Skylet instance is down"
+          description: "Skylet has been down for more than 1 minute."
+
+      - alert: HighMemoryUsage
+        expr: system_memory_mb / 1024 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High system memory usage"
+          description: "System memory usage is above 80%. Current: {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighCPUUsage
+        expr: system_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High system CPU usage"
+          description: "System CPU usage is above 80%. Current: {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighThreadCount
+        expr: system_thread_count > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High thread count"
+          description: "System has {{ $value }} threads, which is above normal."
+
+      - alert: HighFileDescriptorUsage
+        expr: process_file_handles / 1024 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High file descriptor usage"
+          description: "File descriptor usage is above 80%. Current: {{ $value | printf \"%.1f\" }}%"
+
+  - name: skylet_event_bus
+    interval: 30s
+    rules:
+      - alert: EventBusPublishFailures
+        expr: rate(skylet_event_bus_publish_errors_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: event_bus
+        annotations:
+          summary: "Event bus publish failures"
+          description: "Event bus has a publish failure rate of {{ $value | printf \"%.2f\" }} per second."
+
+      - alert: EventBusLag
+        expr: skylet_event_bus_queue_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: event_bus
+        annotations:
+          summary: "Event bus queue lag"
+          description: "Event bus queue has {{ $value }} pending events."
+
+  - name: skylet_rpc
+    interval: 30s
+    rules:
+      - alert: HighRPCLatency
+        expr: histogram_quantile(0.95, rate(skylet_rpc_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          component: rpc
+        annotations:
+          summary: "High RPC latency"
+          description: "RPC p95 latency is {{ $value | printf \"%.2f\" }} seconds."
+
+      - alert: RPCErrors
+        expr: rate(skylet_rpc_errors_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          component: rpc
+        annotations:
+          summary: "RPC errors detected"
+          description: "RPC error rate is {{ $value | printf \"%.2f\" }} per second."
+
+  - name: skylet_registry
+    interval: 30s
+    rules:
+      - alert: HighRegistryMissRate
+        expr: rate(skylet_registry_misses_total[5m]) / rate(skylet_registry_lookups_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: registry
+        annotations:
+          summary: "High registry miss rate"
+          description: "Registry miss rate is above 50%. Consider caching improvements."
+
+  - name: skylet_audit
+    interval: 30s
+    rules:
+      - alert: AuditLogWriteFailures
+        expr: rate(skylet_audit_log_write_errors_total[5m]) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          component: audit
+        annotations:
+          summary: "Audit log write failures"
+          description: "Audit log is experiencing write failures. Check storage."
+
+      - alert: LargeAuditLogSize
+        expr: skylet_audit_log_size_bytes > 1073741824
+        for: 10m
+        labels:
+          severity: warning
+          component: audit
+        annotations:
+          summary: "Audit log size is large"
+          description: "Audit log has grown to {{ $value | humanize1024 }}B. Consider rotation."
+
+  - name: skylet_config
+    interval: 30s
+    rules:
+      - alert: ConfigOperationFailures
+        expr: rate(skylet_config_set_errors_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: config
+        annotations:
+          summary: "Configuration operation failures"
+          description: "Configuration operations are failing. Check config storage."

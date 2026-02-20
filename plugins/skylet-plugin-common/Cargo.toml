@@ -1,0 +1,50 @@
+[package]
+name = "skylet-plugin-common"
+version = "0.5.0"
+edition = "2021"
+description = "Common utilities and abstractions for Skylet plugins - V2 ABI only"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+repository = "https://github.com/vincents-ai/skylet"
+
+[lib]
+name = "skylet_plugin_common"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+toml = { workspace = true }
+
+# HTTP client
+ureq = "2.8"
+urlencoding = "2.1"
+
+# For secrets management
+sha2 = "0.10"
+rand = "0.8"
+
+# For RPC and event management
+tokio-stream = "0.1"
+serde_bytes = "0.11"
+futures = "0.3"
+
+# For API authentication
+base64 = { workspace = true }
+
+# For OAuth2 URL handling
+url = "2.4"
+
+# For security validation
+once_cell = "1.19"
+regex = "1.10"

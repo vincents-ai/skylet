@@ -1,0 +1,17 @@
+title: "Q&A: "
+labels: []
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: "How do I..."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any relevant context (version, platform, etc.)
+      placeholder: "I'm using Skylet v0.5.0 on Linux..."

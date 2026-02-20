@@ -1,0 +1,76 @@
+name: Security Issue
+description: Report a security vulnerability (non-critical). For critical issues, email shift+security@someone.section.me
+title: "[Security]: "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Security Reporting
+
+        **For critical security vulnerabilities**, please do NOT use this template.
+        Instead, email us directly at: **shift+security@someone.section.me**
+
+        This template is for non-critical security concerns or hardening suggestions.
+
+  - type: checkboxes
+    id: not-critical
+    attributes:
+      label: Severity Confirmation
+      description: Please confirm this is not a critical vulnerability
+      options:
+        - label: I confirm this is NOT a critical security vulnerability that could be actively exploited
+          required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type of Security Issue
+      options:
+        - Memory safety concern
+        - Permission bypass potential
+        - Input validation issue
+        - Cryptographic concern
+        - Hardening suggestion
+        - Documentation gap
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the security concern.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could happen if this issue is exploited?
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested Mitigation
+      description: If you have ideas for how to fix this, please share.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Core Runtime
+        - Plugin ABI / FFI
+        - Permission System
+        - HTTP Router
+        - Job Queue
+        - Plugin Packager
+        - Multiple components
+        - Other
+    validations:
+      required: true

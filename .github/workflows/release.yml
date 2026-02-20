@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          CHANGELOG=$(git log $(git describe --tags --abbrev=0 @^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..@ --oneline)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            ## Changelog
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Installation
+
+            Download pre-built binaries from the assets below.
+
+            See [README](https://github.com/vincents-ai/skylet/blob/main/README.md) for usage instructions.
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-alpha') || contains(github.ref, '-beta') }}
+
+  build-artifacts:
+    name: Build (${{ matrix.os }})
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: skylet
+            asset_name: skylet-linux-x86_64
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
+      - name: Build release
+        run: nix develop --command cargo build --release
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/${{ matrix.artifact_name }}

@@ -1,0 +1,80 @@
+[workspace]
+resolver = "2"
+members = [
+    "abi",
+    "http-router",
+    "job-queue",
+    "core",
+    "plugin-packager",
+    "plugin-test-harness",
+    "permissions",
+    "src",
+    "plugins/config-manager",
+    "plugins/logging",
+    "plugins/registry",
+    "plugins/secrets-manager",
+    "plugins/skylet-plugin-common",
+]
+
+[workspace.package]
+authors = ["Skylet Team"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vincents-ai/skylet"
+homepage = "https://github.com/vincents-ai/skylet"
+keywords = ["plugin", "runtime", "ffi", "async", "microservices"]
+categories = ["api-bindings", "development-tools::ffi", "asynchronous"]
+rust-version = "1.70"
+
+[workspace.dependencies]
+# Core dependencies
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+thiserror = "1.0"
+sha2 = "0.10"
+ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
+dirs = "5.0"
+toml = { version = "0.8", features = ["preserve_order"] }
+reqwest = { version = "0.11", features = ["rustls-tls", "json"], default-features = false }
+semver = "1.0"
+parking_lot = "0.12"
+crossbeam-epoch = "0.9"
+signature = "2.2"
+tempfile = "3.0"
+libloading = "0.8"
+async-trait = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
+lazy_static = "1.4"
+clap = { version = "4.5", features = ["derive"] }
+rand = "0.8"
+sysinfo = "0.30"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tokio-test = "0.4"
+rusqlite = { version = "0.30", features = ["bundled"] }
+lru = "0.12"
+futures = "0.3"
+notify = "6.1"
+regex = "1.10"
+hex = "0.4"
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.test]
+opt-level = 1
+debug = true
+
+[profile.bench]
+opt-level = 3
+debug = false

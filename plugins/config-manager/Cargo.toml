@@ -1,0 +1,41 @@
+[package]
+name = "config-manager"
+version = "0.1.0"
+edition = "2021"
+description = "Centralized configuration management with TOML/JSON/YAML support, environment overrides, and validation"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+repository = "https://github.com/vincents-ai/skylet"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Skylet dependencies
+skylet-abi = { path = "../../abi" }
+skylet-plugin-common = { path = "../skylet-plugin-common" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Configuration
+toml = { workspace = true }
+config = "0.13"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+
+# Utilities
+parking_lot = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+dirs = { workspace = true }
+
+[features]
+default = []
+test = []
