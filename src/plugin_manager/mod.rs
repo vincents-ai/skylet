@@ -1,6 +1,12 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod dependency_resolver;
+pub mod discovery;
+pub mod dynamic_reload;
+pub mod failover;
+pub mod hot_reload;
+pub mod lifecycle;
 /// Plugin Manager Module
 ///
 /// Provides complete plugin lifecycle management with support for both
@@ -14,11 +20,4 @@
 /// - `dynamic_reload`: Dynamic plugin reload with state preservation
 /// - `dependency_resolver`: Plugin dependency ordering (CQ-004) - topological sort based on dependencies
 /// - `discovery`: Dynamic plugin discovery (CQ-003) - filesystem-based plugin scanning
-
 pub mod manager;
-pub mod lifecycle;
-pub mod failover;
-pub mod hot_reload;
-pub mod dynamic_reload;
-pub mod dependency_resolver;
-pub mod discovery;

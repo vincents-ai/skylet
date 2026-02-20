@@ -59,7 +59,11 @@ impl Default for HotReloadConfig {
                 "config.toml".to_string(),
                 "manifest.json".to_string(),
             ],
-            exclude_dirs: vec![".git".to_string(), "target".to_string(), "build".to_string()],
+            exclude_dirs: vec![
+                ".git".to_string(),
+                "target".to_string(),
+                "build".to_string(),
+            ],
             max_retries: 3,
             retry_delay_ms: 1000,
         }
@@ -106,14 +110,9 @@ pub struct HotReloadResult {
 #[derive(Debug, Clone)]
 pub enum HotReloadEvent {
     /// File change detected
-    FileChanged {
-        plugin_id: String,
-        path: PathBuf,
-    },
+    FileChanged { plugin_id: String, path: PathBuf },
     /// Hot-reload started
-    ReloadStarted {
-        plugin_id: String,
-    },
+    ReloadStarted { plugin_id: String },
     /// State serialized successfully
     StateSerialized {
         plugin_id: String,
@@ -125,15 +124,9 @@ pub enum HotReloadEvent {
         result: HotReloadResult,
     },
     /// Hot-reload failed
-    ReloadFailed {
-        plugin_id: String,
-        error: String,
-    },
+    ReloadFailed { plugin_id: String, error: String },
     /// Rollback performed
-    RollbackPerformed {
-        plugin_id: String,
-        reason: String,
-    },
+    RollbackPerformed { plugin_id: String, reason: String },
 }
 
 /// Pending file change for debouncing
@@ -167,12 +160,9 @@ pub struct HotReloadService {
 
 impl HotReloadService {
     /// Create a new hot-reload service
-    pub fn new(
-        config: HotReloadConfig,
-        lifecycle_manager: Arc<PluginLifecycleManager>,
-    ) -> Self {
+    pub fn new(config: HotReloadConfig, lifecycle_manager: Arc<PluginLifecycleManager>) -> Self {
         let (event_sender, _) = broadcast::channel(256);
-        
+
         Self {
             config,
             lifecycle_manager,
@@ -193,8 +183,11 @@ impl HotReloadService {
     pub async fn watch_plugin(&self, plugin_id: &str, plugin_path: &Path) -> Result<()> {
         let mut watched = self.watched_paths.write().await;
         watched.insert(plugin_path.to_path_buf(), plugin_id.to_string());
-        
-        info!("Registered plugin '{}' for hot-reload watching: {:?}", plugin_id, plugin_path);
+
+        info!(
+            "Registered plugin '{}' for hot-reload watching: {:?}",
+            plugin_id, plugin_path
+        );
         Ok(())
     }
 
@@ -202,7 +195,10 @@ impl HotReloadService {
     pub async fn unwatch_plugin(&self, plugin_path: &Path) -> Result<()> {
         let mut watched = self.watched_paths.write().await;
         if let Some(plugin_id) = watched.remove(plugin_path) {
-            info!("Unregistered plugin '{}' from hot-reload watching", plugin_id);
+            info!(
+                "Unregistered plugin '{}' from hot-reload watching",
+                plugin_id
+            );
         }
         Ok(())
     }
@@ -216,7 +212,7 @@ impl HotReloadService {
         }
         *running = true;
         drop(running);
-        
+
         info!("Hot-reload service started");
         Ok(())
     }
@@ -225,11 +221,11 @@ impl HotReloadService {
     pub async fn stop(&self) -> Result<()> {
         let mut running = self.running.write().await;
         *running = false;
-        
+
         // Clear pending changes
         let mut pending = self.pending_changes.write().await;
         pending.clear();
-        
+
         info!("Hot-reload service stopped");
         Ok(())
     }
@@ -294,19 +290,22 @@ impl HotReloadService {
     async fn record_pending_change(&self, plugin_id: &str, path: &Path) -> Result<()> {
         let mut pending = self.pending_changes.write().await;
         let key = plugin_id.to_string();
-        
+
         let now = Instant::now();
         if let Some(existing) = pending.get_mut(&key) {
             existing.last_seen = now;
         } else {
-            pending.insert(key, PendingChange {
-                plugin_id: plugin_id.to_string(),
-                path: path.to_path_buf(),
-                first_seen: now,
-                last_seen: now,
-            });
+            pending.insert(
+                key,
+                PendingChange {
+                    plugin_id: plugin_id.to_string(),
+                    path: path.to_path_buf(),
+                    first_seen: now,
+                    last_seen: now,
+                },
+            );
         }
-        
+
         Ok(())
     }
 
@@ -314,11 +313,11 @@ impl HotReloadService {
     async fn process_debounced_changes(&self) -> Result<()> {
         let debounce_duration = Duration::from_millis(self.config.debounce_ms);
         let now = Instant::now();
-        
+
         let to_reload = {
             let mut pending = self.pending_changes.write().await;
             let mut ready = Vec::new();
-            
+
             pending.retain(|_key, change| {
                 if now.duration_since(change.last_seen) >= debounce_duration {
                     ready.push(change.clone());
@@ -327,13 +326,16 @@ impl HotReloadService {
                     true // Keep in pending
                 }
             });
-            
+
             ready
         };
 
         // Trigger reload for each ready change
         for change in to_reload {
-            debug!("Processing debounced change for plugin: {}", change.plugin_id);
+            debug!(
+                "Processing debounced change for plugin: {}",
+                change.plugin_id
+            );
             if let Err(e) = self.reload_plugin(&change.plugin_id).await {
                 error!("Failed to reload plugin '{}': {}", change.plugin_id, e);
             }
@@ -345,16 +347,19 @@ impl HotReloadService {
     /// Perform hot-reload for a plugin
     pub async fn reload_plugin(&self, plugin_id: &str) -> Result<HotReloadResult> {
         let start = Instant::now();
-        
+
         info!("Starting hot-reload for plugin: {}", plugin_id);
-        
+
         // Emit reload started event
         let _ = self.event_sender.send(HotReloadEvent::ReloadStarted {
             plugin_id: plugin_id.to_string(),
         });
 
         // Get current plugin state
-        let current_state = self.lifecycle_manager.get_state(plugin_id).await
+        let current_state = self
+            .lifecycle_manager
+            .get_state(plugin_id)
+            .await
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
 
         let old_version = current_state.version.clone();
@@ -375,7 +380,7 @@ impl HotReloadService {
 
         // Step 1: Serialize plugin state (via ABI hook)
         let snapshot = self.serialize_plugin_state(plugin_id).await?;
-        
+
         // Emit state serialized event
         let _ = self.event_sender.send(HotReloadEvent::StateSerialized {
             plugin_id: plugin_id.to_string(),
@@ -383,9 +388,12 @@ impl HotReloadService {
         });
 
         // Step 2: Deactivate plugin
-        let deactivate_result = self.lifecycle_manager.deactivate(plugin_id).await
+        let deactivate_result = self
+            .lifecycle_manager
+            .deactivate(plugin_id)
+            .await
             .with_context(|| "Deactivating plugin for reload")?;
-        
+
         if !deactivate_result.success {
             return Ok(HotReloadResult {
                 plugin_id: plugin_id.to_string(),
@@ -401,14 +409,19 @@ impl HotReloadService {
 
         // Step 3: Attempt to reactivate with new binary
         let activate_result = self.lifecycle_manager.activate(plugin_id).await;
-        
+
         match activate_result {
             Ok(result) if result.success => {
                 // Step 4: Restore state (via ABI hook)
-                let state_restored = self.restore_plugin_state(plugin_id, &snapshot).await
+                let state_restored = self
+                    .restore_plugin_state(plugin_id, &snapshot)
+                    .await
                     .unwrap_or(false);
 
-                let new_version = self.lifecycle_manager.get_state(plugin_id).await
+                let new_version = self
+                    .lifecycle_manager
+                    .get_state(plugin_id)
+                    .await
                     .map(|s| s.version);
 
                 let reload_result = HotReloadResult {
@@ -428,15 +441,22 @@ impl HotReloadService {
                     result: reload_result.clone(),
                 });
 
-                info!("Hot-reload completed for plugin '{}' in {}ms", 
-                    plugin_id, reload_result.duration_ms);
-                
+                info!(
+                    "Hot-reload completed for plugin '{}' in {}ms",
+                    plugin_id, reload_result.duration_ms
+                );
+
                 Ok(reload_result)
             }
             Ok(result) => {
                 // Activation failed - attempt rollback
-                warn!("Activation failed after reload, attempting rollback: {:?}", result.error);
-                let rolled_back = self.rollback_plugin(plugin_id, &snapshot).await
+                warn!(
+                    "Activation failed after reload, attempting rollback: {:?}",
+                    result.error
+                );
+                let rolled_back = self
+                    .rollback_plugin(plugin_id, &snapshot)
+                    .await
                     .unwrap_or(false);
 
                 let reload_result = HotReloadResult {
@@ -461,7 +481,9 @@ impl HotReloadService {
             Err(e) => {
                 // Activation error - attempt rollback
                 error!("Activation error after reload: {}", e);
-                let rolled_back = self.rollback_plugin(plugin_id, &snapshot).await
+                let rolled_back = self
+                    .rollback_plugin(plugin_id, &snapshot)
+                    .await
                     .unwrap_or(false);
 
                 let reload_result = HotReloadResult {
@@ -489,9 +511,12 @@ impl HotReloadService {
     /// Serialize plugin state using ABI hook
     async fn serialize_plugin_state(&self, plugin_id: &str) -> Result<PluginStateSnapshot> {
         debug!("Serializing state for plugin: {}", plugin_id);
-        
+
         // Get plugin version
-        let state = self.lifecycle_manager.get_state(plugin_id).await
+        let state = self
+            .lifecycle_manager
+            .get_state(plugin_id)
+            .await
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
         let plugin_version = state.version;
 
@@ -500,12 +525,15 @@ impl HotReloadService {
         // The actual ABI integration would look like:
         // let plugin_state = unsafe { (prepare_fn)(context) };
         // let state_data = Vec::from_raw_parts(plugin_state.data, plugin_state.len, plugin_state.len);
-        
-        let state_data = format!("{{\"plugin_id\":\"{}\",\"timestamp\":\"{}\"}}", 
-            plugin_id, chrono::Utc::now().to_rfc3339()).into_bytes();
-        
-        let checksum = format!("{:x}", 
-            md5_hash(&state_data));
+
+        let state_data = format!(
+            "{{\"plugin_id\":\"{}\",\"timestamp\":\"{}\"}}",
+            plugin_id,
+            chrono::Utc::now().to_rfc3339()
+        )
+        .into_bytes();
+
+        let checksum = format!("{:x}", md5_hash(&state_data));
 
         let snapshot = PluginStateSnapshot {
             plugin_id: plugin_id.to_string(),
@@ -523,13 +551,20 @@ impl HotReloadService {
     }
 
     /// Restore plugin state using ABI hook
-    async fn restore_plugin_state(&self, plugin_id: &str, snapshot: &PluginStateSnapshot) -> Result<bool> {
+    async fn restore_plugin_state(
+        &self,
+        plugin_id: &str,
+        snapshot: &PluginStateSnapshot,
+    ) -> Result<bool> {
         debug!("Restoring state for plugin: {}", plugin_id);
 
         // Verify checksum
         let expected_checksum = format!("{:x}", md5_hash(&snapshot.state_data));
         if expected_checksum != snapshot.checksum {
-            warn!("State checksum mismatch for plugin '{}', skipping restore", plugin_id);
+            warn!(
+                "State checksum mismatch for plugin '{}', skipping restore",
+                plugin_id
+            );
             return Ok(false);
         }
 
@@ -538,14 +573,21 @@ impl HotReloadService {
         // return Ok(result == PluginResult::Success);
 
         // For now, just log that we would restore
-        info!("Would restore {} bytes of state for plugin '{}'", 
-            snapshot.state_data.len(), plugin_id);
+        info!(
+            "Would restore {} bytes of state for plugin '{}'",
+            snapshot.state_data.len(),
+            plugin_id
+        );
 
         Ok(true)
     }
 
     /// Rollback plugin to previous state
-    async fn rollback_plugin(&self, plugin_id: &str, snapshot: &PluginStateSnapshot) -> Result<bool> {
+    async fn rollback_plugin(
+        &self,
+        plugin_id: &str,
+        snapshot: &PluginStateSnapshot,
+    ) -> Result<bool> {
         info!("Attempting rollback for plugin: {}", plugin_id);
 
         // Emit rollback event
@@ -556,12 +598,18 @@ impl HotReloadService {
 
         // Attempt to reactivate with old state
         let activate_result = self.lifecycle_manager.activate(plugin_id).await;
-        
+
         match activate_result {
             Ok(result) if result.success => {
                 // Try to restore previous state
-                let restored = self.restore_plugin_state(plugin_id, snapshot).await.unwrap_or(false);
-                info!("Rollback successful for plugin '{}', state restored: {}", plugin_id, restored);
+                let restored = self
+                    .restore_plugin_state(plugin_id, snapshot)
+                    .await
+                    .unwrap_or(false);
+                info!(
+                    "Rollback successful for plugin '{}', state restored: {}",
+                    plugin_id, restored
+                );
                 Ok(true)
             }
             _ => {
@@ -574,7 +622,8 @@ impl HotReloadService {
     /// Get list of watched plugins
     pub async fn list_watched(&self) -> Vec<(String, PathBuf)> {
         let watched = self.watched_paths.read().await;
-        watched.iter()
+        watched
+            .iter()
             .map(|(path, id)| (id.clone(), path.clone()))
             .collect()
     }
@@ -639,9 +688,9 @@ mod tests {
     async fn test_watch_plugin() {
         let (service, _) = create_test_service();
         let path = PathBuf::from("/tmp/test_plugin.so");
-        
+
         service.watch_plugin("test-plugin", &path).await.unwrap();
-        
+
         assert!(service.is_watching("test-plugin").await);
         let watched = service.list_watched().await;
         assert_eq!(watched.len(), 1);
@@ -652,10 +701,10 @@ mod tests {
     async fn test_unwatch_plugin() {
         let (service, _) = create_test_service();
         let path = PathBuf::from("/tmp/test_plugin.so");
-        
+
         service.watch_plugin("test-plugin", &path).await.unwrap();
         assert!(service.is_watching("test-plugin").await);
-        
+
         service.unwatch_plugin(&path).await.unwrap();
         assert!(!service.is_watching("test-plugin").await);
     }
@@ -663,12 +712,12 @@ mod tests {
     #[tokio::test]
     async fn test_start_stop_service() {
         let (service, _) = create_test_service();
-        
+
         service.start().await.unwrap();
         let running = service.running.read().await;
         assert!(*running);
         drop(running);
-        
+
         service.stop().await.unwrap();
         let running = service.running.read().await;
         assert!(!*running);
@@ -678,12 +727,12 @@ mod tests {
     async fn test_subscribe_events() {
         let (service, _) = create_test_service();
         let mut receiver = service.subscribe();
-        
+
         // Send a test event
         let _ = service.event_sender.send(HotReloadEvent::ReloadStarted {
             plugin_id: "test".to_string(),
         });
-        
+
         // Receive should work
         let event = receiver.try_recv();
         assert!(event.is_ok());
@@ -698,7 +747,7 @@ mod tests {
             plugin_version: "1.0.0".to_string(),
             checksum: "abc123".to_string(),
         };
-        
+
         assert_eq!(snapshot.plugin_id, "test");
         assert_eq!(snapshot.state_data.len(), 9);
     }
@@ -715,7 +764,7 @@ mod tests {
             error: None,
             rolled_back: false,
         };
-        
+
         assert!(result.success);
         assert!(result.state_preserved);
         assert!(!result.rolled_back);
@@ -726,11 +775,11 @@ mod tests {
         let data1 = b"test data";
         let data2 = b"test data";
         let data3 = b"different data";
-        
+
         let hash1 = md5_hash(data1);
         let hash2 = md5_hash(data2);
         let hash3 = md5_hash(data3);
-        
+
         assert_eq!(hash1, hash2);
         assert_ne!(hash1, hash3);
     }
@@ -739,7 +788,7 @@ mod tests {
     async fn test_on_file_changed_not_watching() {
         let (service, _) = create_test_service();
         service.start().await.unwrap();
-        
+
         // File not being watched should be ignored
         let result = service.on_file_changed(Path::new("/tmp/unknown.so")).await;
         assert!(result.is_ok());
@@ -749,7 +798,7 @@ mod tests {
     async fn test_on_file_changed_when_stopped() {
         let (service, _) = create_test_service();
         // Service not started
-        
+
         let result = service.on_file_changed(Path::new("/tmp/test.so")).await;
         assert!(result.is_ok()); // Should silently ignore
     }
@@ -757,7 +806,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_snapshot_empty() {
         let (service, _) = create_test_service();
-        
+
         let snapshot = service.get_snapshot("nonexistent").await;
         assert!(snapshot.is_none());
     }
@@ -765,23 +814,26 @@ mod tests {
     #[tokio::test]
     async fn test_clear_snapshot() {
         let (service, _) = create_test_service();
-        
+
         // Manually insert a snapshot
         {
             let mut snapshots = service.snapshots.write().await;
-            snapshots.insert("test".to_string(), PluginStateSnapshot {
-                plugin_id: "test".to_string(),
-                state_data: vec![],
-                timestamp: chrono::Utc::now(),
-                plugin_version: "1.0.0".to_string(),
-                checksum: "test".to_string(),
-            });
+            snapshots.insert(
+                "test".to_string(),
+                PluginStateSnapshot {
+                    plugin_id: "test".to_string(),
+                    state_data: vec![],
+                    timestamp: chrono::Utc::now(),
+                    plugin_version: "1.0.0".to_string(),
+                    checksum: "test".to_string(),
+                },
+            );
         }
-        
+
         assert!(service.get_snapshot("test").await.is_some());
-        
+
         service.clear_snapshot("test").await;
-        
+
         assert!(service.get_snapshot("test").await.is_none());
     }
 }

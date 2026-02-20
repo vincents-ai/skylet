@@ -8,8 +8,8 @@ use chrono::{DateTime, Utc};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use uuid::Uuid;
 use tracing;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {

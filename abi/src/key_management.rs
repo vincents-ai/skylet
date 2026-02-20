@@ -48,8 +48,8 @@
 //! # }
 //! ```
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Error type for key management operations
@@ -210,7 +210,11 @@ pub trait KeyManagement: Send + Sync {
     ///
     /// # Returns
     /// The new `KeyPair`
-    async fn rotate_key(&self, old_key_id: &str, new_key_type: KeyType) -> KeyManagementResult<KeyPair>;
+    async fn rotate_key(
+        &self,
+        old_key_id: &str,
+        new_key_type: KeyType,
+    ) -> KeyManagementResult<KeyPair>;
 
     /// Check if a key exists and is valid
     ///
@@ -250,7 +254,9 @@ impl DefaultKeyManagement {
     }
 
     fn generate_key_id(&self) -> String {
-        let counter = self.key_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let counter = self
+            .key_counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         format!("key-{:016x}", counter)
     }
 
@@ -283,15 +289,21 @@ impl KeyManagement for DefaultKeyManagement {
     async fn generate_key(&self, key_type: KeyType) -> KeyManagementResult<KeyPair> {
         let (public_key, private_key) = match key_type {
             KeyType::Ed25519 => self.generate_ed25519_keypair()?,
-            KeyType::EcdsaP256 => return Err(KeyManagementError::InvalidKeyType(
-                "EcdsaP256 not yet implemented in default key manager".to_string()
-            )),
-            KeyType::Rsa2048 => return Err(KeyManagementError::InvalidKeyType(
-                "Rsa2048 not yet implemented in default key manager".to_string()
-            )),
-            KeyType::Rsa4096 => return Err(KeyManagementError::InvalidKeyType(
-                "Rsa4096 not yet implemented in default key manager".to_string()
-            )),
+            KeyType::EcdsaP256 => {
+                return Err(KeyManagementError::InvalidKeyType(
+                    "EcdsaP256 not yet implemented in default key manager".to_string(),
+                ))
+            }
+            KeyType::Rsa2048 => {
+                return Err(KeyManagementError::InvalidKeyType(
+                    "Rsa2048 not yet implemented in default key manager".to_string(),
+                ))
+            }
+            KeyType::Rsa4096 => {
+                return Err(KeyManagementError::InvalidKeyType(
+                    "Rsa4096 not yet implemented in default key manager".to_string(),
+                ))
+            }
         };
 
         let key_id = self.generate_key_id();
@@ -323,32 +335,35 @@ impl KeyManagement for DefaultKeyManagement {
         // For now, just generate a new key with the context added to metadata
         let mut key_pair = self.generate_key(key_type).await?;
         if let Some(context) = _context.split('/').next() {
-            key_pair.metadata.insert("derivation_context".to_string(), context.to_string());
+            key_pair
+                .metadata
+                .insert("derivation_context".to_string(), context.to_string());
         }
         Ok(key_pair)
     }
 
     async fn sign(&self, key_id: &str, data: &[u8]) -> KeyManagementResult<Vec<u8>> {
-        use ed25519_dalek::SigningKey;
         use ed25519_dalek::Signer;
+        use ed25519_dalek::SigningKey;
 
         let keys = self.keys.read();
-        let key_pair = keys.get(key_id)
+        let key_pair = keys
+            .get(key_id)
             .ok_or_else(|| KeyManagementError::KeyNotFound(key_id.to_string()))?;
 
         match key_pair.key_type {
             KeyType::Ed25519 => {
-                let signing_key = SigningKey::from_bytes(
-                    &key_pair.private_key[..]
-                        .try_into()
-                        .map_err(|_| KeyManagementError::SigningFailed("Invalid key length".to_string()))?
-                );
+                let signing_key =
+                    SigningKey::from_bytes(&key_pair.private_key[..].try_into().map_err(|_| {
+                        KeyManagementError::SigningFailed("Invalid key length".to_string())
+                    })?);
                 let signature = signing_key.sign(data);
                 Ok(signature.to_bytes().to_vec())
             }
-            _ => Err(KeyManagementError::InvalidKeyType(
-                format!("Key type {:?} not supported for signing", key_pair.key_type)
-            )),
+            _ => Err(KeyManagementError::InvalidKeyType(format!(
+                "Key type {:?} not supported for signing",
+                key_pair.key_type
+            ))),
         }
     }
 
@@ -361,17 +376,20 @@ impl KeyManagement for DefaultKeyManagement {
         use ed25519_dalek::{Signature, VerifyingKey};
 
         let keys = self.keys.read();
-        let key_pair = keys.get(key_id)
+        let key_pair = keys
+            .get(key_id)
             .ok_or_else(|| KeyManagementError::KeyNotFound(key_id.to_string()))?;
 
         match key_pair.key_type {
             KeyType::Ed25519 => {
                 let verify_key = VerifyingKey::from_bytes(
-                    &key_pair.public_key[..]
-                        .try_into()
-                        .map_err(|_| KeyManagementError::VerificationFailed("Invalid key length".to_string()))?
+                    &key_pair.public_key[..].try_into().map_err(|_| {
+                        KeyManagementError::VerificationFailed("Invalid key length".to_string())
+                    })?,
                 )
-                .map_err(|_| KeyManagementError::VerificationFailed("Invalid public key".to_string()))?;
+                .map_err(|_| {
+                    KeyManagementError::VerificationFailed("Invalid public key".to_string())
+                })?;
 
                 let sig: Signature = signature
                     .try_into()
@@ -382,20 +400,26 @@ impl KeyManagement for DefaultKeyManagement {
                     Err(_) => Ok(false),
                 }
             }
-            _ => Err(KeyManagementError::InvalidKeyType(
-                format!("Key type {:?} not supported for verification", key_pair.key_type)
-            )),
+            _ => Err(KeyManagementError::InvalidKeyType(format!(
+                "Key type {:?} not supported for verification",
+                key_pair.key_type
+            ))),
         }
     }
 
     async fn get_public_key(&self, key_id: &str) -> KeyManagementResult<Vec<u8>> {
         let keys = self.keys.read();
-        let key_pair = keys.get(key_id)
+        let key_pair = keys
+            .get(key_id)
             .ok_or_else(|| KeyManagementError::KeyNotFound(key_id.to_string()))?;
         Ok(key_pair.public_key.clone())
     }
 
-    async fn rotate_key(&self, old_key_id: &str, new_key_type: KeyType) -> KeyManagementResult<KeyPair> {
+    async fn rotate_key(
+        &self,
+        old_key_id: &str,
+        new_key_type: KeyType,
+    ) -> KeyManagementResult<KeyPair> {
         // Check that old key exists
         if !self.key_exists(old_key_id).await? {
             return Err(KeyManagementError::KeyNotFound(old_key_id.to_string()));
@@ -432,7 +456,7 @@ mod tests {
     async fn test_generate_key() {
         let manager = DefaultKeyManagement::new();
         let key_pair = manager.generate_key(KeyType::Ed25519).await.unwrap();
-        
+
         assert!(!key_pair.key_id.is_empty());
         assert!(!key_pair.public_key.is_empty());
         assert_eq!(key_pair.key_type, KeyType::Ed25519);
@@ -442,18 +466,24 @@ mod tests {
     async fn test_sign_and_verify() {
         let manager = DefaultKeyManagement::new();
         let key_pair = manager.generate_key(KeyType::Ed25519).await.unwrap();
-        
+
         let data = b"test data";
         let signature = manager.sign(&key_pair.key_id, data).await.unwrap();
-        
+
         assert!(!signature.is_empty());
-        
-        let is_valid = manager.verify(&key_pair.key_id, data, &signature).await.unwrap();
+
+        let is_valid = manager
+            .verify(&key_pair.key_id, data, &signature)
+            .await
+            .unwrap();
         assert!(is_valid);
-        
+
         // Wrong data should not verify
         let wrong_data = b"different data";
-        let is_valid = manager.verify(&key_pair.key_id, wrong_data, &signature).await.unwrap();
+        let is_valid = manager
+            .verify(&key_pair.key_id, wrong_data, &signature)
+            .await
+            .unwrap();
         assert!(!is_valid);
     }
 
@@ -461,7 +491,7 @@ mod tests {
     async fn test_key_exists() {
         let manager = DefaultKeyManagement::new();
         let key_pair = manager.generate_key(KeyType::Ed25519).await.unwrap();
-        
+
         assert!(manager.key_exists(&key_pair.key_id).await.unwrap());
         assert!(!manager.key_exists("nonexistent").await.unwrap());
     }
@@ -470,7 +500,7 @@ mod tests {
     async fn test_revoke_key() {
         let manager = DefaultKeyManagement::new();
         let key_pair = manager.generate_key(KeyType::Ed25519).await.unwrap();
-        
+
         assert!(manager.key_exists(&key_pair.key_id).await.unwrap());
         manager.revoke_key(&key_pair.key_id).await.unwrap();
         assert!(!manager.key_exists(&key_pair.key_id).await.unwrap());

@@ -413,9 +413,13 @@ impl SafeServiceRegistry {
             while count < MAX_SERVICES_RETURNED && !(*list_ptr.add(count)).is_null() {
                 count += 1;
             }
-            
+
             if count >= MAX_SERVICES_RETURNED {
-                tracing::warn!("Service list exceeded maximum: {} >= {}", count, MAX_SERVICES_RETURNED);
+                tracing::warn!(
+                    "Service list exceeded maximum: {} >= {}",
+                    count,
+                    MAX_SERVICES_RETURNED
+                );
                 return Err(AbiError::ResourceExhausted(
                     "Service list too large".to_string(),
                 ));
@@ -602,9 +606,13 @@ impl SafeRpcService {
             while count < MAX_SERVICES_RETURNED && !(*list_ptr.add(count)).is_null() {
                 count += 1;
             }
-            
+
             if count >= MAX_SERVICES_RETURNED {
-                tracing::warn!("RPC service list exceeded maximum: {} >= {}", count, MAX_SERVICES_RETURNED);
+                tracing::warn!(
+                    "RPC service list exceeded maximum: {} >= {}",
+                    count,
+                    MAX_SERVICES_RETURNED
+                );
                 return Err(AbiError::ResourceExhausted(
                     "RPC service list too large".to_string(),
                 ));
@@ -863,7 +871,7 @@ impl SafeResponseV2 {
                     "Failed to read response body: memory access violation".to_string(),
                 )
             })?;
-            
+
             Some(body_slice.to_vec())
         } else if !resp.body.is_null() || resp.body_len > 0 {
             // RFC-0004-SEC-001: Pointer/length mismatch detection

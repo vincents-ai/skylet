@@ -142,13 +142,13 @@ impl CapabilityInfo {
         if self.data.is_null() {
             return false;
         }
-        
+
         // Validate pointer address (no null or obviously invalid addresses)
         let ptr_addr = self.data as usize;
         if ptr_addr < 0x1000 || ptr_addr == usize::MAX {
             return false;
         }
-        
+
         true
     }
 

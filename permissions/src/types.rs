@@ -22,7 +22,7 @@ impl UserId {
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         Self(s.to_string())
     }
@@ -59,12 +59,12 @@ impl UserIdentity {
             metadata: HashMap::new(),
         }
     }
-    
+
     pub fn with_display_name(mut self, name: impl Into<String>) -> Self {
         self.display_name = Some(name.into());
         self
     }
-    
+
     pub fn with_email(mut self, email: impl Into<String>) -> Self {
         self.email = Some(email.into());
         self
@@ -96,11 +96,11 @@ impl SessionToken {
             tenant_id: None,
         }
     }
-    
+
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
-    
+
     pub fn with_tenant(mut self, tenant_id: TenantId) -> Self {
         self.tenant_id = Some(tenant_id);
         self
@@ -124,12 +124,12 @@ pub struct Session {
 /// JWT-style claims for authorization
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,           // Subject (user_id)
-    pub iss: Option<String>,   // Issuer
-    pub aud: Option<String>,   // Audience
-    pub exp: i64,              // Expiration timestamp
-    pub iat: i64,              // Issued at timestamp
-    pub nbf: Option<i64>,      // Not before timestamp
+    pub sub: String,         // Subject (user_id)
+    pub iss: Option<String>, // Issuer
+    pub aud: Option<String>, // Audience
+    pub exp: i64,            // Expiration timestamp
+    pub iat: i64,            // Issued at timestamp
+    pub nbf: Option<i64>,    // Not before timestamp
     pub custom: HashMap<String, serde_json::Value>,
 }
 
@@ -146,7 +146,7 @@ impl Claims {
             custom: HashMap::new(),
         }
     }
-    
+
     pub fn with_claim(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
         self.custom.insert(key.into(), value);
         self
@@ -166,18 +166,22 @@ pub struct Permission {
 }
 
 impl Permission {
-    pub fn new(namespace: impl Into<String>, resource: impl Into<String>, action: impl Into<String>) -> Self {
+    pub fn new(
+        namespace: impl Into<String>,
+        resource: impl Into<String>,
+        action: impl Into<String>,
+    ) -> Self {
         Self {
             namespace: namespace.into(),
             resource: resource.into(),
             action: action.into(),
         }
     }
-    
+
     pub fn as_str(&self) -> String {
         format!("{}:{}:{}", self.namespace, self.resource, self.action)
     }
-    
+
     pub fn from_str(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() == 3 {
@@ -190,13 +194,13 @@ impl Permission {
             None
         }
     }
-    
+
     /// Check if this permission matches a pattern (wildcards supported)
     pub fn matches(&self, pattern: &Permission) -> bool {
         fn matches_part(value: &str, pattern: &str) -> bool {
             pattern == "*" || value == pattern
         }
-        
+
         matches_part(&self.namespace, &pattern.namespace)
             && matches_part(&self.resource, &pattern.resource)
             && matches_part(&self.action, &pattern.action)
@@ -219,12 +223,12 @@ impl Role {
             permissions: Vec::new(),
         }
     }
-    
+
     pub fn with_permission(mut self, permission: Permission) -> Self {
         self.permissions.push(permission);
         self
     }
-    
+
     pub fn has_permission(&self, permission: &Permission) -> bool {
         self.permissions.iter().any(|p| permission.matches(p))
     }
@@ -242,7 +246,7 @@ impl TenantId {
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         Self(s.to_string())
     }
@@ -306,7 +310,7 @@ impl UserContext {
             metadata: session.user.metadata.clone(),
         }
     }
-    
+
     pub fn has_permission(&self, permission: &Permission) -> bool {
         self.permissions.iter().any(|p| {
             Permission::from_str(p)

@@ -31,7 +31,9 @@ pub enum AbiLoaderError {
     /// RFC-0006: Invalid schema format
     InvalidSchema(String),
     /// RFC-0006: Config validation failed against schema
-    ConfigValidationFailed { errors: Vec<String> },
+    ConfigValidationFailed {
+        errors: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for AbiLoaderError {
@@ -164,7 +166,7 @@ impl AbiV2PluginLoader {
                 .get::<Symbol<PluginInitFnV2>>(b"plugin_init_v2")
                 .map_err(|_| AbiLoaderError::MissingRequiredSymbol("plugin_init_v2".to_string()))?
         };
-let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
+        let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
 
         let shutdown_fn_sym = unsafe {
             library
@@ -173,8 +175,7 @@ let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
                     AbiLoaderError::MissingRequiredSymbol("plugin_shutdown_v2".to_string())
                 })?
         };
-        let shutdown_fn: PluginShutdownFnV2 =
-            unsafe { *(addr_of!(*shutdown_fn_sym) as *const _) };
+        let shutdown_fn: PluginShutdownFnV2 = unsafe { *(addr_of!(*shutdown_fn_sym) as *const _) };
 
         let handle_request_fn_sym = unsafe {
             library
@@ -544,7 +545,10 @@ mod tests {
 
         // Test ConfigValidationFailed display
         let err = AbiLoaderError::ConfigValidationFailed {
-            errors: vec!["missing field 'api_key'".to_string(), "invalid type".to_string()],
+            errors: vec![
+                "missing field 'api_key'".to_string(),
+                "invalid type".to_string(),
+            ],
         };
         let display = err.to_string();
         assert!(display.contains("Config validation failed"));

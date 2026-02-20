@@ -29,25 +29,25 @@ fn get_max_plugins() -> usize {
                 return max;
             }
         }
-        
+
         // Calculate based on system resources
         let num_cpus = num_cpus::get();
         let available_memory = get_available_memory();
-        
+
         // Conservative estimate: allow up to 8 plugins per CPU core
         // and no more than 1 plugin per 512MB of available memory
         let plugins_per_cpu = num_cpus * 8;
         let plugins_per_memory = available_memory / (512 * 1024 * 1024);
         let calculated_max = std::cmp::min(plugins_per_cpu, plugins_per_memory);
-        
+
         // Cap at reasonable limits: minimum 16, maximum 4096
         let final_max = std::cmp::max(16, std::cmp::min(4096, calculated_max));
-        
+
         tracing::error!(
             "Security: Calculated MAX_PLUGINS={} (CPUs: {}, Memory: {}MB, per_cpu: {}, per_memory: {})",
             final_max, num_cpus, available_memory / (1024 * 1024), plugins_per_cpu, plugins_per_memory
         );
-        
+
         final_max
     })
 }

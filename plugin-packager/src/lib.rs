@@ -45,16 +45,16 @@ pub use abi_compat::{
 // Marketplace API client module
 pub mod marketplace;
 pub use marketplace::{
-    MarketplaceClient, MarketplacePlugin, PluginRating, PluginVersionInfo,
-    PublishRequest, PublishResponse, PublishStatus, PublishSignature, RatingDistribution, SearchQuery, SearchResults,
-    SearchSort,
+    MarketplaceClient, MarketplacePlugin, PluginRating, PluginVersionInfo, PublishRequest,
+    PublishResponse, PublishSignature, PublishStatus, RatingDistribution, SearchQuery,
+    SearchResults, SearchSort,
 };
 
 // Plugin signature verification and cryptographic signing module
 pub mod signature;
 pub use signature::{
-    KeyInfo, PluginSignature, SignatureAlgorithm, SignatureAuditLog,
-    SignatureManager, TrustLevel, VerificationResult,
+    KeyInfo, PluginSignature, SignatureAlgorithm, SignatureAuditLog, SignatureManager, TrustLevel,
+    VerificationResult,
 };
 
 // Vulnerability scanning and security auditing module
@@ -74,69 +74,63 @@ pub use validation::{
 pub mod health_check;
 pub use health_check::{
     Architecture, BinaryCompatibility, HealthCheckResult, HealthReport, HealthScore,
-    HealthSeverity, HealthStatus, Platform, PluginHealthChecker, SymbolRequirement,
-    PerformanceBaseline, PerformanceThresholds,
+    HealthSeverity, HealthStatus, PerformanceBaseline, PerformanceThresholds, Platform,
+    PluginHealthChecker, SymbolRequirement,
 };
 
 // Plugin compatibility matrix and analysis module
 pub mod compat_matrix;
 pub use compat_matrix::{
-    AbiCompatibilityEntry, AbiVersion, BreakingChange, CompatibilityAnalysis,
-    CompatibilityLevel, CompatibilityReport, DependencyCompatibility, PlatformArch,
-    PluginCompatibilityMatrix, PlatformSupportEntry,
+    AbiCompatibilityEntry, AbiVersion, BreakingChange, CompatibilityAnalysis, CompatibilityLevel,
+    CompatibilityReport, DependencyCompatibility, PlatformArch, PlatformSupportEntry,
+    PluginCompatibilityMatrix,
 };
 
 // Plugin sandbox verification and security analysis module
 pub mod sandbox;
 pub use sandbox::{
-    Permission, PluginCapability, PluginSandboxVerifier, ResourceLimits,
-    SandboxCheckResult, SandboxRiskLevel, SandboxSeverity, SandboxVerificationReport,
-    SystemCallInfo,
+    Permission, PluginCapability, PluginSandboxVerifier, ResourceLimits, SandboxCheckResult,
+    SandboxRiskLevel, SandboxSeverity, SandboxVerificationReport, SystemCallInfo,
 };
 
 // Dependency tree visualization and graph analysis module
 pub mod dep_tree;
 pub use dep_tree::{
-    CircularDependency, DependencyEdge, DependencyGraph, DependencyMetrics,
-    DependencyNode,
+    CircularDependency, DependencyEdge, DependencyGraph, DependencyMetrics, DependencyNode,
 };
 
 // Plugin composition and meta-package support module
 pub mod composition;
 pub use composition::{
-    BundleMetadata, BundleType, CompositePlugin, CompositionManager,
-    CompositeSize, ConflictResolution, DependencyResolutionResult, PluginBundle,
-    PluginComponent, ValidationResult, VersionConflict,
+    BundleMetadata, BundleType, CompositePlugin, CompositeSize, CompositionManager,
+    ConflictResolution, DependencyResolutionResult, PluginBundle, PluginComponent,
+    ValidationResult, VersionConflict,
 };
 
 // Optional dependencies and feature gates support module
 pub mod optional_deps;
 pub use optional_deps::{
-    ConditionType, DependencyCondition, FeatureGate, OptionalDependency,
-    OptionalDependencyManager, PlatformSpecific,
+    ConditionType, DependencyCondition, FeatureGate, OptionalDependency, OptionalDependencyManager,
+    PlatformSpecific,
 };
 
 // RFC-0003: Plugin artifact extraction with security checks
 pub mod extractor;
-pub use extractor::{
-    extract_artifact, ExtractionResult, ExtractorConfig, PluginExtractor,
-};
+pub use extractor::{extract_artifact, ExtractionResult, ExtractorConfig, PluginExtractor};
 
 // RFC-0003: Cross-platform plugin artifact support
 pub mod platform;
 // Note: Access Platform enum via plugin_packager::platform::Platform
 // to avoid conflict with health_check::Platform
 pub use platform::{
-    ArtifactMetadata, SUPPORTED_ARTIFACT_EXTENSIONS, SUPPORTED_ARTIFACT_FILENAMES,
     get_valid_artifact_filenames, is_valid_artifact_extension, is_valid_artifact_filename,
-    validate_platform_artifact,
+    validate_platform_artifact, ArtifactMetadata, SUPPORTED_ARTIFACT_EXTENSIONS,
+    SUPPORTED_ARTIFACT_FILENAMES,
 };
 
 // RFC-0003: Registry publishing support
 pub mod publish;
-pub use publish::{
-    ArtifactPublisher, ArtifactPublishResult, LocalArtifact, PublishConfig,
-};
+pub use publish::{ArtifactPublishResult, ArtifactPublisher, LocalArtifact, PublishConfig};
 
 #[derive(Deserialize, Debug)]
 pub struct ManifestPackage {
@@ -385,7 +379,11 @@ pub fn pack_dir(src_dir: &Path, out_path: &Path) -> Result<PathBuf> {
 /// ).unwrap();
 /// // Creates: ./dist/my-plugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
 /// ```
-pub fn pack_dir_with_target(src_dir: &Path, output_dir: &Path, target_triple: &str) -> Result<PathBuf> {
+pub fn pack_dir_with_target(
+    src_dir: &Path,
+    output_dir: &Path,
+    target_triple: &str,
+) -> Result<PathBuf> {
     // Ensure manifest exists and get name/version
     let manifest_path = src_dir.join("plugin.toml");
     let manifest = read_manifest(&manifest_path)?;
@@ -400,12 +398,14 @@ pub fn pack_dir_with_target(src_dir: &Path, output_dir: &Path, target_triple: &s
     };
 
     // Validate target triple
-    let _platform = crate::platform::Platform::from_target_triple(target_triple)
-        .ok_or_else(|| anyhow::anyhow!(
-            "Unknown platform in target triple: {}\n\
+    let _platform =
+        crate::platform::Platform::from_target_triple(target_triple).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Unknown platform in target triple: {}\n\
              Supported: linux, windows, apple/darwin",
-            target_triple
-        ))?;
+                target_triple
+            )
+        })?;
 
     // Construct RFC-0003 compliant filename
     let artifact_name = format!("{}-v{}-{}.tar.gz", name, version, target_triple);
@@ -420,8 +420,12 @@ pub fn pack_dir_with_target(src_dir: &Path, output_dir: &Path, target_triple: &s
     pack_dir(src_dir, &out_path)?;
 
     // Verify the artifact name is parseable
-    let _meta = crate::platform::ArtifactMetadata::parse(&artifact_name)
-        .with_context(|| format!("Generated artifact name is not RFC-0003 compliant: {}", artifact_name))?;
+    let _meta = crate::platform::ArtifactMetadata::parse(&artifact_name).with_context(|| {
+        format!(
+            "Generated artifact name is not RFC-0003 compliant: {}",
+            artifact_name
+        )
+    })?;
 
     // Return checksum path
     let checksum_name = format!("{}.sha256", artifact_name);

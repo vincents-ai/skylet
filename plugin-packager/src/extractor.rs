@@ -343,8 +343,8 @@ impl PluginExtractor {
         }
 
         // Extract file with size validation
-        let mut file = File::create(path)
-            .with_context(|| format!("Creating file {}", path.display()))?;
+        let mut file =
+            File::create(path).with_context(|| format!("Creating file {}", path.display()))?;
 
         let mut bytes_written = 0u64;
         let mut buffer = [0u8; 8192];
@@ -411,8 +411,13 @@ impl PluginExtractor {
         }
 
         // Create symlink
-        std::os::unix::fs::symlink(target, link_path)
-            .with_context(|| format!("Creating symlink {} -> {}", link_path.display(), target.display()))?;
+        std::os::unix::fs::symlink(target, link_path).with_context(|| {
+            format!(
+                "Creating symlink {} -> {}",
+                link_path.display(),
+                target.display()
+            )
+        })?;
 
         Ok(())
     }
@@ -511,15 +516,28 @@ abi_version = "2.0""#,
         header.set_size(0);
         header.set_cksum();
         builder
-            .append_data(&mut header, Path::new("test-plugin-1.0.0"), std::io::empty())
+            .append_data(
+                &mut header,
+                Path::new("test-plugin-1.0.0"),
+                std::io::empty(),
+            )
             .unwrap();
 
         // Add files
         for (name, content) in [
-            ("plugin.toml", fs::read_to_string(dir.join("plugin.toml")).unwrap()),
-            ("plugin.so", fs::read_to_string(dir.join("plugin.so")).unwrap()),
+            (
+                "plugin.toml",
+                fs::read_to_string(dir.join("plugin.toml")).unwrap(),
+            ),
+            (
+                "plugin.so",
+                fs::read_to_string(dir.join("plugin.so")).unwrap(),
+            ),
             ("LICENSE", fs::read_to_string(dir.join("LICENSE")).unwrap()),
-            ("README.md", fs::read_to_string(dir.join("README.md")).unwrap()),
+            (
+                "README.md",
+                fs::read_to_string(dir.join("README.md")).unwrap(),
+            ),
         ] {
             let mut header = tar::Header::new_gnu();
             header.set_size(content.len() as u64);
@@ -561,9 +579,7 @@ abi_version = "2.0""#,
         let extractor = PluginExtractor::new(config);
 
         // Should reject path traversal
-        assert!(extractor
-            .validate_path(Path::new("../etc/passwd"))
-            .is_err());
+        assert!(extractor.validate_path(Path::new("../etc/passwd")).is_err());
         assert!(extractor
             .validate_path(Path::new("safe/../../../etc/passwd"))
             .is_err());

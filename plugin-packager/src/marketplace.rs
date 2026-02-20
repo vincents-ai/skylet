@@ -10,7 +10,6 @@
 /// - Retrieving detailed plugin information and ratings
 /// - Managing plugin versions and updates
 /// - Handling authentication and authorization
-
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -220,7 +219,11 @@ impl MarketplaceClient {
     }
 
     /// Get version history for a plugin
-    pub async fn get_versions(&self, plugin_id: &str, limit: u32) -> Result<Vec<PluginVersionInfo>> {
+    pub async fn get_versions(
+        &self,
+        plugin_id: &str,
+        limit: u32,
+    ) -> Result<Vec<PluginVersionInfo>> {
         let url = format!("{}/api/v1/plugins/{}/versions", self.base_url, plugin_id);
 
         let response = self
@@ -284,7 +287,9 @@ impl MarketplaceClient {
                 .json()
                 .await
                 .map_err(|e| anyhow!("Failed to parse publish response: {}", e)),
-            reqwest::StatusCode::UNAUTHORIZED => Err(anyhow!("Authentication required for publishing")),
+            reqwest::StatusCode::UNAUTHORIZED => {
+                Err(anyhow!("Authentication required for publishing"))
+            }
             reqwest::StatusCode::BAD_REQUEST => Err(anyhow!("Invalid publish request")),
             status => Err(anyhow!("Failed to publish plugin with status {}", status)),
         }
@@ -307,14 +312,20 @@ impl MarketplaceClient {
 
         match response.status() {
             reqwest::StatusCode::OK | reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::UNAUTHORIZED => Err(anyhow!("Authentication required for unpublishing")),
+            reqwest::StatusCode::UNAUTHORIZED => {
+                Err(anyhow!("Authentication required for unpublishing"))
+            }
             reqwest::StatusCode::NOT_FOUND => Err(anyhow!("Plugin not found")),
             status => Err(anyhow!("Failed to unpublish plugin with status {}", status)),
         }
     }
 
     /// Get plugins by category
-    pub async fn get_by_category(&self, category: &str, limit: u32) -> Result<Vec<MarketplacePlugin>> {
+    pub async fn get_by_category(
+        &self,
+        category: &str,
+        limit: u32,
+    ) -> Result<Vec<MarketplacePlugin>> {
         let query = SearchQuery {
             query: None,
             category: Some(category.to_string()),
@@ -375,8 +386,10 @@ mod tests {
 
     #[test]
     fn test_marketplace_client_with_auth() {
-        let client =
-            MarketplaceClient::with_auth("https://marketplace.example.com".to_string(), "token123".to_string());
+        let client = MarketplaceClient::with_auth(
+            "https://marketplace.example.com".to_string(),
+            "token123".to_string(),
+        );
         assert_eq!(client.base_url, "https://marketplace.example.com");
         assert_eq!(client.auth_token, Some("token123".to_string()));
     }

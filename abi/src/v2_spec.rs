@@ -107,7 +107,10 @@ pub enum DependencyValidationError {
     /// Version range is not valid semver syntax
     InvalidVersionRange { range: String, reason: String },
     /// Service type is invalid
-    InvalidServiceType { service_type: String, reason: String },
+    InvalidServiceType {
+        service_type: String,
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for DependencyValidationError {
@@ -119,7 +122,10 @@ impl std::fmt::Display for DependencyValidationError {
             DependencyValidationError::InvalidVersionRange { range, reason } => {
                 write!(f, "Invalid version range '{}': {}", range, reason)
             }
-            DependencyValidationError::InvalidServiceType { service_type, reason } => {
+            DependencyValidationError::InvalidServiceType {
+                service_type,
+                reason,
+            } => {
                 write!(f, "Invalid service type '{}': {}", service_type, reason)
             }
         }
@@ -221,8 +227,9 @@ impl DependencyInfo {
                         {
                             return Err(DependencyValidationError::InvalidServiceType {
                                 service_type: type_str.to_string(),
-                                reason: "service_type must be lowercase with hyphens or underscores"
-                                    .to_string(),
+                                reason:
+                                    "service_type must be lowercase with hyphens or underscores"
+                                        .to_string(),
                             });
                         }
                     }
@@ -252,11 +259,11 @@ pub struct DependencyInfoValidated {
 impl DependencyInfoValidated {
     /// Check if a given version satisfies this dependency's version range
     pub fn version_satisfies(&self, version: &str) -> bool {
-        let version_req = match crate::dependencies::constraints::VersionReq::parse(&self.version_range)
-        {
-            Ok(req) => req,
-            Err(_) => return false,
-        };
+        let version_req =
+            match crate::dependencies::constraints::VersionReq::parse(&self.version_range) {
+                Ok(req) => req,
+                Err(_) => return false,
+            };
         let ver = match crate::dependencies::version::Version::parse(version) {
             Ok(v) => v,
             Err(_) => return false,
@@ -1147,7 +1154,7 @@ impl PluginContextV2Builder {
     }
 
     /// Set the HTTP router service (RFC-0019)
-    /// 
+    ///
     /// Allows plugins to register their own REST API endpoints dynamically.
     pub fn http_router(mut self, router: *const crate::http::HttpRouterV2) -> Self {
         self.http_router = Some(router);
@@ -1256,7 +1263,8 @@ mod tests {
     fn test_config_schema_fn_signature() {
         // Define a mock function that returns a static schema string
         extern "C" fn mock_get_config_schema() -> *const c_char {
-            static SCHEMA: &str = r#"{"type":"object","properties":{"enabled":{"type":"boolean"}}}"#;
+            static SCHEMA: &str =
+                r#"{"type":"object","properties":{"enabled":{"type":"boolean"}}}"#;
             SCHEMA.as_ptr() as *const c_char
         }
 
@@ -1388,10 +1396,7 @@ mod tests {
         };
 
         let err = dep.validate().expect_err("should fail with null name");
-        assert!(matches!(
-            err,
-            DependencyValidationError::InvalidName { .. }
-        ));
+        assert!(matches!(err, DependencyValidationError::InvalidName { .. }));
     }
 
     #[test]
@@ -1406,7 +1411,9 @@ mod tests {
             service_type: std::ptr::null(),
         };
 
-        let err = dep.validate().expect_err("should fail with invalid version range");
+        let err = dep
+            .validate()
+            .expect_err("should fail with invalid version range");
         assert!(matches!(
             err,
             DependencyValidationError::InvalidVersionRange { .. }
@@ -1425,11 +1432,10 @@ mod tests {
             service_type: std::ptr::null(),
         };
 
-        let err = dep.validate().expect_err("should fail with invalid name chars");
-        assert!(matches!(
-            err,
-            DependencyValidationError::InvalidName { .. }
-        ));
+        let err = dep
+            .validate()
+            .expect_err("should fail with invalid name chars");
+        assert!(matches!(err, DependencyValidationError::InvalidName { .. }));
     }
 
     #[test]
@@ -1523,8 +1529,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_distributed_register() {
-        let cluster =
-            ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
 
         // Register service on local node
         let service = ClusterService::new(
@@ -1549,14 +1554,8 @@ mod tests {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
 
         // Register a service
-        let service = ClusterService::new(
-            "service-1",
-            "database",
-            "1.0",
-            "node-1",
-            "localhost",
-            5432,
-        );
+        let service =
+            ClusterService::new("service-1", "database", "1.0", "node-1", "localhost", 5432);
         let _ = cluster.register_service(service).await;
 
         // Lookup should succeed

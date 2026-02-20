@@ -3432,7 +3432,9 @@ mod tests {
 
         // Use registry to get the in-memory backend
         let registry = crate::audit::DefaultAuditRegistry::with_defaults().unwrap();
-        let backend = registry.get("memory").expect("memory backend should be registered");
+        let backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
 
         let event = AuditEvent::new(
             AuditEventType::LoadStarted,
@@ -3461,7 +3463,9 @@ mod tests {
             .and_then(|r| r.with_file_backend(&log_path, 1000))
             .unwrap();
 
-        let backend = registry.get("file").expect("file backend should be registered");
+        let backend = registry
+            .get("file")
+            .expect("file backend should be registered");
 
         let event = AuditEvent::new(
             AuditEventType::LoadSucceeded,
@@ -3486,7 +3490,9 @@ mod tests {
 
         // Use registry to get the in-memory backend
         let registry = crate::audit::DefaultAuditRegistry::with_defaults().unwrap();
-        let backend = registry.get("memory").expect("memory backend should be registered");
+        let backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
 
         let info_event = AuditEvent::new(
             AuditEventType::LoadStarted,
@@ -3526,8 +3532,12 @@ mod tests {
             .and_then(|r| r.with_file_backend(&log_path, 1000))
             .unwrap();
 
-        let mem_backend = registry.get("memory").expect("memory backend should be registered");
-        let file_backend = registry.get("file").expect("file backend should be registered");
+        let mem_backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
+        let file_backend = registry
+            .get("file")
+            .expect("file backend should be registered");
 
         // Write to both
         let event = AuditEvent::new(
@@ -3541,12 +3551,12 @@ mod tests {
         file_backend.write(&event).await.unwrap();
 
         // Verify both have the event
-         let filter = crate::audit::AuditLogFilter::new();
-         assert_eq!(mem_backend.read(&filter).await.unwrap().len(), 1);
-         assert_eq!(file_backend.read(&filter).await.unwrap().len(), 1);
+        let filter = crate::audit::AuditLogFilter::new();
+        assert_eq!(mem_backend.read(&filter).await.unwrap().len(), 1);
+        assert_eq!(file_backend.read(&filter).await.unwrap().len(), 1);
 
-         let _ = std::fs::remove_file(&log_path);
-     }
+        let _ = std::fs::remove_file(&log_path);
+    }
 
     #[tokio::test]
     async fn test_audit_log_plugin_backend_provider_integration() {
@@ -3626,7 +3636,9 @@ mod tests {
         // Verify event sequence
         assert_eq!(logged_events[0].event_type, AuditEventType::LoadStarted);
         assert_eq!(logged_events[1].event_type, AuditEventType::LoadSucceeded);
-        assert_eq!(logged_events[2].event_type, AuditEventType::RecoverySucceeded);
+        assert_eq!(
+            logged_events[2].event_type,
+            AuditEventType::RecoverySucceeded
+        );
     }
 }
-
