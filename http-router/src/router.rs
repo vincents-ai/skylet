@@ -316,7 +316,7 @@ mod tests {
             router.register_route(RouteConfig {
                 method: method.clone(),
                 path: "/api/resource".to_string(),
-                handler: create_test_handler(200 + i as u32),
+                handler: create_test_handler(200 + i as i32),
                 description: None,
             });
         }
