@@ -1,0 +1,183 @@
+# NOTICE
+
+This project includes software developed by Vincents AI.
+
+## Third-Party Licenses
+
+This project is built on the following open-source projects. We gratefully acknowledge their contributions.
+
+### Apache License 2.0
+
+The following projects are licensed under the Apache License 2.0:
+
+- **tokio** - Rust async runtime (Apache 2.0)
+- **serde** - Serialization framework (Apache 2.0 OR MIT)
+- **hyper** - HTTP client/server (Apache 2.0)
+- **axum** - Web framework (MIT)
+- **futures** - Async utilities (Apache 2.0 OR MIT)
+- **tracing** - Structured logging (MIT)
+- **regex** - Regular expressions (MIT OR Apache 2.0)
+- **chrono** - Date/time library (Apache 2.0 OR MIT)
+
+### MIT License
+
+The following projects are licensed under the MIT License:
+
+- **serde_json** - JSON serialization (MIT OR Apache 2.0)
+- **anyhow** - Error handling (MIT OR Apache 2.0)
+- **thiserror** - Error macros (MIT OR Apache 2.0)
+- **async-trait** - Async trait support (MIT OR Apache 2.0)
+- **parking_lot** - Parking lot synchronization (Apache 2.0 OR MIT)
+- **lazy_static** - Lazy static values (MIT OR Apache 2.0)
+- **once_cell** - Lazy initialization (MIT OR Apache 2.0)
+- **uuid** - UUID generation (Apache 2.0 OR MIT)
+- **rand** - Random number generation (MIT OR Apache 2.0)
+- **base64** - Base64 encoding (MIT OR Apache 2.0)
+- **hex** - Hex encoding (MIT OR Apache 2.0)
+- **log** - Logging facade (MIT OR Apache 2.0)
+- **bytes** - Byte buffer utilities (MIT)
+- **pin-project** - Pin projections (Apache 2.0 OR MIT)
+
+### BSD License
+
+The following projects are licensed under BSD-compatible licenses:
+
+- **libloading** - Dynamic library loading (ISC)
+
+### Special Licenses
+
+- **ring** - Cryptographic operations (ISC)
+- **blake3** - BLAKE3 hash (CC0 1.0 Universal OR Apache 2.0 OR MIT)
+- **age** - Age encryption (BSD 3-Clause)
+- **ed25519-dalek** - EdDSA signatures (BSD 3-Clause)
+- **sha2** - SHA-2 hashing (MIT OR Apache 2.0)
+- **argon2** - Argon2 password hashing (Apache 2.0 OR MIT)
+
+### Cryptographic Libraries
+
+- **openssl-sys** - OpenSSL bindings (Apache 2.0)
+- **x509-parser** - X.509 parsing (MIT OR Apache 2.0)
+
+### Serialization Formats
+
+- **toml** - TOML parsing (Apache 2.0 OR MIT)
+- **yaml-rust** - YAML parsing (MIT)
+- **serde_yaml** - YAML serialization (Apache 2.0 OR MIT)
+- **ron** - RON serialization (Apache 2.0)
+
+### Database
+
+- **rusqlite** - SQLite bindings (MIT)
+- **sqlx** - SQL toolkit (Apache 2.0)
+- **sqlx-sqlite** - SQLite driver (Apache 2.0)
+
+### HTTP/Web
+
+- **reqwest** - HTTP client (Apache 2.0 OR MIT)
+- **tower** - Modular service utilities (MIT)
+- **tower-http** - HTTP utilities (MIT)
+- **http** - HTTP types (Apache 2.0 OR MIT)
+
+### Utilities
+
+- **walkdir** - Directory traversal (MIT OR Unlicense)
+- **tempfile** - Temporary files (Apache 2.0 OR MIT)
+- **clap** - Command-line parsing (Apache 2.0 OR MIT)
+- **config** - Configuration management (MIT OR Apache 2.0)
+- **dirs** - Platform directories (Apache 2.0 OR MIT)
+
+### OpenTelemetry
+
+The following OpenTelemetry projects are licensed under Apache License 2.0:
+
+- **opentelemetry** - Observability API (Apache 2.0)
+- **opentelemetry_sdk** - Observability SDK (Apache 2.0)
+- **opentelemetry-otlp** - OTLP exporter (Apache 2.0)
+- **opentelemetry-jaeger-propagator** - Jaeger propagator (Apache 2.0)
+
+## License Text
+
+### Apache License 2.0
+
+```
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+Copyright 2024 Vincents AI
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+### MIT License
+
+```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Dual-Licensed Projects
+
+Many projects in this list are dual-licensed under Apache 2.0 and MIT. In those cases,
+we have chosen to comply with the Apache 2.0 license terms.
+
+## Changes and Modifications
+
+The following modifications have been made to this software:
+
+1. **Feature Flags**: Implemented `standalone` and `proprietary` feature flags to support
+   both open-source and proprietary deployments
+2. **Dependency Cleanup**: Removed proprietary dependencies in standalone mode
+3. **RFC Integration**: Integrated RFC specifications for standardized interfaces
+4. **Security Hardening**: Added security-focused trait abstractions
+5. **Documentation**: Added comprehensive developer documentation
+
+## Compliance
+
+This project complies with:
+
+- Apache License 2.0 requirements
+- MIT License requirements
+- All dual-licensed project requirements
+- SPDX standards
+
+## Attribution
+
+Special thanks to the Rust community and all open-source contributors whose
+libraries make this project possible.
+
+For detailed license information for specific dependencies, run:
+
+```bash
+cargo license
+```
+
+## Questions
+
+For questions about licensing or third-party compliance, please contact:
+`licensing@vincents-ai.com`

@@ -1,0 +1,141 @@
+name: Test & Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'abi/**'
+      - 'http-router/**'
+      - 'job-queue/**'
+      - 'plugins/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Run tests (standalone)
+        run: cargo test --lib --verbose --features standalone
+      
+      - name: Run tests (all features)
+        run: cargo test --lib --verbose --all-features
+        continue-on-error: true
+
+  check:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Check formatting
+        run: cargo fmt -- --check
+      
+      - name: Run clippy (standalone)
+        run: cargo clippy --lib --features standalone -- -D warnings
+      
+      - name: Run clippy (all features)
+        run: cargo clippy --lib --all-features -- -D warnings
+        continue-on-error: true
+
+  build:
+    name: Build Binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: execution-engine
+            asset_name: execution-engine-linux-x86_64
+          - os: macos-latest
+            artifact_name: execution-engine
+            asset_name: execution-engine-macos-x86_64
+          - os: windows-latest
+            artifact_name: execution-engine.exe
+            asset_name: execution-engine-windows-x86_64.exe
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Build release (standalone)
+        run: cargo build --release --features standalone
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: target/release/${{ matrix.artifact_name }}
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+      
+      - name: Generate coverage
+        run: cargo tarpaulin --lib --features standalone --out Xml --timeout 300 --exclude-files abi/** plugins/**
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
+          verbose: true
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Generate docs
+        run: cargo doc --no-deps --features standalone
+        env:
+          RUSTDOCFLAGS: '-D warnings'

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skynet.dev/schemas/rfc0018-log-event.json",
+  "title": "RFC-0018 Log Event",
+  "description": "Structured log event schema for Skynet distributed tracing",
+  "type": "object",
+  "required": ["timestamp", "level", "message"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with microsecond precision",
+      "examples": ["2024-02-03T14:25:30.123456Z"]
+    },
+    "level": {
+      "type": "string",
+      "enum": ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"],
+      "description": "Log severity level"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable log message",
+      "minLength": 1
+    },
+    "plugin_id": {
+      "type": "string",
+      "description": "Name of the plugin that generated this log event"
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "Distributed tracing trace ID for request correlation",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "description": "Distributed tracing span ID for nested operation tracking",
+      "pattern": "^[a-f0-9]{16}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation ID for linking related events across plugins"
+    },
+    "parent_span_id": {
+      "type": "string",
+      "description": "Parent span ID for span hierarchy"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional structured key-value data",
+      "additionalProperties": true
+    },
+    "error": {
+      "type": "object",
+      "description": "Error information if this is an error log",
+      "properties": {
+        "error_type": {"type": "string"},
+        "message": {"type": "string"},
+        "stack_trace": {"type": "string"},
+        "code": {"type": "string"},
+        "cause": {"$ref": "#/properties/error"}
+      },
+      "required": ["error_type", "message"]
+    },
+    "source": {
+      "type": "object",
+      "description": "Source code location for debugging",
+      "properties": {
+        "file": {"type": "string"},
+        "line": {"type": "integer", "minimum": 1},
+        "function": {"type": "string"},
+        "module": {"type": "string"}
+      },
+      "required": ["file", "line"]
+    },
+    "request": {
+      "type": "object",
+      "description": "Request context for HTTP and API operations",
+      "properties": {
+        "method": {"type": "string"},
+        "path": {"type": "string"},
+        "request_id": {"type": "string"},
+        "user_id": {"type": "string"},
+        "client_ip": {"type": "string"},
+        "user_agent": {"type": "string"}
+      },
+      "required": ["method", "path"]
+    }
+  }
+}

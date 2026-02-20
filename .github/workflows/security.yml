@@ -1,0 +1,52 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  push:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: rustsec/audit-check-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deny:
+    name: Check Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+      
+      - name: Check dependencies
+        run: cargo deny check
+
+  licenses:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-license
+        run: cargo install cargo-license
+      
+      - name: Check licenses
+        run: |
+          cargo license --json | \
+          jq '.[] | select(.license != "Apache-2.0" and .license != "MIT" and .license != "Apache-2.0 OR MIT") | .name' | \
+          grep . && exit 1 || echo "All licenses OK"
