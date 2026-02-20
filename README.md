@@ -61,7 +61,7 @@ Perfect for building:
 - **Testing Support**: Unit and integration test examples
 - **Performance Tools**: Profiling and benchmarking guidance
 
-### Production Ready
+### Runtime Features
 - **Async/Await**: Tokio-based async runtime
 - **Distributed Tracing**: OpenTelemetry integration (optional)
 - **Observability**: Structured logging with correlation IDs

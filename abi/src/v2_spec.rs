@@ -4,7 +4,7 @@
 /// ABI Version 2.0 Specification - RFC-0004
 ///
 /// This module provides the complete ABI v2.0 specification with all
-/// required data structures and function signatures for production-ready
+/// required data structures and function signatures for stable
 /// plugin development. It includes:
 ///
 /// - Complete PluginContextV2 with all required services

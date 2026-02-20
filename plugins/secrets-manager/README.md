@@ -1,7 +1,7 @@
 Secrets Manager Plugin
 ======================
 
-A secure, production-ready secrets management service for Skylet that provides safe handling, storage, and injection of sensitive credentials into workflow execution environments.
+A secure secrets management service for Skylet that provides safe handling, storage, and injection of sensitive credentials into workflow execution environments.
 
 Features
 --------

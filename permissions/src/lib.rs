@@ -12,7 +12,7 @@
 //!
 //! ## V2 ABI Implementation
 //!
-//! This plugin implements RFC-0004 v2 ABI from the start (production-ready).
+//! This plugin implements RFC-0004 v2 ABI.
 //!
 //! ## HTTP Endpoints (GAP-003)
 //!

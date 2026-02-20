@@ -12,7 +12,7 @@
 //! ## Migration to v2 ABI
 //!
 //! This plugin has been migrated from v1 ABI (manual C string handling, unsafe static mut)
-//! to v2 ABI (RFC-0004 Phase 1 - production-ready).
+//! to v2 ABI (RFC-0004 Phase 1).
 //!
 //! ### Changes:
 //! - Removed v1 ABI functions (plugin_init, plugin_shutdown, plugin_get_info)

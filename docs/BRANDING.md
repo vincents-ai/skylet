@@ -114,11 +114,11 @@ Use when space allows for branded header
 ### Taglines
 - "Secure plugin runtime for autonomous agents and microservices"
 - "Extensible execution engine for microservices"
-- "Open-source, production-ready plugins"
+- "Open-source, battle-tested plugins"
 
 ### Key Messages
 1. **ABI Stability**: "v2.0.0 frozen, no breaking changes until v3.0"
-2. **Production Ready**: "1,079+ tests, zero warnings, v0.5.0 beta"
+2. **Well Tested**: "1,079+ tests, zero warnings, v0.5.0 beta"
 3. **Open Source**: "Apache 2.0, standalone mode, zero proprietary deps"
 4. **Performance**: "Async/await, efficient job queue, hot reload"
 

@@ -389,9 +389,7 @@ impl ABIValidator {
 
         // Validate maturity level
         if info.maturity_level == MaturityLevel::Alpha {
-            result.add_warning(
-                "Plugin is marked as alpha. It may not be production-ready.".to_string(),
-            );
+            result.add_warning("Plugin is marked as alpha. It may not be stable.".to_string());
         } else if info.maturity_level == MaturityLevel::Deprecated {
             result.add_error("Plugin is marked as deprecated.".to_string());
         }
