@@ -927,12 +927,17 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
 /// Manager for rotation policies across secrets
 pub struct RotationManager {
     backend: Arc<dyn VersionedSecretBackend>,
-    default_policy: RotationPolicyConfig,
+    default_policy: std::sync::RwLock<RotationPolicyConfig>,
 }
 
 impl RotationManager {
     pub fn new(backend: Arc<dyn VersionedSecretBackend>, default_policy: RotationPolicyConfig) -> Self {
-        Self { backend, default_policy }
+        Self { backend, default_policy: std::sync::RwLock::new(default_policy) }
+    }
+    
+    /// Create a new RotationManager with the given backend and default rotation policy
+    pub fn with_backend(backend: Arc<dyn VersionedSecretBackend>) -> Self {
+        Self::new(backend, RotationPolicyConfig::default())
     }
     
     pub fn get_policy(&self, key: &str) -> Result<RotationPolicyConfig> {
@@ -946,20 +951,35 @@ impl RotationManager {
     }
     
     pub fn remove_policy(&self, key: &str) -> Result<()> {
-        self.backend.update_rotation_policy(key, self.default_policy.clone())
+        let default = self.default_policy.read()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
+        self.backend.update_rotation_policy(key, default.clone())
     }
     
-    pub fn get_default_policy(&self) -> &RotationPolicyConfig {
-        &self.default_policy
+    pub fn get_default_policy(&self) -> RotationPolicyConfig {
+        self.default_policy.read()
+            .map(|p| p.clone())
+            .unwrap_or_default()
+    }
+    
+    /// Set the default rotation policy for new secrets
+    pub fn set_default_policy(&mut self, policy: RotationPolicyConfig) -> Result<()> {
+        policy.validate()?;
+        let mut default = self.default_policy.write()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
+        *default = policy;
+        Ok(())
     }
     
     pub fn list_custom_policies(&self) -> Result<Vec<String>> {
         let all_keys = self.backend.list("")?;
         let mut custom_keys = Vec::new();
+        let default = self.default_policy.read()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
         
         for key in all_keys {
             if let Ok(meta) = self.backend.get_metadata(&key) {
-                if meta.rotation_policy != self.default_policy {
+                if meta.rotation_policy != *default {
                     custom_keys.push(key);
                 }
             }
@@ -980,6 +1000,41 @@ impl RotationManager {
             .unwrap_or_default()
             .as_secs();
         Ok(check_rotation_eligibility(&metadata, now))
+    }
+    
+    /// Get all secrets that need rotation based on their policies
+    pub fn get_secrets_needing_rotation(&self) -> Result<Vec<String>> {
+        let all_keys = self.backend.list("")?;
+        let mut needing_rotation = Vec::new();
+        
+        for key in all_keys {
+            if let Ok(Some(eligibility)) = self.check_rotation_eligibility(&key) {
+                match eligibility {
+                    RotationEligibility::Forced { .. } | RotationEligibility::Scheduled { .. } => {
+                        needing_rotation.push(key);
+                    }
+                    RotationEligibility::Warning { .. } => {
+                        // Warnings don't trigger automatic rotation
+                    }
+                }
+            }
+        }
+        
+        Ok(needing_rotation)
+    }
+    
+    /// Rotate all secrets that need rotation and return the count of rotated secrets
+    pub fn rotate_needing_secrets(&self) -> Result<u32> {
+        let needing = self.get_secrets_needing_rotation()?;
+        let mut count = 0u32;
+        
+        for key in needing {
+            if self.rotate_secret(&key, Some("auto-rotation"), Some("rotation_manager")).is_ok() {
+                count += 1;
+            }
+        }
+        
+        Ok(count)
     }
 }
 // Rotation Scheduler
@@ -2412,7 +2467,7 @@ fn log_info(message: &str) {
         let default_policy = RotationPolicyConfig::default();
         let manager = RotationManager::new(backend.clone(), default_policy.clone());
         
-        assert_eq!(manager.get_default_policy(), &default_policy);
+        assert_eq!(manager.get_default_policy(), default_policy);
     }
 
     #[test]
@@ -2420,7 +2475,7 @@ fn log_info(message: &str) {
         let backend = Arc::new(VersionedInMemoryBackend::new());
         let manager = RotationManager::with_backend(backend.clone());
         
-        assert_eq!(manager.get_default_policy(), &RotationPolicyConfig::default());
+        assert_eq!(manager.get_default_policy(), RotationPolicyConfig::default());
     }
 
     #[test]
@@ -2488,7 +2543,7 @@ fn log_info(message: &str) {
         };
         manager.set_default_policy(new_default.clone()).unwrap();
         
-        assert_eq!(manager.get_default_policy(), &new_default);
+        assert_eq!(manager.get_default_policy(), new_default);
     }
 
     #[test]
