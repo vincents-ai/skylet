@@ -7,7 +7,6 @@
 mod v2_ffi;
 
 use anyhow::{anyhow, Result};
-use chrono;
 use serde::{Deserialize, Serialize};
 use skylet_abi::audit::{
     AuditEvent, AuditEventType, AuditPluginRegistry, AuditSeverity, DefaultAuditRegistry,
@@ -88,15 +87,17 @@ impl SecretValue {
     pub fn as_str(&self) -> &str {
         &self.value
     }
-
-    pub fn to_string(&self) -> String {
-        self.value.clone()
-    }
 }
 
 impl Drop for SecretValue {
     fn drop(&mut self) {
         self.value.zeroize();
+    }
+}
+
+impl std::fmt::Display for SecretValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -408,11 +409,11 @@ impl RotationPolicyConfig {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
 
-        Self::from_str(&content)
+        Self::parse(&content)
     }
 
     /// Parse configuration from TOML string
-    pub fn from_str(content: &str) -> Result<Self> {
+    pub fn parse(content: &str) -> Result<Self> {
         let config: RotationPolicyConfig =
             toml::from_str(content).map_err(|e| anyhow!("Failed to parse configuration: {}", e))?;
 
@@ -1768,7 +1769,11 @@ impl NotificationHookManager {
     }
 }
 
-/// Global notification hook manager
+impl Default for NotificationHookManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Start audit flush background task
 fn start_audit_flush_task() {
@@ -2317,6 +2322,7 @@ extern "C" fn secrets_free_list(ptr: *mut SecretListResult) {
 
 #[no_mangle]
 #[allow(static_mut_refs)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
     if context.is_null() {
         return PluginResult::Error;
@@ -2394,7 +2400,7 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 max_resources: ptr::null(),
 
                 // Tags and categorization
-                tags: tags_ptrs.as_ptr() as *const *const c_char,
+                tags: tags_ptrs.as_ptr(),
                 num_tags: 3,
                 category: PluginCategory::Security, // Security category for secrets
 
@@ -2910,7 +2916,7 @@ max_age_days = 180
 key_overlap_days = 14
         "#;
 
-        let config = RotationPolicyConfig::from_str(toml_str).unwrap();
+        let config = RotationPolicyConfig::parse(toml_str).unwrap();
         assert_eq!(config.interval_days, 55);
         assert_eq!(config.auto_rotate_days, 60);
         assert_eq!(config.rotation_window_hours, 6);
@@ -2947,7 +2953,7 @@ key_overlap_days = 14
         };
 
         let toml_str = original.to_toml_string().unwrap();
-        let restored = RotationPolicyConfig::from_str(&toml_str).unwrap();
+        let restored = RotationPolicyConfig::parse(&toml_str).unwrap();
 
         assert_eq!(original.interval_days, restored.interval_days);
         assert_eq!(original.auto_rotate_days, restored.auto_rotate_days);
