@@ -65,6 +65,12 @@ impl LoggingService {
     }
 }
 
+impl Default for LoggingService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Create structured log event in RFC-0018 format
 fn create_log_event(level: &str, message: &str, plugin_name: Option<&str>) -> String {
     let mut map = serde_json::Map::new();
@@ -82,6 +88,7 @@ fn create_log_event(level: &str, message: &str, plugin_name: Option<&str>) -> St
 
 /// V2 entry points
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -218,6 +225,7 @@ pub extern "C" fn plugin_health_check_v2(_context: *const PluginContextV2) -> He
 
 /// Health check
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const c_char,
