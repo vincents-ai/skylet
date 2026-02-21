@@ -179,7 +179,7 @@ impl ConfigManager {
         let mut values = self.values.write().unwrap();
         values
             .entry(plugin_name.to_string())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(key.to_string(), value);
 
         Ok(())

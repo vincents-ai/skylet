@@ -470,7 +470,7 @@ impl PerformanceMetrics {
             0.0
         };
 
-        let avg_stage_time = if result.stages.len() > 0 {
+        let avg_stage_time = if !result.stages.is_empty() {
             result.total_ms as f64 / result.stages.len() as f64
         } else {
             0.0

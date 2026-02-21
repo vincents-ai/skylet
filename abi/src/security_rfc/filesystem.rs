@@ -74,7 +74,7 @@ impl FilesystemEnforcer {
         let mut perms = self.permissions.write().unwrap();
         perms
             .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(permission);
     }
 

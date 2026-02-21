@@ -143,7 +143,7 @@ impl SecretResolver {
         if reference.cache && self.caching_enabled {
             let ttl = reference
                 .cache_ttl_seconds
-                .map(|s| Duration::from_secs(s))
+                .map(Duration::from_secs)
                 .unwrap_or(self.default_ttl);
 
             let mut cache = self.cache.write().unwrap();
@@ -246,6 +246,12 @@ impl EnvSecretBackend {
     }
 }
 
+impl Default for EnvSecretBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SecretResolverBackend for EnvSecretBackend {
     fn resolve(&self, path: &str, _key: Option<&str>) -> Result<String, SecretError> {
         std::env::var(path).map_err(|_| SecretError::SecretNotFound {
@@ -269,7 +275,15 @@ impl FileSecretBackend {
             base_path: std::path::PathBuf::from("./secrets"),
         }
     }
+}
 
+impl Default for FileSecretBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileSecretBackend {
     pub fn with_base_path(path: impl Into<std::path::PathBuf>) -> Self {
         Self {
             base_path: path.into(),

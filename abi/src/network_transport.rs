@@ -459,7 +459,7 @@ impl OverlayTransportType {
     }
 
     /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "libp2p" => Some(Self::Libp2p),
             "tor" => Some(Self::Tor),
@@ -528,7 +528,7 @@ mod tests {
 
         for t in types {
             let s = t.as_str();
-            let parsed = OverlayTransportType::from_str(s);
+            let parsed = OverlayTransportType::parse(s);
             assert_eq!(parsed, Some(t));
         }
     }

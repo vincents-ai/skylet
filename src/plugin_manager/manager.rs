@@ -1587,7 +1587,7 @@ impl PluginManager {
         // For v2, the tracer is accessible via PluginServices
         // This implementation uses a simplified approach
         // RFC-0003 Phase 3 Issue #8: Bounds check on event name length
-        if name_len > 0 && name_len > Self::MAX_EVENT_NAME_LEN {
+        if name_len > Self::MAX_EVENT_NAME_LEN {
             tracing::warn!(
                 "Event name length exceeds max: {} > {}",
                 name_len,

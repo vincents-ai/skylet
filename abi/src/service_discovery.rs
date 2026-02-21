@@ -183,20 +183,14 @@ impl ServiceDiscovery {
         drop(services);
         {
             let mut iface_idx = self.interface_index.write().unwrap();
-            iface_idx
-                .entry(interface)
-                .or_insert_with(Vec::new)
-                .push(name.clone());
+            iface_idx.entry(interface).or_default().push(name.clone());
         }
 
         // Update capability index
         {
             let mut cap_idx = self.capability_index.write().unwrap();
             for cap in capabilities {
-                cap_idx
-                    .entry(cap)
-                    .or_insert_with(Vec::new)
-                    .push(name.clone());
+                cap_idx.entry(cap).or_default().push(name.clone());
             }
         }
 

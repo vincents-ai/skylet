@@ -71,7 +71,7 @@ pub enum AbiVersion {
 
 impl AbiVersion {
     /// Parse ABI version from string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "1.0" | "1" => AbiVersion::V1,
             "2.0" | "2" => AbiVersion::V2,
@@ -153,7 +153,7 @@ impl AbiV2PluginLoader {
                 .map_err(|e| AbiLoaderError::ValidationFailed(e.to_string()))?
         };
 
-        let abi_version = AbiVersion::from_str(abi_version_str);
+        let abi_version = AbiVersion::parse(abi_version_str);
         if !abi_version.is_supported() {
             return Err(AbiLoaderError::UnsupportedAbiVersion(
                 abi_version_str.to_string(),
@@ -494,10 +494,10 @@ mod tests {
 
     #[test]
     fn test_abi_version_parsing() {
-        assert_eq!(AbiVersion::from_str("2.0"), AbiVersion::V2);
-        assert_eq!(AbiVersion::from_str("1.0"), AbiVersion::V1);
+        assert_eq!(AbiVersion::parse("2.0"), AbiVersion::V2);
+        assert_eq!(AbiVersion::parse("1.0"), AbiVersion::V1);
         assert_eq!(
-            AbiVersion::from_str("3.0"),
+            AbiVersion::parse("3.0"),
             AbiVersion::Unknown("3.0".to_string())
         );
     }

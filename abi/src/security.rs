@@ -41,7 +41,7 @@ fn get_max_plugins() -> usize {
         let calculated_max = std::cmp::min(plugins_per_cpu, plugins_per_memory);
 
         // Cap at reasonable limits: minimum 16, maximum 4096
-        let final_max = std::cmp::max(16, std::cmp::min(4096, calculated_max));
+        let final_max = calculated_max.clamp(16, 4096);
 
         tracing::error!(
             "Security: Calculated MAX_PLUGINS={} (CPUs: {}, Memory: {}MB, per_cpu: {}, per_memory: {})",
@@ -253,19 +253,25 @@ pub unsafe fn validate_plugin_context(context: *const PluginContext) -> Result<(
     let ctx = &*context;
 
     // These can be null, but if not null, they should be properly aligned
-    if !ctx.logger.is_null() && ctx.logger as usize % 8 != 0 {
-        tracing::error!("Security: Misaligned logger pointer");
-        return Err(SecurityError::PointerValidationFailed);
+    if !ctx.logger.is_null() {
+        if ctx.logger as usize % 8 != 0 {
+            tracing::error!("Security: Misaligned logger pointer");
+            return Err(SecurityError::PointerValidationFailed);
+        }
     }
 
-    if !ctx.config.is_null() && ctx.config as usize % 8 != 0 {
-        tracing::error!("Security: Misaligned config pointer");
-        return Err(SecurityError::PointerValidationFailed);
+    if !ctx.config.is_null() {
+        if ctx.config as usize % 8 != 0 {
+            tracing::error!("Security: Misaligned config pointer");
+            return Err(SecurityError::PointerValidationFailed);
+        }
     }
 
-    if !ctx.service_registry.is_null() && ctx.service_registry as usize % 8 != 0 {
-        tracing::error!("Security: Misaligned service registry pointer");
-        return Err(SecurityError::PointerValidationFailed);
+    if !ctx.service_registry.is_null() {
+        if ctx.service_registry as usize % 8 != 0 {
+            tracing::error!("Security: Misaligned service registry pointer");
+            return Err(SecurityError::PointerValidationFailed);
+        }
     }
 
     Ok(())
@@ -337,6 +343,12 @@ pub struct PluginCapacityTracker {
     current_count: std::sync::atomic::AtomicUsize,
     max_local: usize,
     remote_hosts: Vec<String>, // URLs of remote Skylet instances
+}
+
+impl Default for PluginCapacityTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginCapacityTracker {
@@ -418,6 +430,12 @@ pub struct EncryptedSecretStore {
         std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>,
 }
 
+impl Default for EncryptedSecretStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EncryptedSecretStore {
     /// Create a new encrypted secret store with a random master key
     pub fn new() -> Self {
@@ -475,9 +493,7 @@ impl EncryptedSecretStore {
 
         let secrets = self.secrets.lock().unwrap();
 
-        let (ciphertext, nonce_bytes) = secrets
-            .get(name)
-            .ok_or_else(|| SecurityError::NullPointer)?;
+        let (ciphertext, nonce_bytes) = secrets.get(name).ok_or(SecurityError::NullPointer)?;
 
         let key = Key::<Aes256Gcm>::from(self.master_key);
         let nonce = Nonce::from(*nonce_bytes);
@@ -981,7 +997,7 @@ impl PluginSandboxPolicy {
     pub fn restrictive(plugin_id: &str) -> Self {
         Self {
             plugin_id: plugin_id.to_string(),
-            allowed_capabilities: PluginCapabilities::READ_CONFIG as u64,
+            allowed_capabilities: PluginCapabilities::READ_CONFIG,
             max_memory: 128 * 1024 * 1024, // 128MB
             max_cpu_time: 5_000,           // 5 seconds
             max_bandwidth: 1024 * 1024,    // 1 MB/s
@@ -1039,6 +1055,12 @@ pub struct SandboxEnforcer {
         std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, PluginSandboxPolicy>>>,
 }
 
+impl Default for SandboxEnforcer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SandboxEnforcer {
     /// Create a new sandbox enforcer
     pub fn new() -> Self {
@@ -1065,9 +1087,9 @@ impl SandboxEnforcer {
 
         if let Some(policy) = policies.get(plugin_id) {
             let required_cap = if write {
-                PluginCapabilities::FILE_WRITE as u64
+                PluginCapabilities::FILE_WRITE
             } else {
-                PluginCapabilities::FILE_READ as u64
+                PluginCapabilities::FILE_READ
             };
 
             if !policy.has_capability(required_cap) {
@@ -1105,7 +1127,7 @@ impl SandboxEnforcer {
         let policies = self.policies.lock().unwrap();
 
         if let Some(policy) = policies.get(plugin_id) {
-            if !policy.has_capability(PluginCapabilities::NETWORK_OUTBOUND as u64) {
+            if !policy.has_capability(PluginCapabilities::NETWORK_OUTBOUND) {
                 tracing::error!(
                     "Sandbox: Plugin {} denied network access (missing capability)",
                     plugin_id
@@ -2292,9 +2314,7 @@ impl CredentialRotationManager {
             .as_secs();
 
         let mut rotations = self.rotations.lock().unwrap();
-        let history = rotations
-            .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new);
+        let history = rotations.entry(plugin_id.to_string()).or_default();
 
         history.push(RotationHistory {
             plugin_id: plugin_id.to_string(),
@@ -2606,9 +2626,7 @@ impl PluginAuthenticator {
         // Get current version number and create new version
         let new_version = {
             let mut versions = self.credential_versions.lock().unwrap();
-            let current_versions = versions
-                .entry(plugin_id.to_string())
-                .or_insert_with(Vec::new);
+            let current_versions = versions.entry(plugin_id.to_string()).or_default();
 
             let version_num = if current_versions.is_empty() {
                 1
@@ -2620,7 +2638,7 @@ impl PluginAuthenticator {
             let new_cred_version = CredentialVersion::new(version_num, new_credential.clone());
 
             // Mark old version as in grace period
-            if !current_versions.is_empty() && current_versions.len() > 0 {
+            if !current_versions.is_empty() {
                 if let Some(old_v) = current_versions.last_mut() {
                     old_v.status = CredentialStatus::Grace;
                     use std::time::{SystemTime, UNIX_EPOCH};
@@ -3303,6 +3321,12 @@ pub struct MFAManager {
     backup_codes: Arc<BackupCodeProvider>,
 }
 
+impl Default for MFAManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MFAManager {
     /// Create a new MFA manager
     pub fn new() -> Self {
@@ -3340,7 +3364,7 @@ impl MFAManager {
         let mut factors = self.factors.lock().unwrap();
         factors
             .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(factor.clone());
 
         // Register with TOTP provider if applicable
@@ -3500,7 +3524,7 @@ impl KeyAlgorithm {
     }
 
     /// Parse algorithm from string representation
-    pub fn from_str(s: &str) -> Result<KeyAlgorithm, SecurityError> {
+    pub fn parse(s: &str) -> Result<KeyAlgorithm, SecurityError> {
         match s.to_uppercase().as_str() {
             "HS256" => Ok(KeyAlgorithm::HS256),
             "RS256" => Ok(KeyAlgorithm::RS256),
@@ -3541,7 +3565,7 @@ impl std::fmt::Display for KeyUsage {
 
 impl KeyUsage {
     /// Parse usage from string representation
-    pub fn from_str(s: &str) -> Result<KeyUsage, SecurityError> {
+    pub fn parse(s: &str) -> Result<KeyUsage, SecurityError> {
         match s.to_lowercase().as_str() {
             "encryption" => Ok(KeyUsage::Encryption),
             "signing" => Ok(KeyUsage::Signing),
@@ -4556,7 +4580,7 @@ mod tests {
                 .unwrap();
 
             let versions = auth.get_credential_versions(&plugin_id).unwrap();
-            assert!(versions.len() > 0);
+            assert!(!versions.is_empty());
         }
     }
 
@@ -4919,7 +4943,7 @@ mod tests {
         auth.register_mfa_totp("plugin1").unwrap();
 
         let factors = auth.list_mfa_factors("plugin1").unwrap();
-        assert!(factors.len() > 0);
+        assert!(!factors.is_empty());
         assert_eq!(factors[0].method, MFAMethod::TOTP);
     }
 

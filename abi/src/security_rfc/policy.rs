@@ -159,9 +159,9 @@ impl SecurityPolicyEngine {
         let risk_level = self.assess_risk(capability);
 
         // Determine if auto-approval applies
-        let status = if risk_level == RiskLevel::Minimal && self.policy.auto_approve_minimal {
-            ApprovalStatus::AutoApproved
-        } else if risk_level == RiskLevel::Low && self.policy.auto_approve_low {
+        let status = if (risk_level == RiskLevel::Minimal && self.policy.auto_approve_minimal)
+            || (risk_level == RiskLevel::Low && self.policy.auto_approve_low)
+        {
             ApprovalStatus::AutoApproved
         } else {
             ApprovalStatus::Pending
@@ -222,7 +222,7 @@ impl SecurityPolicyEngine {
             let mut approved = self.approved_capabilities.write().unwrap();
             approved
                 .entry(approval.plugin_id.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(approval);
         }
 
@@ -360,7 +360,7 @@ impl SecurityPolicyEngine {
             let mut approved = self.approved_capabilities.write().unwrap();
             approved
                 .entry(approval.plugin_id.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(approval);
         }
 

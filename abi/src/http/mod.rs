@@ -42,7 +42,7 @@ impl fmt::Display for HttpMethod {
 
 impl HttpMethod {
     /// Parse from string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
             "GET" => Some(HttpMethod::Get),
             "POST" => Some(HttpMethod::Post),
@@ -504,10 +504,10 @@ mod tests {
     }
 
     #[test]
-    fn test_http_method_from_str() {
-        assert_eq!(HttpMethod::from_str("GET"), Some(HttpMethod::Get));
-        assert_eq!(HttpMethod::from_str("get"), Some(HttpMethod::Get));
-        assert_eq!(HttpMethod::from_str("Post"), Some(HttpMethod::Post));
-        assert_eq!(HttpMethod::from_str("invalid"), None);
+    fn test_http_method_parse() {
+        assert_eq!(HttpMethod::parse("GET"), Some(HttpMethod::Get));
+        assert_eq!(HttpMethod::parse("get"), Some(HttpMethod::Get));
+        assert_eq!(HttpMethod::parse("Post"), Some(HttpMethod::Post));
+        assert_eq!(HttpMethod::parse("invalid"), None);
     }
 }

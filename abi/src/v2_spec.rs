@@ -162,9 +162,7 @@ impl DependencyInfo {
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
             {
                 return Err(DependencyValidationError::InvalidName {
-                    reason: format!(
-                        "name contains invalid characters (only alphanumeric, hyphens, underscores allowed)"
-                    ),
+                    reason: "name contains invalid characters (only alphanumeric, hyphens, underscores allowed)".to_string(),
                 });
             }
             name_str.into_owned()

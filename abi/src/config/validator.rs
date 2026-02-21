@@ -11,13 +11,14 @@ use super::schema::{
     ConfigField, ConfigFieldType, ConfigSchema, GlobalValidationRule, ValidationRule,
 };
 
+/// Type alias for custom validation functions
+type CustomValidatorFn =
+    Box<dyn Fn(&serde_json::Value) -> Result<(), ValidationError> + Send + Sync>;
+
 /// Configuration validator
 pub struct ConfigValidator {
     /// Custom validation functions
-    custom_validators: HashMap<
-        String,
-        Box<dyn Fn(&serde_json::Value) -> Result<(), ValidationError> + Send + Sync>,
-    >,
+    custom_validators: HashMap<String, CustomValidatorFn>,
 }
 
 impl ConfigValidator {
@@ -50,14 +51,13 @@ impl ConfigValidator {
             let value = values.get(&field.name);
 
             // Check required fields
-            if field.required {
-                if value.is_none() || value.map(|v| is_null_or_empty(v)).unwrap_or(false) {
-                    if field.default.is_none() {
-                        return Err(ValidationError::RequiredFieldMissing {
-                            field: field.name.clone(),
-                        });
-                    }
-                }
+            if field.required
+                && (value.is_none() || value.map(is_null_or_empty).unwrap_or(false))
+                && field.default.is_none()
+            {
+                return Err(ValidationError::RequiredFieldMissing {
+                    field: field.name.clone(),
+                });
             }
 
             // If value is present, validate it
@@ -68,10 +68,10 @@ impl ConfigValidator {
             }
 
             // Check for deprecated fields
-            if value.is_some() && field.deprecated.is_some() {
+            if let Some(deprecation_message) = value.and_then(|_| field.deprecated.as_ref()) {
                 warnings.push(ValidationWarning::DeprecatedField {
                     field: field.name.clone(),
-                    message: field.deprecated.as_ref().unwrap().clone(),
+                    message: deprecation_message.clone(),
                 });
             }
         }
@@ -174,7 +174,7 @@ impl ConfigValidator {
             }
             ConfigFieldType::Port => {
                 if let Some(n) = value.as_u64() {
-                    n >= 1 && n <= 65535
+                    (1..=65535).contains(&n)
                 } else {
                     false
                 }
@@ -321,7 +321,7 @@ impl ConfigValidator {
                 if v1 != v2 {
                     return Err(ValidationError::ConstraintViolation {
                         field: format!("{} / {}", field1, field2),
-                        message: format!("Fields must have the same value"),
+                        message: "Fields must have the same value".to_string(),
                     });
                 }
             }
@@ -363,11 +363,7 @@ impl ConfigValidator {
             } => {
                 if values.get(when_field) == Some(when_value) {
                     for field in then_required {
-                        if values
-                            .get(field)
-                            .map(|v| is_null_or_empty(v))
-                            .unwrap_or(true)
-                        {
+                        if values.get(field).map(is_null_or_empty).unwrap_or(true) {
                             return Err(ValidationError::ConstraintViolation {
                                 field: field.clone(),
                                 message: format!(

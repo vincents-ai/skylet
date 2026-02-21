@@ -2797,10 +2797,8 @@ fn test_rotation_manager_rotate_needing_secrets() {
         .unwrap();
 
     // Rotate all needing secrets (should work even if none meet criteria)
-    let count = manager.rotate_needing_secrets().unwrap();
-
-    // Count should be 0 or more
-    assert!(count == 0 || count >= 0);
+    // The unwrap() validates the call succeeded; count is a u32 so always >= 0
+    let _count = manager.rotate_needing_secrets().unwrap();
 }
 #[cfg(test)]
 mod tests {

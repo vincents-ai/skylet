@@ -1335,7 +1335,7 @@ impl FileAuditLog {
 
             // Write: nonce (12 bytes hex) + ciphertext (hex) on one line
             let encrypted_line =
-                format!("{}:{}", hex::encode(&nonce_bytes), hex::encode(&ciphertext));
+                format!("{}:{}", hex::encode(nonce_bytes), hex::encode(&ciphertext));
 
             writeln!(temp_file, "{}", encrypted_line).map_err(|e| {
                 AuditLogError::IoError(format!("Failed to write encrypted data: {}", e))
@@ -1495,7 +1495,7 @@ impl FileAuditLog {
 
             // Write: nonce (12 bytes hex) + ciphertext (hex) on one line
             let encrypted_line =
-                format!("{}:{}", hex::encode(&nonce_bytes), hex::encode(&ciphertext));
+                format!("{}:{}", hex::encode(nonce_bytes), hex::encode(&ciphertext));
 
             writeln!(temp_file, "{}", encrypted_line).map_err(|e| {
                 AuditLogError::IoError(format!("Failed to write encrypted data: {}", e))
@@ -1633,7 +1633,7 @@ impl FileAuditLog {
                         if let Ok(event) = serde_json::from_str::<AuditEvent>(&line) {
                             // Deduplication: skip if we've seen this event_id
                             if !seen_ids.contains(&event.event_id) {
-                                seen_ids.insert(event.event_id.clone());
+                                seen_ids.insert(event.event_id);
                                 events.push(line);
 
                                 if events.len() >= BATCH_SIZE {
@@ -1773,7 +1773,7 @@ impl FileAuditLog {
                         if let Ok(event) = serde_json::from_str::<AuditEvent>(&line) {
                             // Deduplication: skip if we've seen this event_id
                             if !seen_ids.contains(&event.event_id) {
-                                seen_ids.insert(event.event_id.clone());
+                                seen_ids.insert(event.event_id);
                                 events.push(event);
 
                                 if events.len() >= BATCH_SIZE {
@@ -2771,7 +2771,6 @@ use std::sync::{Arc, Mutex};
 ///
 /// let backend = registry.get("memory");
 /// ```
-
 /// Trait for plugins to register custom audit backends with the registry
 ///
 /// This allows plugins to provide custom backend implementations that integrate
@@ -2835,7 +2834,7 @@ pub trait AuditPluginRegistry: Send + Sync {
 ///
 /// Uses HashMap to store registered backends. Thread-safe via Arc<Mutex<>>.
 /// Suitable for most deployments.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DefaultAuditRegistry {
     backends: Arc<Mutex<HashMap<String, Arc<Box<dyn AuditLogBackend>>>>>,
 }
@@ -2868,12 +2867,6 @@ impl DefaultAuditRegistry {
         let file_log = Box::new(FileAuditLog::new(path, max_memory_lines)?);
         self.register("file", file_log)?;
         Ok(self)
-    }
-}
-
-impl Default for DefaultAuditRegistry {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

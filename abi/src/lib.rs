@@ -774,7 +774,6 @@ impl Plugin {
         }
         (self.init_fn)(context)
     }
-
     /// Safely validate and call the plugin shutdown function with FFI boundary checks
     pub unsafe fn shutdown(&self, context: *const PluginContext) -> PluginResult {
         // Validate plugin context before calling
@@ -832,7 +831,6 @@ impl Plugin {
             tracing::error!("Plugin handle_request: response pointer is null");
             return PluginResult::InvalidRequest;
         }
-
         // Validate request pointer alignment
         if (request as *const _ as usize) % std::mem::align_of::<HttpRequest>() != 0 {
             tracing::error!("Plugin handle_request: misaligned request pointer");
@@ -974,6 +972,12 @@ pub struct NetworkManager {
     overlay_ids: Mutex<HashSet<String>>,
     // map allocated port -> owner id (for tests we store a string)
     owners: Mutex<HashMap<u16, String>>,
+}
+
+impl Default for NetworkManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NetworkManager {
@@ -1191,6 +1195,12 @@ pub struct TypedEventBus {
     inner: Arc<RwLock<HashMap<String, Vec<Subscriber>>>>,
     middlewares: Arc<RwLock<Vec<Arc<dyn Middleware>>>>,
     id_counter: AtomicU64,
+}
+
+impl Default for TypedEventBus {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypedEventBus {

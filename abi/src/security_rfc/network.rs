@@ -79,7 +79,7 @@ impl NetworkEnforcer {
         let mut perms = self.permissions.write().unwrap();
         perms
             .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(pattern);
     }
 
@@ -106,14 +106,11 @@ impl NetworkEnforcer {
 
         // Check global allowed hosts
         for pattern in &self.global_allowed {
-            if host_matches_pattern(host, &pattern.host) {
-                if pattern.ports.is_empty() || pattern.ports.contains(&port) {
-                    if pattern.protocols.is_empty()
-                        || pattern.protocols.iter().any(|p| p == protocol)
-                    {
-                        return Ok(());
-                    }
-                }
+            if host_matches_pattern(host, &pattern.host)
+                && (pattern.ports.is_empty() || pattern.ports.contains(&port))
+                && (pattern.protocols.is_empty() || pattern.protocols.iter().any(|p| p == protocol))
+            {
+                return Ok(());
             }
         }
 
@@ -212,7 +209,7 @@ pub fn host_matches_pattern(host: &str, pattern: &str) -> bool {
     // Wildcard subdomain match (*.example.com)
     if pattern.starts_with("*.") {
         let suffix = &pattern[1..]; // Get ".example.com"
-        return host.ends_with(suffix) || host == &pattern[2..]; // matches sub.example.com or example.com
+        return host.ends_with(suffix) || host == pattern[2..]; // matches sub.example.com or example.com
     }
 
     false
