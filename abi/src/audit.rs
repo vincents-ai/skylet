@@ -2753,6 +2753,9 @@ impl PostgresAuditLog {
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Type alias for the audit backend registry map to reduce type complexity
+type AuditBackendMap = Arc<Mutex<HashMap<String, Arc<Box<dyn AuditLogBackend>>>>>;
+
 /// Plugin-based registry for audit backends
 ///
 /// Enables decoupled architecture where backends are registered at runtime
@@ -2836,7 +2839,7 @@ pub trait AuditPluginRegistry: Send + Sync {
 /// Suitable for most deployments.
 #[derive(Clone, Default)]
 pub struct DefaultAuditRegistry {
-    backends: Arc<Mutex<HashMap<String, Arc<Box<dyn AuditLogBackend>>>>>,
+    backends: AuditBackendMap,
 }
 
 impl DefaultAuditRegistry {

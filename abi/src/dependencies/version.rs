@@ -53,7 +53,7 @@ impl Prerelease {
 
         let identifiers = s
             .split('.')
-            .map(|part| PrereleaseIdentifier::parse(part))
+            .map(PrereleaseIdentifier::parse)
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self { identifiers })

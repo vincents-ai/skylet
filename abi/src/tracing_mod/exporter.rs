@@ -230,7 +230,7 @@ pub struct NoOpExporter;
 impl NoOpExporter {
     /// Create a new no-op exporter
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

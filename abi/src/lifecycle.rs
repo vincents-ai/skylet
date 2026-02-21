@@ -689,7 +689,7 @@ impl PluginLoadPipeline {
     #[allow(dead_code)]
     fn calculate_backoff_delay(&self, retry_count: usize, base_delay_ms: u64) -> u64 {
         // Exponential backoff: 2^retry_count, capped at 2^10 (1024x)
-        let exponential = (base_delay_ms as u64).saturating_mul(1 << (retry_count.min(10)));
+        let exponential = base_delay_ms.saturating_mul(1 << (retry_count.min(10)));
 
         // Add jitter: 0-25% of exponential delay
         // This prevents synchronized retries

@@ -68,7 +68,7 @@ impl ConfigValidator {
             }
 
             // Check for deprecated fields
-            if let Some(deprecation_message) = value.and_then(|_| field.deprecated.as_ref()) {
+            if let Some(deprecation_message) = value.and(field.deprecated.as_ref()) {
                 warnings.push(ValidationWarning::DeprecatedField {
                     field: field.name.clone(),
                     message: deprecation_message.clone(),

@@ -254,7 +254,7 @@ impl SafeLogger {
             (logger.log)(self.context_ptr, level, c_msg.as_ptr())
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 
     /// Log structured data safely
@@ -277,7 +277,7 @@ impl SafeLogger {
             (logger.log_structured)(self.context_ptr, level, c_msg.as_ptr(), c_json.as_ptr())
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 }
 
@@ -407,7 +407,7 @@ impl SafeServiceRegistry {
             (registry.register)(self.context_ptr, c_name.as_ptr(), service, c_type.as_ptr())
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 
     /// Unregister a service
@@ -420,7 +420,7 @@ impl SafeServiceRegistry {
             (registry.unregister)(self.context_ptr, c_name.as_ptr())
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 
     /// List available services
@@ -515,7 +515,7 @@ impl SafeEventBus {
             (event_bus.publish)(self.context_ptr, &event)
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 
     /// Subscribe to an event type
@@ -529,7 +529,7 @@ impl SafeEventBus {
             (event_bus.subscribe)(self.context_ptr, c_type.as_ptr(), Self::default_callback)
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 
     /// Default event callback (placeholder)
@@ -545,7 +545,7 @@ impl SafeEventBus {
             (event_bus.unsubscribe)(self.context_ptr, c_type.as_ptr())
         };
 
-        AbiResult::from(PluginResultV2::from(result))
+        AbiResult::from(result)
     }
 }
 

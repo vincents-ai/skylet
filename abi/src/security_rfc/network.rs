@@ -207,9 +207,10 @@ pub fn host_matches_pattern(host: &str, pattern: &str) -> bool {
     }
 
     // Wildcard subdomain match (*.example.com)
-    if pattern.starts_with("*.") {
-        let suffix = &pattern[1..]; // Get ".example.com"
-        return host.ends_with(suffix) || host == pattern[2..]; // matches sub.example.com or example.com
+    if let Some(suffix) = pattern.strip_prefix('*') {
+        // suffix is ".example.com", pattern[2..] would be "example.com"
+        let base_domain = &pattern[2..];
+        return host.ends_with(suffix) || host == base_domain; // matches sub.example.com or example.com
     }
 
     false

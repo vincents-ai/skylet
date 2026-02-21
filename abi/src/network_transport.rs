@@ -19,10 +19,11 @@ use std::ffi::{c_char, c_void};
 // ============================================================================
 
 /// Supported overlay network transport types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[repr(C)]
 pub enum OverlayTransportType {
     /// libp2p-based P2P mesh network
+    #[default]
     Libp2p,
     /// Tor hidden services
     Tor,
@@ -34,12 +35,6 @@ pub enum OverlayTransportType {
     Veilid,
     /// Custom/proprietary overlay
     Custom,
-}
-
-impl Default for OverlayTransportType {
-    fn default() -> Self {
-        Self::Libp2p
-    }
 }
 
 /// Tunnel configuration for creating encrypted tunnels

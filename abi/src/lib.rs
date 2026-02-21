@@ -718,6 +718,14 @@ pub struct Plugin {
 }
 
 impl Plugin {
+    /// Load a plugin from a shared library.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The path points to a valid, trusted plugin shared library
+    /// - The plugin implements the expected ABI functions
+    /// - The context outlives the Plugin instance
     pub unsafe fn load<P>(path: P, _context: &PluginContext) -> Result<Self, libloading::Error>
     where
         P: AsRef<std::ffi::OsStr>,
@@ -766,6 +774,10 @@ impl Plugin {
     ///
     /// This method validates the context pointer before calling the plugin's init function,
     /// preventing unsafe memory access at the FFI boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the context pointer is valid and properly initialized.
     pub unsafe fn init(&self, context: *const PluginContext) -> PluginResult {
         // Validate plugin context before calling
         if let Err(err) = security::validate_plugin_context(context) {
@@ -775,6 +787,10 @@ impl Plugin {
         (self.init_fn)(context)
     }
     /// Safely validate and call the plugin shutdown function with FFI boundary checks
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the context pointer is valid and properly initialized.
     pub unsafe fn shutdown(&self, context: *const PluginContext) -> PluginResult {
         // Validate plugin context before calling
         if let Err(err) = security::validate_plugin_context(context) {
@@ -784,6 +800,12 @@ impl Plugin {
         (self.shutdown_fn)(context)
     }
 
+    /// Get plugin info from the loaded plugin.
+    ///
+    /// # Safety
+    ///
+    /// The returned pointer is only valid as long as the Plugin instance is alive.
+    /// The caller must not free or modify the returned memory.
     pub unsafe fn get_info(&self) -> *const PluginInfo {
         (self.get_info_fn)()
     }
@@ -798,6 +820,11 @@ impl Plugin {
     /// Returns `None` if the plugin does not export the symbol.
     /// Returns `Some(Err(...))` if the returned JSON is invalid.
     /// Returns `Some(Ok(vec))` on success.
+    ///
+    /// # Safety
+    ///
+    /// The Plugin must remain valid. The returned tool schemas are parsed from
+    /// plugin-provided JSON and should be validated before use.
     pub unsafe fn get_tools(&self) -> Option<Result<Vec<ToolSchema>, String>> {
         let get_fn = self.get_tools_fn?;
         let ptr = (get_fn)();
@@ -821,6 +848,12 @@ impl Plugin {
     ///
     /// This method validates the request pointer and response pointer before calling
     /// the plugin's request handler function, preventing buffer overflow attacks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The request reference is valid
+    /// - The response pointer points to valid, writable memory
     pub unsafe fn handle_request(
         &self,
         request: &HttpRequest,

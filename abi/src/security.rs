@@ -244,7 +244,7 @@ pub unsafe fn validate_plugin_context(context: *const PluginContext) -> Result<(
     }
 
     // Pointer alignment check (should be aligned for the structure)
-    if context as usize % std::mem::align_of::<PluginContext>() != 0 {
+    if !(context as usize).is_multiple_of(std::mem::align_of::<PluginContext>()) {
         tracing::error!("Security: Misaligned plugin context pointer");
         return Err(SecurityError::PointerValidationFailed);
     }
@@ -253,25 +253,19 @@ pub unsafe fn validate_plugin_context(context: *const PluginContext) -> Result<(
     let ctx = &*context;
 
     // These can be null, but if not null, they should be properly aligned
-    if !ctx.logger.is_null() {
-        if ctx.logger as usize % 8 != 0 {
-            tracing::error!("Security: Misaligned logger pointer");
-            return Err(SecurityError::PointerValidationFailed);
-        }
+    if !ctx.logger.is_null() && !(ctx.logger as usize).is_multiple_of(8) {
+        tracing::error!("Security: Misaligned logger pointer");
+        return Err(SecurityError::PointerValidationFailed);
     }
 
-    if !ctx.config.is_null() {
-        if ctx.config as usize % 8 != 0 {
-            tracing::error!("Security: Misaligned config pointer");
-            return Err(SecurityError::PointerValidationFailed);
-        }
+    if !ctx.config.is_null() && !(ctx.config as usize).is_multiple_of(8) {
+        tracing::error!("Security: Misaligned config pointer");
+        return Err(SecurityError::PointerValidationFailed);
     }
 
-    if !ctx.service_registry.is_null() {
-        if ctx.service_registry as usize % 8 != 0 {
-            tracing::error!("Security: Misaligned service registry pointer");
-            return Err(SecurityError::PointerValidationFailed);
-        }
+    if !ctx.service_registry.is_null() && !(ctx.service_registry as usize).is_multiple_of(8) {
+        tracing::error!("Security: Misaligned service registry pointer");
+        return Err(SecurityError::PointerValidationFailed);
     }
 
     Ok(())
@@ -421,13 +415,17 @@ impl PluginCapacityTracker {
 /// Encrypted secret storage with AES-256-GCM
 ///
 /// Provides secure in-memory storage for secrets with automatic encryption/decryption
+
+/// Type alias for encrypted secrets storage: name -> (ciphertext, nonce)
+type EncryptedSecretsMap =
+    std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>;
+
 pub struct EncryptedSecretStore {
     /// Master key for encryption (32 bytes for AES-256)
     master_key: [u8; 32],
 
     /// Encrypted secrets: (name -> (ciphertext, nonce))
-    secrets:
-        std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>,
+    secrets: EncryptedSecretsMap,
 }
 
 impl Default for EncryptedSecretStore {
