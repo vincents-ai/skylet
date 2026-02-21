@@ -12,7 +12,7 @@
 ///
 /// # Example (when implemented)
 /// ```ignore
-/// let plugin = MockPlugin::new("test-plugin")
+/// let plugin = MockPlugin::builder("test-plugin")
 ///     .with_version("1.0.0")
 ///     .with_capability("test.action")
 ///     .build();
@@ -25,7 +25,8 @@ pub struct MockPlugin {
 }
 
 impl MockPlugin {
-    pub fn new(name: &str) -> MockPluginBuilder {
+    /// Creates a new builder for constructing a MockPlugin
+    pub fn builder(name: &str) -> MockPluginBuilder {
         MockPluginBuilder {
             name: name.to_string(),
             version: "0.0.0".to_string(),
@@ -145,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_mock_plugin_has_capability() {
-        let plugin = MockPlugin::new("test")
+        let plugin = MockPlugin::builder("test")
             .with_capability("test.action")
             .build();
         assert!(plugin.has_capability("test.action"));
@@ -154,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_mock_plugin_version() {
-        let plugin = MockPlugin::new("test").with_version("1.0.0").build();
+        let plugin = MockPlugin::builder("test").with_version("1.0.0").build();
         assert_eq!(plugin.version(), "1.0.0");
     }
 

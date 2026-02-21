@@ -21,7 +21,7 @@ fn test_framework_default() {
 fn test_framework_mock_plugin() {
     use crate::framework::service::MockPlugin;
 
-    let plugin = MockPlugin::new("test-plugin")
+    let plugin = MockPlugin::builder("test-plugin")
         .with_version("1.0.0")
         .with_capability("test.action")
         .build();
@@ -85,7 +85,7 @@ fn test_framework_plugin_assertions() {
     use crate::framework::assertions::PluginAssertions;
     use crate::framework::service::MockPlugin;
 
-    let plugin = MockPlugin::new("test-plugin")
+    let plugin = MockPlugin::builder("test-plugin")
         .with_capability("test.action")
         .build();
 

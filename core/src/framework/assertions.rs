@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_assert_has_capability_passes() {
-        let plugin = MockPlugin::new("test")
+        let plugin = MockPlugin::builder("test")
             .with_capability("test.action")
             .build();
         plugin.assert_has_capability("test.action"); // Should not panic
@@ -55,19 +55,19 @@ mod tests {
     #[test]
     #[should_panic(expected = "does not have capability")]
     fn test_assert_has_capability_fails() {
-        let plugin = MockPlugin::new("test").build();
+        let plugin = MockPlugin::builder("test").build();
         plugin.assert_has_capability("missing.action"); // Should panic
     }
 
     #[test]
     fn test_assert_state() {
-        let plugin = MockPlugin::new("test").build();
+        let plugin = MockPlugin::builder("test").build();
         plugin.assert_state("any"); // For mock, this always passes
     }
 
     #[test]
     fn test_assert_health_status() {
-        let plugin = MockPlugin::new("test").build();
+        let plugin = MockPlugin::builder("test").build();
         plugin.assert_health_status("healthy"); // For mock, this always passes
     }
 }
