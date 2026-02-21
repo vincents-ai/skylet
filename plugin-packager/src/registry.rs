@@ -187,22 +187,22 @@ impl VersionRequirement {
             return version == req;
         }
 
-        let (op, ver) = if req.starts_with(">=") {
-            (">=", req[2..].trim())
-        } else if req.starts_with(">") {
-            (">", req[1..].trim())
-        } else if req.starts_with("<=") {
-            ("<=", req[2..].trim())
-        } else if req.starts_with("<") {
-            ("<", req[1..].trim())
-        } else if req.starts_with("!=") {
-            ("!=", req[2..].trim())
-        } else if req.starts_with("~") {
+        let (op, ver) = if let Some(stripped) = req.strip_prefix(">=") {
+            (">=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix("<=") {
+            ("<=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix("!=") {
+            ("!=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('>') {
+            (">", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('<') {
+            ("<", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('~') {
             // ~1.2.3 := >=1.2.3, <1.3.0
-            ("~", req[1..].trim())
-        } else if req.starts_with("^") {
+            ("~", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('^') {
             // ^1.2.3 := >=1.2.3, <2.0.0 (caret allows minor/patch changes)
-            ("^", req[1..].trim())
+            ("^", stripped.trim())
         } else {
             ("=", req)
         };
