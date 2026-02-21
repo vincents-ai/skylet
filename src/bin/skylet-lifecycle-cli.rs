@@ -585,7 +585,7 @@ impl OutputWriter for TextOutput {
                 tracing::info!("    Last sync: {}", last_sync);
             }
         }
-        tracing::info!();
+        tracing::info!("");
     }
 
     fn write_plugin(&self, plugin: &PluginInfo) {
@@ -612,7 +612,7 @@ impl OutputWriter for TextOutput {
 
         let status = if plugin.installed { "installed" } else { "not installed" };
         tracing::info!("  Status: {}", status);
-        tracing::info!();
+        tracing::info!("");
     }
 
     fn write_plugins(&self, plugins: &[PluginInfo]) {
@@ -627,7 +627,7 @@ impl OutputWriter for TextOutput {
             let update = if plugin.has_update { " ↑" } else { "" };
             tracing::info!("  [{}] {} - {} ({}){}", status, plugin.id, plugin.description, plugin.version, update);
         }
-        tracing::info!();
+        tracing::info!("");
     }
 
     fn write_success(&self, message: &str) {
@@ -940,7 +940,7 @@ async fn handle_install_command(
                     if let Some(src) = source {
                         tracing::info!("  Source: {}", src);
                     }
-                    tracing::info!();
+                    tracing::info!("");
                     TextOutput.write_success(&format!("Plugin '{}' installed successfully", plugin_id));
                 }
                 OutputFormat::Json => {

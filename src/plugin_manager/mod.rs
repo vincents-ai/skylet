@@ -4,6 +4,7 @@
 pub mod dependency_resolver;
 pub mod discovery;
 pub mod dynamic_reload;
+pub mod epoch_guard;
 pub mod failover;
 pub mod hot_reload;
 pub mod lifecycle;

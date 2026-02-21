@@ -21,6 +21,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+// Epoch-based memory reclamation for safe hot-reload
+use super::epoch_guard::EpochGuardedPlugin;
+
 // ABI v2 imports
 #[allow(unused_imports)]
 use skylet_abi::{
@@ -780,9 +783,10 @@ impl Drop for PluginResources {
 pub struct PluginManager {
     /// Loaded v2 plugins - key is fully qualified name
     ///
-    /// Stores AbiV2PluginLoader instances for v2 plugins to ensure they remain
-    /// in memory for the lifetime of the manager.
-    loaded_plugins_v2: Arc<RwLock<HashMap<String, AbiV2PluginLoader>>>,
+    /// Stores EpochGuardedPlugin instances for v2 plugins. The epoch-based
+    /// reclamation ensures safe hot-reload by deferring destruction of old
+    /// plugin versions until all in-flight requests have completed.
+    loaded_plugins_v2: Arc<RwLock<HashMap<String, EpochGuardedPlugin>>>,
 
     /// Allocated resources for each plugin - must be freed on unload
     ///
@@ -846,9 +850,12 @@ impl PluginManager {
             Ok(loader_v2) => {
                 info!("Loaded plugin {} using ABI v2", name);
 
+                // Wrap in epoch guard for safe hot-reload
+                let guarded = EpochGuardedPlugin::new(name, loader_v2);
+
                 // Store the loader to keep it alive
                 let mut plugins = self.loaded_plugins_v2.write().await;
-                plugins.insert(name.to_string(), loader_v2);
+                plugins.insert(name.to_string(), guarded);
 
                 Ok(())
             }
@@ -897,11 +904,14 @@ impl PluginManager {
 
         info!("Successfully initialized v2 plugin: {}", name);
 
+        // Wrap in epoch guard for safe hot-reload
+        let guarded = EpochGuardedPlugin::new(name, loader);
+
         // Store the loader and resources (resources will be freed on unload)
         let mut plugins = self.loaded_plugins_v2.write().await;
         let mut resources_map = self.plugin_resources.write().await;
 
-        plugins.insert(name.to_string(), loader);
+        plugins.insert(name.to_string(), guarded);
         resources_map.insert(name.to_string(), resources);
 
         Ok(())
@@ -1852,9 +1862,12 @@ impl PluginManager {
     /// Unload a plugin
     ///
     /// This properly cleans up all resources allocated during plugin initialization:
-    /// - Removes the plugin loader from the map
+    /// - Removes the plugin loader from the map (deferred via epoch reclamation)
     /// - Reclaims the Arc<PluginServices> pointer (decrements refcount)
     /// - Frees all Box'd service structs (LoggerV2, ConfigV2, etc.)
+    ///
+    /// Note: The actual plugin destruction is deferred via epoch-based reclamation
+    /// to ensure in-flight requests complete safely before the plugin is deallocated.
     pub async fn unload_plugin(&self, name: &str) -> Result<()> {
         info!("Unloading plugin: {}", name);
 
@@ -1862,7 +1875,15 @@ impl PluginManager {
         let mut plugins_v2 = self.loaded_plugins_v2.write().await;
         let mut resources_map = self.plugin_resources.write().await;
 
-        if plugins_v2.remove(name).is_some() {
+        if let Some(guarded_plugin) = plugins_v2.remove(name) {
+            // Trigger epoch-based deferred unload
+            // The actual library unload is deferred until all epoch guards are released
+            guarded_plugin.unload();
+            debug!(
+                "Plugin {} marked for deferred unload via epoch reclamation",
+                name
+            );
+
             // Clean up resources - the Drop impl handles freeing memory
             if let Some(resources) = resources_map.remove(name) {
                 // Verify cleanup by checking Arc strong count before/after
@@ -1917,7 +1938,14 @@ impl PluginManager {
             ..Default::default()
         };
 
-        for (name, loader) in plugins_v2.iter() {
+        for (name, guarded) in plugins_v2.iter() {
+            // Access plugin via epoch guard for safe hot-reload
+            let Some(guard) = guarded.access() else {
+                stats.failed_collections += 1;
+                continue;
+            };
+            let loader = guard.plugin();
+
             // Check if plugin supports billing metrics
             if !loader.has_billing_metrics() {
                 stats.plugins_without_metrics += 1;
@@ -1959,8 +1987,10 @@ impl PluginManager {
     /// Check if a specific plugin supports billing metrics
     pub async fn plugin_supports_billing(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.has_billing_metrics();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().has_billing_metrics();
+            }
         }
         false
     }
@@ -2020,9 +2050,15 @@ impl PluginManager {
     ) -> Result<ConfigValidationResult> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
 
-        let loader = plugins_v2
+        let guarded = plugins_v2
             .get(plugin_name)
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_name))?;
+
+        // Access plugin via epoch guard
+        let guard = guarded
+            .access()
+            .ok_or_else(|| anyhow!("Plugin '{}' is being unloaded", plugin_name))?;
+        let loader = guard.plugin();
 
         // Get schema from plugin
         let schema_json = match loader.get_config_schema_string() {
@@ -2114,8 +2150,10 @@ impl PluginManager {
     /// Check if a plugin exports a configuration schema
     pub async fn plugin_has_config_schema(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.get_config_schema_string().is_some();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().get_config_schema_string().is_some();
+            }
         }
         false
     }
@@ -2123,8 +2161,10 @@ impl PluginManager {
     /// Get the JSON schema for a plugin's configuration
     pub async fn get_plugin_config_schema(&self, plugin_name: &str) -> Option<String> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.get_config_schema_string();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().get_config_schema_string();
+            }
         }
         None
     }
