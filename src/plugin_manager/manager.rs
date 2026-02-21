@@ -617,9 +617,7 @@ impl PluginHttpRouterBackend {
                 }
             });
 
-            let path_item = paths
-                .entry(route.path.clone())
-                .or_insert_with(std::collections::HashMap::new);
+            let path_item = paths.entry(route.path.clone()).or_default();
             path_item.insert(method_lower, op);
         }
 
