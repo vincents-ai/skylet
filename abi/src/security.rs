@@ -415,7 +415,7 @@ impl PluginCapacityTracker {
 /// Encrypted secret storage with AES-256-GCM
 ///
 /// Provides secure in-memory storage for secrets with automatic encryption/decryption
-
+///
 /// Type alias for encrypted secrets storage: name -> (ciphertext, nonce)
 type EncryptedSecretsMap =
     std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>;
@@ -863,31 +863,34 @@ fn load_remote_hosts() -> Vec<String> {
 /// Generate HMAC signature for PluginContext to prevent tampering
 ///
 /// Uses HMAC-SHA256 to sign the context structure
-pub fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> String {
+///
+/// # Safety
+///
+/// The caller must ensure the context pointer is valid and properly initialized,
+/// or null (which is handled safely).
+pub unsafe fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> String {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
     type HmacSha256 = Hmac<Sha256>;
 
     // Create a deterministic serialization of the context pointer values
-    let context_bytes = unsafe {
-        if context.is_null() {
-            vec![]
-        } else {
-            let ctx = &*context;
-            let mut bytes = Vec::new();
+    let context_bytes = if context.is_null() {
+        vec![]
+    } else {
+        let ctx = &*context;
+        let mut bytes = Vec::new();
 
-            // Include pointer values (not dereferencing them)
-            bytes.extend_from_slice(&(ctx.logger as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.config as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.service_registry as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.tracer as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.user_data as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.user_context_json as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.secrets as usize).to_le_bytes());
+        // Include pointer values (not dereferencing them)
+        bytes.extend_from_slice(&(ctx.logger as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.config as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.service_registry as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.tracer as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.user_data as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.user_context_json as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.secrets as usize).to_le_bytes());
 
-            bytes
-        }
+        bytes
     };
 
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC can take key of any size");
@@ -900,7 +903,12 @@ pub fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> 
 /// Verify HMAC signature of PluginContext
 ///
 /// Returns Ok(()) if signature is valid, Err otherwise
-pub fn verify_context_signature(
+///
+/// # Safety
+///
+/// The caller must ensure the context pointer is valid and properly initialized,
+/// or null (which is handled safely).
+pub unsafe fn verify_context_signature(
     context: *const PluginContext,
     key: &[u8],
     expected_sig: &str,
@@ -3716,14 +3724,14 @@ mod tests {
         let key = [0u8; 32];
         // We can't easily create a PluginContext without FFI,
         // so we'll test the verify function returns an error for null
-        let result = verify_context_signature(std::ptr::null(), &key, "test_sig");
+        let result = unsafe { verify_context_signature(std::ptr::null(), &key, "test_sig") };
         assert!(result.is_err());
     }
 
     #[test]
     fn test_context_signature_verification_invalid() {
         let key = [0u8; 32];
-        let result = verify_context_signature(std::ptr::null(), &key, "invalid_sig");
+        let result = unsafe { verify_context_signature(std::ptr::null(), &key, "invalid_sig") };
         assert_eq!(result, Err(SecurityError::InvalidContextSignature));
     }
 

@@ -865,7 +865,7 @@ impl Plugin {
             return PluginResult::InvalidRequest;
         }
         // Validate request pointer alignment
-        if (request as *const _ as usize) % std::mem::align_of::<HttpRequest>() != 0 {
+        if !(request as *const _ as usize).is_multiple_of(std::mem::align_of::<HttpRequest>()) {
             tracing::error!("Plugin handle_request: misaligned request pointer");
             return PluginResult::InvalidRequest;
         }

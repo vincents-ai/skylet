@@ -78,6 +78,13 @@ impl SafeCString {
 }
 
 /// Safe conversion from C string to Rust string
+///
+/// # Safety Note
+/// This function validates that `ptr` is non-null before dereferencing.
+/// The clippy lint is allowed because this is intentionally a safe wrapper
+/// for FFI boundaries - callers are responsible for ensuring the pointer
+/// points to a valid null-terminated C string.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn c_str_to_string(ptr: *const c_char) -> AbiResult<String> {
     if ptr.is_null() {
         return Err(AbiError::NullPointer(
@@ -820,6 +827,13 @@ pub fn strict_utf8_validation(data: &[u8]) -> AbiResult<String> {
 ///
 /// RFC-0004-SEC-004: For use with logging and audit trail strings from plugins
 /// Performs stricter validation than standard UTF-8 conversion
+///
+/// # Safety Note
+/// This function validates that `ptr` is non-null before dereferencing.
+/// The clippy lint is allowed because this is intentionally a safe wrapper
+/// for FFI boundaries - callers are responsible for ensuring the pointer
+/// points to a valid null-terminated C string.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn c_str_to_string_strict(ptr: *const c_char) -> AbiResult<String> {
     if ptr.is_null() {
         return Err(AbiError::NullPointer(
