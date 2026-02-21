@@ -6,8 +6,8 @@
 //! This module implements RFC-0004 v2 ABI for permissions plugin.
 //! Permissions provides authentication, authorization, and user context management.
 
-use skylet_abi;
 use skylet_abi::v2_spec::*;
+use skylet_abi::PluginLogLevel;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering, Ordering as AOrdering};
@@ -250,7 +250,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin initialized").unwrap();
-            let _ = (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
 
         if !ctx.service_registry.is_null() {
@@ -285,7 +285,7 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin shutting down").unwrap();
-            let _ = (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
     }
 
