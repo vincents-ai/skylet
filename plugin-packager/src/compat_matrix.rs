@@ -102,7 +102,7 @@ impl CompatibilityLevel {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s {
             "Incompatible" => Some(CompatibilityLevel::Incompatible),
             "Deprecated" => Some(CompatibilityLevel::Deprecated),
@@ -444,11 +444,11 @@ mod tests {
     #[test]
     fn test_compatibility_level_from_str() {
         assert_eq!(
-            CompatibilityLevel::from_str("Compatible"),
+            CompatibilityLevel::try_parse("Compatible"),
             Some(CompatibilityLevel::Compatible)
         );
         assert_eq!(
-            CompatibilityLevel::from_str("Incompatible"),
+            CompatibilityLevel::try_parse("Incompatible"),
             Some(CompatibilityLevel::Incompatible)
         );
     }

@@ -42,7 +42,7 @@ impl Permission {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s {
             "filesystem" => Some(Permission::FileSystem),
             "network" => Some(Permission::Network),
@@ -148,7 +148,7 @@ impl SandboxSeverity {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "info" => Some(SandboxSeverity::Info),
             "warning" => Some(SandboxSeverity::Warning),
@@ -480,7 +480,7 @@ impl PluginSandboxVerifier {
             ),
             details: Some(format!("Description: {}", capability.description)),
             remediation: if dangerous_perms > 0 {
-                Some(format!("Reduce high-risk permissions for this capability"))
+                Some("Reduce high-risk permissions for this capability".to_string())
             } else {
                 None
             },

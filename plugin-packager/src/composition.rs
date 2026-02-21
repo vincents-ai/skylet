@@ -299,7 +299,7 @@ impl CompositionManager {
         for component in &composite.components {
             version_map
                 .entry(component.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(component.version.clone());
         }
 

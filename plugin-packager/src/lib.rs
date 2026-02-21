@@ -279,10 +279,8 @@ pub fn pack_dir(src_dir: &Path, out_path: &Path) -> Result<PathBuf> {
                 optional_files.push("CHANGELOG.md");
             }
         }
-        if rel.starts_with("doc") {
-            if !optional_files.contains(&"doc/") {
-                optional_files.push("doc/");
-            }
+        if rel.starts_with("doc") && !optional_files.contains(&"doc/") {
+            optional_files.push("doc/");
         }
 
         if path.is_dir() {
@@ -500,7 +498,7 @@ pub fn verify_artifact(artifact: &Path, checksum_path: Option<&Path>) -> Result<
             continue;
         }
         // first component is the root dir
-        if let Some(root_comp) = comps.get(0) {
+        if let Some(root_comp) = comps.first() {
             roots.insert(root_comp.as_os_str().to_owned());
         }
         // check for required files at root
