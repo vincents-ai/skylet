@@ -40,6 +40,12 @@ pub struct HttpRouter {
 
 static PATH_PARAM_RE: Lazy<Regex> = Lazy::new(|| Regex::new("\\{([a-zA-Z0-9_]+)\\}").unwrap());
 
+impl Default for HttpRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpRouter {
     pub fn new() -> Self {
         Self {
