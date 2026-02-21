@@ -67,43 +67,43 @@ static INITIALIZED: AtomicBool = AtomicBool::new(false);
 fn init_plugin_info() {
     let capabilities = [
         CapabilityInfo {
-            name: b"auth.authenticate\0".as_ptr() as *const c_char,
-            description: b"Authenticate user with credentials\0".as_ptr() as *const c_char,
+            name: c"auth.authenticate".as_ptr(),
+            description: c"Authenticate user with credentials".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"auth.validate\0".as_ptr() as *const c_char,
-            description: b"Validate session token\0".as_ptr() as *const c_char,
+            name: c"auth.validate".as_ptr(),
+            description: c"Validate session token".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"auth.revoke\0".as_ptr() as *const c_char,
-            description: b"Revoke session token\0".as_ptr() as *const c_char,
+            name: c"auth.revoke".as_ptr(),
+            description: c"Revoke session token".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"authz.check\0".as_ptr() as *const c_char,
-            description: b"Check user permission\0".as_ptr() as *const c_char,
+            name: c"authz.check".as_ptr(),
+            description: c"Check user permission".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"authz.assign_role\0".as_ptr() as *const c_char,
-            description: b"Assign role to user\0".as_ptr() as *const c_char,
+            name: c"authz.assign_role".as_ptr(),
+            description: c"Assign role to user".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"user.register\0".as_ptr() as *const c_char,
-            description: b"Register new user\0".as_ptr() as *const c_char,
+            name: c"user.register".as_ptr(),
+            description: c"Register new user".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"user.context\0".as_ptr() as *const c_char,
-            description: b"Get user context for plugin calls\0".as_ptr() as *const c_char,
+            name: c"user.context".as_ptr(),
+            description: c"Get user context for plugin calls".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"tenant.create\0".as_ptr() as *const c_char,
-            description: b"Create new tenant\0".as_ptr() as *const c_char,
+            name: c"tenant.create".as_ptr(),
+            description: c"Create new tenant".as_ptr(),
             required_permission: ptr::null(),
         },
     ];
@@ -234,6 +234,7 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -249,11 +250,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin initialized").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
         }
 
         if !ctx.service_registry.is_null() {
@@ -276,6 +273,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -341,13 +339,13 @@ pub extern "C" fn plugin_get_metrics_v2(_context: *const PluginContextV2) -> *co
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const c_char,
 ) -> bool {
     // SAFETY: Caller must ensure capability is a valid null-terminated C string
     // This is FFI boundary code where the caller is responsible for pointer validity
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     unsafe {
         if capability.is_null() {
             return false;

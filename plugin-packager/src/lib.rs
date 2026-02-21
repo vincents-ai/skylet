@@ -9,7 +9,6 @@ use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use tracing;
 
 // Registry integration module
 pub mod registry;

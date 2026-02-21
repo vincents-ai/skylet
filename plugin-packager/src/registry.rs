@@ -130,7 +130,7 @@ impl Default for LocalRegistry {
 fn parse_version(version: &str) -> (u32, u32, u32) {
     let parts: Vec<&str> = version.split('.').collect();
     let major = parts
-        .get(0)
+        .first()
         .and_then(|p| p.parse::<u32>().ok())
         .unwrap_or(0);
     let minor = parts
