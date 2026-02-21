@@ -13,8 +13,8 @@
 //! - No unsafe static mut - all storage uses thread-safe primitives
 //! - All ABI functions follow RFC-0004 v2 specification
 
-use skylet_abi;
 use skylet_abi::v2_spec::*;
+use skylet_abi::PluginLogLevel;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering, Ordering as AOrdering};
@@ -71,23 +71,23 @@ fn init_plugin_info() {
     // Initialize capabilities
     let capabilities = [
         CapabilityInfo {
-            name: b"config.get\0".as_ptr() as *const c_char,
-            description: b"Get configuration value\0".as_ptr() as *const c_char,
+            name: c"config.get".as_ptr(),
+            description: c"Get configuration value".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"config.set\0".as_ptr() as *const c_char,
-            description: b"Set configuration value\0".as_ptr() as *const c_char,
+            name: c"config.set".as_ptr(),
+            description: c"Set configuration value".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"config.export\0".as_ptr() as *const c_char,
-            description: b"Export configuration to JSON/TOML\0".as_ptr() as *const c_char,
+            name: c"config.export".as_ptr(),
+            description: c"Export configuration to JSON/TOML".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"config.validate\0".as_ptr() as *const c_char,
-            description: b"Validate configuration\0".as_ptr() as *const c_char,
+            name: c"config.validate".as_ptr(),
+            description: c"Validate configuration".as_ptr(),
             required_permission: ptr::null(),
         },
     ];
@@ -222,6 +222,7 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 
 /// Initialize plugin
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -239,11 +240,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("config-manager v2 plugin initialized").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
 
         // Register ConfigService in service registry
@@ -269,6 +266,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
 
 /// Shutdown plugin
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -281,11 +279,7 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("config-manager v2 plugin shutting down").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
     }
 
@@ -345,6 +339,7 @@ pub extern "C" fn plugin_get_metrics_v2(_context: *const PluginContextV2) -> *co
 
 /// Query capability
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const c_char,

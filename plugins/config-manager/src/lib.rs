@@ -325,7 +325,7 @@ impl Default for PaymentsConfig {
 }
 
 /// Application configuration (main config struct)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub tor: TorConfig,
@@ -334,20 +334,6 @@ pub struct AppConfig {
     pub discovery: DiscoveryConfig,
     pub escrow: EscrowConfig,
     pub payments: PaymentsConfig,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            database: DatabaseConfig::default(),
-            tor: TorConfig::default(),
-            monero: MoneroConfig::default(),
-            agents: AgentsConfig::default(),
-            discovery: DiscoveryConfig::default(),
-            escrow: EscrowConfig::default(),
-            payments: PaymentsConfig::default(),
-        }
-    }
 }
 
 // ============================================================================
