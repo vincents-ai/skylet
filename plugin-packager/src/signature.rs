@@ -349,16 +349,16 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_algorithm_from_str() {
+    fn test_signature_algorithm_try_parse() {
         assert_eq!(
-            SignatureAlgorithm::from_str("ed25519"),
+            SignatureAlgorithm::try_parse("ed25519"),
             Some(SignatureAlgorithm::Ed25519)
         );
         assert_eq!(
-            SignatureAlgorithm::from_str("rsa-2048"),
+            SignatureAlgorithm::try_parse("rsa-2048"),
             Some(SignatureAlgorithm::Rsa2048)
         );
-        assert_eq!(SignatureAlgorithm::from_str("invalid"), None);
+        assert_eq!(SignatureAlgorithm::try_parse("invalid"), None);
     }
 
     #[test]
