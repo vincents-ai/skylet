@@ -17,6 +17,7 @@ static DEPENDENCIES: AtomicPtr<DependencyInfo> = AtomicPtr::new(ptr::null_mut())
 
 /// Plugin initialization entry point (v2 ABI)
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -147,6 +148,7 @@ pub extern "C" fn plugin_health_check_v2(_context: *const PluginContextV2) -> He
 
 /// Query capability
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const std::ffi::c_char,
