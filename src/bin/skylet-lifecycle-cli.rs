@@ -23,19 +23,19 @@
 //!
 //! ```bash
 //! # Add a registry source
-//! skynet-lifecycle-cli source add official https://registry.skynet.dev
+//! skylet-lifecycle-cli source add official https://registry.skylet.dev
 //!
 //! # Search for plugins
-//! skynet-lifecycle-cli plugin search "database"
+//! skylet-lifecycle-cli plugin search "database"
 //!
 //! # List all plugins from a specific source
-//! skynet-lifecycle-cli plugin list --source official
+//! skylet-lifecycle-cli plugin list --source official
 //!
 //! # Get detailed plugin info
-//! skynet-lifecycle-cli plugin info core::postgres-plugin
+//! skylet-lifecycle-cli plugin info core::postgres-plugin
 //!
 //! # Check for updates
-//! skynet-lifecycle-cli plugin check-updates core::postgres-plugin
+//! skylet-lifecycle-cli plugin check-updates core::postgres-plugin
 //! ```
 
 use anyhow::{Context, Result};
@@ -51,7 +51,7 @@ use tracing::{info, warn};
 /// Skylet Plugin Lifecycle Management CLI
 #[derive(Parser, Debug)]
 #[command(
-    name = "skynet-lifecycle-cli",
+    name = "skylet-lifecycle-cli",
     version = "0.1.0",
     about = "Manage plugin lifecycle and discovery for Skylet",
     long_about = "Command-line interface for managing Skylet plugin registry sources, \
@@ -352,7 +352,7 @@ impl SourcesConfig {
     fn default_path() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("skynet")
+            .join("skylet")
             .join("sources.toml")
     }
 
@@ -457,7 +457,7 @@ impl RegistryClient {
                     author: "Skylet Team".to_string(),
                     tags: vec!["database".to_string(), "postgresql".to_string()],
                     license: "Apache-2.0".to_string(),
-                    homepage: Some("https://github.com/skynet/postgres-plugin".to_string()),
+                    homepage: Some("https://github.com/skylet/postgres-plugin".to_string()),
                     installed: false,
                     installed_version: None,
                     latest_version: "1.2.0".to_string(),
@@ -732,7 +732,7 @@ async fn handle_source_command(
                     let sources = config.list_sources();
                     if sources.is_empty() {
                         tracing::info!("No registry sources configured.");
-                        tracing::info!("\nTo add a source, use: skynet-lifecycle-cli source add <name> <url>");
+                        tracing::info!("\nTo add a source, use: skylet-lifecycle-cli source add <name> <url>");
                     } else {
                         tracing::info!("Configured registry sources ({}):\n", sources.len());
                         for source in sources {
@@ -1173,11 +1173,11 @@ mod tests {
     #[test]
     fn test_cli_parsing() {
         let cli = Cli::try_parse_from([
-            "skynet-lifecycle-cli",
+            "skylet-lifecycle-cli",
             "source",
             "add",
             "official",
-            "https://registry.skynet.dev",
+            "https://registry.skylet.dev",
         ]);
 
         assert!(cli.is_ok());
@@ -1185,7 +1185,7 @@ mod tests {
         match cli.command {
             Commands::Source(SourceCommands::Add { name, url, .. }) => {
                 assert_eq!(name, "official");
-                assert_eq!(url, "https://registry.skynet.dev");
+                assert_eq!(url, "https://registry.skylet.dev");
             }
             _ => panic!("Expected Source Add command"),
         }
@@ -1194,7 +1194,7 @@ mod tests {
     #[test]
     fn test_cli_plugin_search() {
         let cli = Cli::try_parse_from([
-            "skynet-lifecycle-cli",
+            "skylet-lifecycle-cli",
             "plugin",
             "search",
             "database",

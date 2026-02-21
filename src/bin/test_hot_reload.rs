@@ -25,9 +25,9 @@ fn main() {
 
     // Show CLI tool
     tracing::info!("✅ CLI Tool:");
-    tracing::info!("   skynet-plugin-reload list");
-    tracing::info!("   skynet-plugin-reload reload <plugin>");
-    tracing::info!("   skynet-plugin-reload watch\n");
+    tracing::info!("   skylet-plugin-reload list");
+    tracing::info!("   skylet-plugin-reload reload <plugin>");
+    tracing::info!("   skylet-plugin-reload watch\n");
 
     // Check helper crate
     let helper_path = PathBuf::from("plugins/plugin-hotreload-helper");
@@ -41,7 +41,7 @@ fn main() {
     tracing::info!("📚 Example Usage:");
     tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     tracing::info!("\n1. Using CLI:");
-    tracing::info!("   $ skynet-plugin-reload reload telegram-bot-adapter");
+    tracing::info!("   $ skylet-plugin-reload reload telegram-bot-adapter");
     tracing::info!("\n2. Using Telegram Bot:");
     tracing::info!("   /hot_reload telegram-bot-adapter");
     tracing::info!("\n3. Adding to your plugin:");

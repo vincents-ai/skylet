@@ -31,7 +31,7 @@ pub struct ArtifactPublisher {
 /// Configuration for artifact publishing
 #[derive(Debug, Clone)]
 pub struct PublishConfig {
-    /// Registry base URL (e.g., "https://marketplace.skynet.dev")
+    /// Registry base URL (e.g., "https://marketplace.skylet.dev")
     pub registry_url: String,
     /// Authentication token (required for publishing)
     pub auth_token: String,
@@ -109,7 +109,7 @@ impl ArtifactPublisher {
     /// #[tokio::main]
     /// async fn main() -> anyhow::Result<()> {
     ///     let config = PublishConfig {
-    ///         registry_url: "https://marketplace.skynet.dev".to_string(),
+    ///         registry_url: "https://marketplace.skylet.dev".to_string(),
     ///         auth_token: "my-token".to_string(),
     ///         skip_verify: false,
     ///         as_draft: false,
@@ -175,8 +175,8 @@ impl ArtifactPublisher {
             name: artifact_metadata.name.clone(),
             version: artifact_metadata.version.clone(),
             abi_version,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level,
             category,
             author: plugin_metadata.author,

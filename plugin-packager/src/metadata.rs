@@ -341,8 +341,8 @@ impl PluginMetadata {
             name: self.name.clone(),
             version: self.version.clone(),
             abi_version,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level: MaturityLevel::Alpha, // Default to alpha until specified
             category: PluginCategory::Utility,    // Default category
             author: self.authors.as_ref().and_then(|a| a.first().cloned()),

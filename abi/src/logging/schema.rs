@@ -372,7 +372,7 @@ impl LogEvent {
 pub fn rfc0018_json_schema() -> serde_json::Value {
     serde_json::json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://skynet.dev/schemas/rfc0018-log-event.json",
+        "$id": "https://skylet.dev/schemas/rfc0018-log-event.json",
         "title": "RFC-0018 Log Event",
         "description": "Structured log event schema for Skylet distributed tracing",
         "type": "object",

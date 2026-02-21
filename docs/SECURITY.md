@@ -628,7 +628,7 @@ echo "secrets/" >> .gitignore
 
 ```bash
 # Configuration files with secrets
-chmod 600 /etc/skynet/plugins/config.toml
+chmod 600 /etc/skylet/plugins/config.toml
 
 # Private keys
 chmod 600 /etc/ssl/my-plugin/key.pem

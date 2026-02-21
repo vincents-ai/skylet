@@ -23,7 +23,7 @@
 //! # Feature-Gated Proprietary Support
 //!
 //! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary instance management systems like Skynet's zone-based hierarchy and
+//! proprietary instance management systems like Skylet's zone-based hierarchy and
 //! multi-instance orchestration.
 //!
 //! # Example

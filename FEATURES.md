@@ -35,9 +35,9 @@ cargo build --features opentelemetry
 
 ### `proprietary`
 
-Enables proprietary Skynet extension support:
+Enables proprietary Skylet extension support:
 
-- Integration with Skynet's AGE-based key hierarchy
+- Integration with Skylet's AGE-based key hierarchy
 - Multi-instance orchestration and zone management
 - Peer-to-peer networking and discovery
 - Hybrid billing and reputation systems
@@ -71,13 +71,13 @@ cargo build --features "standalone,opentelemetry"
 
 Adds OpenTelemetry-based observability for development and debugging.
 
-### Proprietary Deployment (Skynet Internal)
+### Proprietary Deployment (Skylet Internal)
 
 ```bash
 cargo build --features "standalone,proprietary,opentelemetry"
 ```
 
-Enables all features including proprietary Skynet extensions.
+Enables all features including proprietary Skylet extensions.
 
 ## Implementation Details
 
@@ -86,14 +86,14 @@ Enables all features including proprietary Skynet extensions.
 The trait-based `KeyManagement` interface allows for different implementations:
 
 - **Standalone** (`DefaultKeyManagement`): Ed25519 signing using standard cryptographic libraries
-- **Proprietary**: Would use Skynet's AGE-based key hierarchy with hardware security modules
+- **Proprietary**: Would use Skylet's AGE-based key hierarchy with hardware security modules
 
 ### Instance Management
 
 The trait-based `InstanceManager` interface allows for different implementations:
 
 - **Standalone** (`StandaloneInstanceManager`): Single instance with no clustering
-- **Proprietary**: Would use Skynet's zone-based instance hierarchy with P2P networking
+- **Proprietary**: Would use Skylet's zone-based instance hierarchy with P2P networking
 
 ## Choosing Features
 
@@ -105,7 +105,7 @@ Use the default `standalone` feature. This provides:
 - ✅ No proprietary dependencies
 - ✅ Reproducible builds
 
-### For Skynet Customers
+### For Skylet Customers
 
 Use `standalone` + `proprietary`. This enables:
 - ✅ All open-source features

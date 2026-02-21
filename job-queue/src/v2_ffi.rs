@@ -34,8 +34,8 @@ const PLUGIN_AUTHOR: &[u8] = b"Skylet Team\0";
 const PLUGIN_LICENSE: &[u8] = b"MIT OR Apache-2.0\0";
 const PLUGIN_HOMEPAGE: &[u8] = b"https://github.com/vincents-ai/skylet\0";
 const PLUGIN_ABI_VERSION: &[u8] = b"2.0\0";
-const PLUGIN_SKYNET_MIN: &[u8] = b"1.0.0\0";
-const PLUGIN_SKYNET_MAX: &[u8] = b"2.0.0\0";
+const PLUGIN_SKYLET_MIN: &[u8] = b"1.0.0\0";
+const PLUGIN_SKYLET_MAX: &[u8] = b"2.0.0\0";
 
 // Plugin tags
 const TAG_JOBS: &[u8] = b"jobs\0";
@@ -140,8 +140,8 @@ fn init_plugin_info() {
         homepage: PLUGIN_HOMEPAGE.as_ptr().cast::<c_char>(),
 
         // Version compatibility
-        skynet_version_min: PLUGIN_SKYNET_MIN.as_ptr().cast::<c_char>(),
-        skynet_version_max: PLUGIN_SKYNET_MAX.as_ptr().cast::<c_char>(),
+        skylet_version_min: PLUGIN_SKYLET_MIN.as_ptr().cast::<c_char>(),
+        skylet_version_max: PLUGIN_SKYLET_MAX.as_ptr().cast::<c_char>(),
         abi_version: PLUGIN_ABI_VERSION.as_ptr().cast::<c_char>(),
 
         // Dependencies and services
@@ -197,7 +197,7 @@ fn init_plugin_info() {
 
 /// Initialize JobQueue (called during plugin_init_v2)
 fn init_job_queue() {
-    let data_dir = std::env::var("SKYNET_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
+    let data_dir = std::env::var("SKYLET_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
     let db_path = format!("{}/jobs.db", data_dir);
 
     let rt = tokio::runtime::Runtime::new().unwrap();

@@ -422,10 +422,10 @@ impl RotationPolicyConfig {
     }
 
     /// Load configuration from environment variable or file
-    /// Looks for SKYNET_ROTATION_POLICY_CONFIG env var pointing to a file,
+    /// Looks for SKYLET_ROTATION_POLICY_CONFIG env var pointing to a file,
     /// or uses the default configuration
     pub fn load_from_env_or_default() -> Result<Self> {
-        if let Ok(config_path) = std::env::var("SKYNET_ROTATION_POLICY_CONFIG") {
+        if let Ok(config_path) = std::env::var("SKYLET_ROTATION_POLICY_CONFIG") {
             debug!(
                 "Loading rotation policy configuration from: {}",
                 config_path
@@ -1148,23 +1148,23 @@ impl RotationSchedulerConfig {
     pub fn from_env() -> Self {
         let mut config = Self::default();
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CHECK_INTERVAL") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CHECK_INTERVAL") {
             if let Ok(secs) = val.parse() {
                 config.check_interval_secs = secs;
             }
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CLEANUP_INTERVAL") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CLEANUP_INTERVAL") {
             if let Ok(secs) = val.parse() {
                 config.cleanup_interval_secs = secs;
             }
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_AUTO_ENABLED") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_AUTO_ENABLED") {
             config.auto_rotate_enabled = val.to_lowercase() == "true" || val == "1";
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CLEANUP_ENABLED") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CLEANUP_ENABLED") {
             config.cleanup_enabled = val.to_lowercase() == "true" || val == "1";
         }
 
@@ -2353,8 +2353,8 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
             let license_str = CString::new("MIT OR Apache-2.0").unwrap();
             let homepage_str = CString::new("https://github.com/vincents-ai/skylet").unwrap();
             let abi_version_str = CString::new("2.0").unwrap();
-            let skynet_min_str = CString::new("0.1.0").unwrap();
-            let skynet_max_str = CString::new("1.0.0").unwrap();
+            let skylet_min_str = CString::new("0.1.0").unwrap();
+            let skylet_max_str = CString::new("1.0.0").unwrap();
 
             // Create tags for categorization
             static TAG1: &[u8] = b"security\0";
@@ -2379,8 +2379,8 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 homepage: homepage_str.into_raw(),
 
                 // Version compatibility
-                skynet_version_min: skynet_min_str.into_raw(),
-                skynet_version_max: skynet_max_str.into_raw(),
+                skylet_version_min: skylet_min_str.into_raw(),
+                skylet_version_max: skylet_max_str.into_raw(),
                 abi_version: abi_version_str.into_raw(),
 
                 // Dependencies (skylet-abi >= 0.2.0)
@@ -2437,12 +2437,12 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
         // SECURITY: Initialize with AES-256-GCM encrypted storage (CVSS 8.2)
         // =================================================================
         // Check environment variable for backend selection
-        let use_encrypted = std::env::var("SKYNET_SECRETS_ENCRYPTED")
+        let use_encrypted = std::env::var("SKYLET_SECRETS_ENCRYPTED")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true); // Default to encrypted for security
 
         // Check if versioned storage should be used
-        let use_versioned = std::env::var("SKYNET_SECRETS_VERSIONED")
+        let use_versioned = std::env::var("SKYLET_SECRETS_VERSIONED")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true); // Default to versioned storage
 
@@ -2471,7 +2471,7 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
 
             info!("SecretsManager: Rotation scheduler started");
         } else {
-            debug!("SecretsManager: Versioned storage disabled (SKYNET_SECRETS_VERSIONED=false)");
+            debug!("SecretsManager: Versioned storage disabled (SKYLET_SECRETS_VERSIONED=false)");
         }
 
         // =================================================================
@@ -3680,10 +3680,10 @@ key_overlap_days = 14
     #[test]
     fn test_rotation_scheduler_config_from_env() {
         // Set environment variables
-        std::env::set_var("SKYNET_ROTATION_CHECK_INTERVAL", "1800");
-        std::env::set_var("SKYNET_ROTATION_CLEANUP_INTERVAL", "43200");
-        std::env::set_var("SKYNET_ROTATION_AUTO_ENABLED", "false");
-        std::env::set_var("SKYNET_ROTATION_CLEANUP_ENABLED", "false");
+        std::env::set_var("SKYLET_ROTATION_CHECK_INTERVAL", "1800");
+        std::env::set_var("SKYLET_ROTATION_CLEANUP_INTERVAL", "43200");
+        std::env::set_var("SKYLET_ROTATION_AUTO_ENABLED", "false");
+        std::env::set_var("SKYLET_ROTATION_CLEANUP_ENABLED", "false");
 
         let config = RotationSchedulerConfig::from_env();
 
@@ -3693,9 +3693,9 @@ key_overlap_days = 14
         assert!(!config.cleanup_enabled);
 
         // Clean up
-        std::env::remove_var("SKYNET_ROTATION_CHECK_INTERVAL");
-        std::env::remove_var("SKYNET_ROTATION_CLEANUP_INTERVAL");
-        std::env::remove_var("SKYNET_ROTATION_AUTO_ENABLED");
-        std::env::remove_var("SKYNET_ROTATION_CLEANUP_ENABLED");
+        std::env::remove_var("SKYLET_ROTATION_CHECK_INTERVAL");
+        std::env::remove_var("SKYLET_ROTATION_CLEANUP_INTERVAL");
+        std::env::remove_var("SKYLET_ROTATION_AUTO_ENABLED");
+        std::env::remove_var("SKYLET_ROTATION_CLEANUP_ENABLED");
     }
 }

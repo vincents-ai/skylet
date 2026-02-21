@@ -23,9 +23,9 @@ fn get_max_plugins() -> usize {
 
     *MAX_PLUGINS_CACHE.get_or_init(|| {
         // Try to get from environment variable first (for testing/override)
-        if let Ok(val) = std::env::var("SKYNET_MAX_PLUGINS") {
+        if let Ok(val) = std::env::var("SKYLET_MAX_PLUGINS") {
             if let Ok(max) = val.parse::<usize>() {
-                tracing::error!("Security: Using SKYNET_MAX_PLUGINS={} from environment", max);
+                tracing::error!("Security: Using SKYLET_MAX_PLUGINS={} from environment", max);
                 return max;
             }
         }
@@ -582,8 +582,8 @@ impl Drop for EncryptedSecretStore {
         use zeroize::Zeroize;
 
         // Securely clear the master key on drop
-        let mut key = self.master_key;
-        key.zeroize();
+        // Note: zeroize the actual field, not a copy
+        self.master_key.zeroize();
     }
 }
 
@@ -822,7 +822,7 @@ fn load_remote_hosts() -> Vec<String> {
     let mut hosts = Vec::new();
 
     // Try environment variable first
-    if let Ok(hosts_str) = std::env::var("SKYNET_REMOTE_HOSTS") {
+    if let Ok(hosts_str) = std::env::var("SKYLET_REMOTE_HOSTS") {
         for host in hosts_str.split(',') {
             let host = host.trim();
             if !host.is_empty() {
@@ -834,7 +834,7 @@ fn load_remote_hosts() -> Vec<String> {
 
     // Try to load from config file if available
     if hosts.is_empty() {
-        if let Ok(config_str) = std::env::var("SKYNET_CONFIG_DIR") {
+        if let Ok(config_str) = std::env::var("SKYLET_CONFIG_DIR") {
             let config_path = std::path::Path::new(&config_str).join("remote_hosts.conf");
             if config_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&config_path) {

@@ -220,7 +220,7 @@ impl TraceContextExt for TracingContext {
         if let Some(tracestate) = headers.get(headers::TRACESTATE) {
             if let Ok(w3c_with_state) = w3c.with_tracestate(tracestate) {
                 // Store correlation ID from trace state if present
-                if let Some(corr_id) = w3c_with_state.trace_state.get("skynet.correlation_id") {
+                if let Some(corr_id) = w3c_with_state.trace_state.get("skylet.correlation_id") {
                     ctx.correlation_id = Some(corr_id.clone());
                 }
             }
@@ -236,7 +236,7 @@ impl TraceContextExt for TracingContext {
         // Add correlation ID to trace state
         if let Some(ref corr_id) = self.correlation_id {
             w3c.trace_state
-                .insert("skynet.correlation_id".to_string(), corr_id.clone());
+                .insert("skylet.correlation_id".to_string(), corr_id.clone());
         }
 
         let tracestate = w3c.to_tracestate();

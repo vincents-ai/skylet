@@ -89,7 +89,7 @@ impl Default for PluginConfig {
             exclude_patterns: vec![
                 "test_plugin".to_string(),
                 "simple_v2_plugin".to_string(),
-                "skynet_sdk_macros".to_string(), // proc-macro, not a plugin
+                "skylet_sdk_macros".to_string(), // proc-macro, not a plugin
             ],
             include_patterns: vec![],
             probe_abi_version: true,
@@ -141,10 +141,10 @@ impl AppConfig {
         }
 
         // Load from environment variables
-        if let Ok(host) = std::env::var("SKYNET_SERVER_HOST") {
+        if let Ok(host) = std::env::var("SKYLET_SERVER_HOST") {
             app_config.server.host = host;
         }
-        if let Ok(port) = std::env::var("SKYNET_SERVER_PORT") {
+        if let Ok(port) = std::env::var("SKYLET_SERVER_PORT") {
             if let Ok(port) = port.parse() {
                 app_config.server.port = port;
             }

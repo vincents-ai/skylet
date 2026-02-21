@@ -1973,7 +1973,7 @@ impl PluginManager {
     ///
     /// Looks for config in the following locations (in order):
     /// 1. `data/{plugin_name}.toml`
-    /// 2. `~/.config/skynet/plugins/{plugin_name}.toml`
+    /// 2. `~/.config/skylet/plugins/{plugin_name}.toml`
     ///
     /// Returns the config as a JSON Value for schema validation.
     pub fn load_plugin_config_from_toml(plugin_name: &str) -> Result<Value> {
@@ -1981,7 +1981,7 @@ impl PluginManager {
             PathBuf::from(format!("data/{}.toml", plugin_name)),
             dirs::config_dir()
                 .map(|p| {
-                    p.join("skynet")
+                    p.join("skylet")
                         .join("plugins")
                         .join(format!("{}.toml", plugin_name))
                 })

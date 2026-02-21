@@ -28,8 +28,8 @@ const PLUGIN_AUTHOR: &[u8] = b"Skylet Team\0";
 const PLUGIN_LICENSE: &[u8] = b"MIT OR Apache-2.0\0";
 const PLUGIN_HOMEPAGE: &[u8] = b"https://github.com/vincents-ai/skylet\0";
 const PLUGIN_ABI_VERSION: &[u8] = b"2.0\0";
-const PLUGIN_SKYNET_MIN: &[u8] = b"1.0.0\0";
-const PLUGIN_SKYNET_MAX: &[u8] = b"2.0.0\0";
+const PLUGIN_SKYLET_MIN: &[u8] = b"1.0.0\0";
+const PLUGIN_SKYLET_MAX: &[u8] = b"2.0.0\0";
 
 // Plugin tags
 const TAG_AUTH: &[u8] = b"auth\0";
@@ -145,8 +145,8 @@ fn init_plugin_info() {
         license: PLUGIN_LICENSE.as_ptr() as *const c_char,
         homepage: PLUGIN_HOMEPAGE.as_ptr() as *const c_char,
 
-        skynet_version_min: PLUGIN_SKYNET_MIN.as_ptr() as *const c_char,
-        skynet_version_max: PLUGIN_SKYNET_MAX.as_ptr() as *const c_char,
+        skylet_version_min: PLUGIN_SKYLET_MIN.as_ptr() as *const c_char,
+        skylet_version_max: PLUGIN_SKYLET_MAX.as_ptr() as *const c_char,
         abi_version: PLUGIN_ABI_VERSION.as_ptr() as *const c_char,
 
         dependencies: ptr::null(),

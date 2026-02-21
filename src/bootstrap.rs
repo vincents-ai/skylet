@@ -349,8 +349,8 @@ impl DynamicPluginLoader {
         vec![
             PathBuf::from("./target/release"),
             PathBuf::from("./target/debug"),
-            PathBuf::from("/usr/local/lib/skynet/plugins"),
-            PathBuf::from("/usr/lib/skynet/plugins"),
+            PathBuf::from("/usr/local/lib/skylet/plugins"),
+            PathBuf::from("/usr/lib/skylet/plugins"),
         ]
     }
 
@@ -702,23 +702,23 @@ unsafe fn call_plugin_get_info(library: &Library) -> Result<String> {
 /// Configure credential rotation for the authenticator based on environment variables
 ///
 /// # Environment Variables
-/// - `SKYNET_CREDENTIAL_ROTATION_ENABLED`: Enable/disable rotation (default: true)
-/// - `SKYNET_CREDENTIAL_ROTATION_POLICY`: Rotation policy (time-based, event-based, disabled)
-/// - `SKYNET_CREDENTIAL_ROTATION_INTERVAL`: Rotation interval in seconds (default: 2592000 = 30 days)
-/// - `SKYNET_CREDENTIAL_GRACE_PERIOD`: Grace period in seconds (default: 604800 = 7 days)
-/// - `SKYNET_CREDENTIAL_ROTATION_AUDIT`: Enable audit logging (default: true)
+/// - `SKYLET_CREDENTIAL_ROTATION_ENABLED`: Enable/disable rotation (default: true)
+/// - `SKYLET_CREDENTIAL_ROTATION_POLICY`: Rotation policy (time-based, event-based, disabled)
+/// - `SKYLET_CREDENTIAL_ROTATION_INTERVAL`: Rotation interval in seconds (default: 2592000 = 30 days)
+/// - `SKYLET_CREDENTIAL_GRACE_PERIOD`: Grace period in seconds (default: 604800 = 7 days)
+/// - `SKYLET_CREDENTIAL_ROTATION_AUDIT`: Enable audit logging (default: true)
 fn configure_credential_rotation(authenticator: &PluginAuthenticator) -> Result<()> {
-    let rotation_enabled = std::env::var("SKYNET_CREDENTIAL_ROTATION_ENABLED")
+    let rotation_enabled = std::env::var("SKYLET_CREDENTIAL_ROTATION_ENABLED")
         .unwrap_or_else(|_| "true".to_string())
         .to_lowercase()
         == "true";
 
     if !rotation_enabled {
-        debug!("Credential rotation disabled via SKYNET_CREDENTIAL_ROTATION_ENABLED=false");
+        debug!("Credential rotation disabled via SKYLET_CREDENTIAL_ROTATION_ENABLED=false");
         return Ok(());
     }
 
-    let policy_str = std::env::var("SKYNET_CREDENTIAL_ROTATION_POLICY")
+    let policy_str = std::env::var("SKYLET_CREDENTIAL_ROTATION_POLICY")
         .unwrap_or_else(|_| "time-based".to_string());
 
     let _policy = match policy_str.as_str() {
@@ -735,12 +735,12 @@ fn configure_credential_rotation(authenticator: &PluginAuthenticator) -> Result<
     };
 
     // Get configured intervals (for logging purposes)
-    let interval_secs = std::env::var("SKYNET_CREDENTIAL_ROTATION_INTERVAL")
+    let interval_secs = std::env::var("SKYLET_CREDENTIAL_ROTATION_INTERVAL")
         .unwrap_or_else(|_| "2592000".to_string()) // 30 days default
         .parse::<u64>()
         .unwrap_or(2592000);
 
-    let grace_period_secs = std::env::var("SKYNET_CREDENTIAL_GRACE_PERIOD")
+    let grace_period_secs = std::env::var("SKYLET_CREDENTIAL_GRACE_PERIOD")
         .unwrap_or_else(|_| "604800".to_string()) // 7 days default
         .parse::<u64>()
         .unwrap_or(604800);
@@ -759,7 +759,7 @@ fn configure_credential_rotation(authenticator: &PluginAuthenticator) -> Result<
     let current_grace = rotation_manager.grace_period();
     let current_interval = rotation_manager.rotation_interval();
 
-    let audit_enabled = std::env::var("SKYNET_CREDENTIAL_ROTATION_AUDIT")
+    let audit_enabled = std::env::var("SKYLET_CREDENTIAL_ROTATION_AUDIT")
         .unwrap_or_else(|_| "true".to_string())
         .to_lowercase()
         == "true";

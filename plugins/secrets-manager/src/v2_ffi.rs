@@ -21,8 +21,8 @@ const AUTHOR: &str = "Skylet Team";
 const LICENSE: &str = "MIT OR Apache-2.0";
 const HOMEPAGE: &str = "https://github.com/vincents-ai/skylet";
 const ABI_VERSION: &str = "2.0";
-const SKYNET_VERSION_MIN: &str = "0.1.0";
-const SKYNET_VERSION_MAX: &str = "2.0.0";
+const SKYLET_VERSION_MIN: &str = "0.1.0";
+const SKYLET_VERSION_MAX: &str = "2.0.0";
 
 // Tags
 const TAGS: &[&str] = &["security", "encryption", "secrets", "bootstrap"];
@@ -100,8 +100,8 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
                 homepage: CString::new(HOMEPAGE).unwrap().into_raw(),
 
                 // Version compatibility
-                skynet_version_min: CString::new(SKYNET_VERSION_MIN).unwrap().into_raw(),
-                skynet_version_max: CString::new(SKYNET_VERSION_MAX).unwrap().into_raw(),
+                skylet_version_min: CString::new(SKYLET_VERSION_MIN).unwrap().into_raw(),
+                skylet_version_max: CString::new(SKYLET_VERSION_MAX).unwrap().into_raw(),
                 abi_version: CString::new(ABI_VERSION).unwrap().into_raw(),
 
                 // Dependencies and services

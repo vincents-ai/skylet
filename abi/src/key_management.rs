@@ -24,7 +24,7 @@
 //! # Feature-Gated Proprietary Support
 //!
 //! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary key management systems like Skynet's AGE-based key hierarchy.
+//! proprietary key management systems like Skylet's AGE-based key hierarchy.
 //!
 //! # Example
 //!

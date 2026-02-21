@@ -1113,6 +1113,18 @@ impl EncryptionConfig {
     }
 }
 
+impl Drop for EncryptionConfig {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+
+        // Securely clear all encryption keys on drop
+        self.current_key.zeroize();
+        for key in &mut self.previous_keys {
+            key.zeroize();
+        }
+    }
+}
+
 /// Replication handle for tracking background replication tasks (Phase 6.3)
 #[derive(Debug, Clone)]
 pub struct ReplicationHandle {

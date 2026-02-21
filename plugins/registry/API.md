@@ -279,7 +279,7 @@ RegistryResult add_source(const PluginContext *context, const char *url);
 
 **Parameters:**
 - `context` (const PluginContext*): Plugin context
-- `url` (const char*): Registry source URL (e.g., "https://registry.skynet.ai")
+- `url` (const char*): Registry source URL (e.g., "https://registry.skylet.ai")
 
 **Return Structure:**
 ```c
@@ -293,7 +293,7 @@ typedef struct {
 ```c
 RegistryResult result = registry_service->add_source(
     context,
-    "https://registry.skynet.ai"
+    "https://registry.skylet.ai"
 );
 if (result.result != PluginResult_Success) {
     fprintf(stderr, "Error: %s\n", result.error_message);
@@ -315,7 +315,7 @@ def add_registry_source(registry_service, context, url):
 
 # Usage
 add_registry_source(service, context, "https://registry.example.com")
-add_registry_source(service, context, "https://community-registry.skynet.ai")
+add_registry_source(service, context, "https://community-registry.skylet.ai")
 ```
 
 **Example - Rust:**
@@ -362,7 +362,7 @@ RegistryResult remove_source(const PluginContext *context, const char *url);
 ```c
 RegistryResult result = registry_service->remove_source(
     context,
-    "https://old-registry.skynet.ai"
+    "https://old-registry.skylet.ai"
 );
 ```
 
@@ -380,7 +380,7 @@ def remove_registry_source(registry_service, context, url):
     return result.result == PluginResult.Success
 
 # Remove a source
-remove_registry_source(service, context, "https://old-registry.skynet.ai")
+remove_registry_source(service, context, "https://old-registry.skylet.ai")
 ```
 
 **Example - Rust:**
@@ -556,7 +556,7 @@ typedef struct {
 ```c
 RegistryGetResult get_result = registry_service->get_plugin(
     context,
-    "skynet/database-plugin"
+    "skylet/database-plugin"
 );
 if (get_result.result == PluginResult_Success) {
     printf("Plugin info: %s\n", get_result.plugin_json);
@@ -592,7 +592,7 @@ def get_plugin_info(registry_service, context, plugin_name):
         return None
 
 # Get plugin details
-plugin = get_plugin_info(service, context, "skynet/database-plugin")
+plugin = get_plugin_info(service, context, "skylet/database-plugin")
 ```
 
 **Example - Rust:**
@@ -648,8 +648,8 @@ mcp_call registry_list
 ```json
 {
   "plugins": [
-    "skynet/database-plugin",
-    "skynet/http-server",
+    "skylet/database-plugin",
+    "skylet/http-server",
     "community/redis-integration",
     "vendor/custom-service"
   ],
@@ -700,8 +700,8 @@ mcp_call registry_search query="database"
 ```json
 {
   "results": [
-    "skynet/postgres-plugin",
-    "skynet/redis-plugin",
+    "skylet/postgres-plugin",
+    "skylet/redis-plugin",
     "vendor/mongodb-integration"
   ],
   "result_count": 3
@@ -716,7 +716,7 @@ Get details about a specific plugin.
 
 **Command:**
 ```bash
-mcp_call registry_get_plugin name="skynet/postgres-plugin"
+mcp_call registry_get_plugin name="skylet/postgres-plugin"
 ```
 
 **Parameters:**
@@ -733,13 +733,13 @@ Registry sources are configured via the Skylet configuration system:
 ```toml
 [registry]
 sources = [
-    "https://registry.skynet.ai",
-    "https://community-registry.skynet.ai",
+    "https://registry.skylet.ai",
+    "https://community-registry.skylet.ai",
     "https://vendor-registry.example.com"
 ]
 
 # Optional: cache settings
-cache_dir = "/var/cache/skynet/registry"
+cache_dir = "/var/cache/skylet/registry"
 cache_ttl_secs = 3600
 ```
 

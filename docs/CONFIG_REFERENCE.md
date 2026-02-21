@@ -426,7 +426,7 @@ Configuration files are TOML format with sections for each plugin.
 ### Basic Example
 
 ```toml
-# /etc/skynet/plugins/my-plugin.toml
+# /etc/skylet/plugins/my-plugin.toml
 
 [my-plugin]
 # Basic settings
@@ -455,7 +455,7 @@ retry_strategy = "exponential"
 ### Complete Example
 
 ```toml
-# /etc/skynet/plugins/data-processor.toml
+# /etc/skylet/plugins/data-processor.toml
 
 [data-processor]
 # Plugin identification
@@ -769,9 +769,9 @@ Use environment variables to switch configuration:
 // Plugin code
 let env = env::var("ENVIRONMENT").unwrap_or("development".to_string());
 let config_file = if env == "production" {
-    "/etc/skynet/plugins/prod.toml"
+    "/etc/skylet/plugins/prod.toml"
 } else {
-    "/etc/skynet/plugins/dev.toml"
+    "/etc/skylet/plugins/dev.toml"
 };
 ```
 
@@ -829,13 +829,13 @@ let log_level = config.get("logging.level")?;
 ### Configuration File Not Found
 
 ```
-Error: Failed to read file '/etc/skynet/plugins/my-plugin.toml': No such file or directory
+Error: Failed to read file '/etc/skylet/plugins/my-plugin.toml': No such file or directory
 ```
 
 Solution:
 - Verify file path is correct
 - Check file permissions (must be readable)
-- Create file if missing: `touch /etc/skynet/plugins/my-plugin.toml`
+- Create file if missing: `touch /etc/skylet/plugins/my-plugin.toml`
 
 ### Validation Error: Invalid Value
 

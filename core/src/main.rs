@@ -14,7 +14,7 @@ use tracing;
 mod config;
 
 #[derive(Parser)]
-#[command(name = "skynet")]
+#[command(name = "skylet")]
 #[command(about = "Autonomous Marketplace")]
 struct Cli {
     #[command(flatten)]

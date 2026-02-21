@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use tracing;
 
 #[derive(Parser)]
-#[command(name = "skynet-plugin")]
+#[command(name = "skylet-plugin")]
 #[command(version = "0.1.0")]
 #[command(about = "Skylet Plugin Management Tool - Package, verify, and manage plugins", long_about = None)]
 struct Cli {
@@ -59,7 +59,7 @@ enum PackageCommands {
     Publish {
         /// Path to the artifact file (.tar.gz)
         artifact: PathBuf,
-        /// Registry URL (e.g., https://marketplace.skynet.dev)
+        /// Registry URL (e.g., https://marketplace.skylet.dev)
         #[arg(short, long)]
         registry: String,
         /// Authentication token
@@ -95,7 +95,7 @@ enum PluginCommands {
     Install {
         /// Path to plugin archive (.tar.gz)
         archive: PathBuf,
-        /// Installation directory (default: ~/.skynet/plugins)
+        /// Installation directory (default: ~/.skylet/plugins)
         #[arg(short, long)]
         dest: Option<PathBuf>,
     },
@@ -104,7 +104,7 @@ enum PluginCommands {
     Remove {
         /// Plugin name
         name: String,
-        /// Plugin directory (default: ~/.skynet/plugins)
+        /// Plugin directory (default: ~/.skylet/plugins)
         #[arg(short, long)]
         dir: Option<PathBuf>,
     },
@@ -213,7 +213,7 @@ fn list_plugins(_filter: Option<String>) -> anyhow::Result<()> {
     let plugin_dir = get_plugin_dir()?;
 
     if !plugin_dir.exists() {
-        tracing::info!("No plugins installed yet. Install plugins with: skynet-plugin plugin install <archive>");
+        tracing::info!("No plugins installed yet. Install plugins with: skylet-plugin plugin install <archive>");
         return Ok(());
     }
 
@@ -559,7 +559,7 @@ fn upgrade_plugin(
     // Backup if enabled
     let backup_dir = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
-        .join(".skynet/backups");
+        .join(".skylet/backups");
     let mut backup_manager = BackupManager::new(backup_dir)?;
 
     let backup_path = if !no_backup {
@@ -633,13 +633,13 @@ fn upgrade_plugin(
 fn get_plugin_dir() -> anyhow::Result<PathBuf> {
     let home =
         dirs::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
-    Ok(home.join(".skynet/plugins"))
+    Ok(home.join(".skylet/plugins"))
 }
 
 fn get_registry_file() -> anyhow::Result<PathBuf> {
     let home =
         dirs::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
-    Ok(home.join(".skynet/registry.json"))
+    Ok(home.join(".skylet/registry.json"))
 }
 
 fn extract_name_from_manifest(content: &str) -> anyhow::Result<String> {

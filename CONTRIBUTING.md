@@ -1,6 +1,6 @@
-# Contributing to Skynet Execution Engine
+# Contributing to Skylet Execution Engine
 
-Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to the Skynet Execution Engine.
+Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to the Skylet Execution Engine.
 
 ## Code of Conduct
 
@@ -18,8 +18,8 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 ```bash
 # Clone the repository
-git clone https://github.com/vincents-ai/skynet.git
-cd skynet/execution-engine
+git clone https://github.com/vincents-ai/skylet.git
+cd skylet/execution-engine
 
 # Verify build
 cargo check --features standalone
@@ -490,4 +490,4 @@ Contributors will be:
 
 ---
 
-**Thank you for contributing to making Skynet better!** ❤️
+**Thank you for contributing to making Skylet better!** ❤️

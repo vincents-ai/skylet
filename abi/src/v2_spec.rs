@@ -597,8 +597,8 @@ pub struct PluginInfoV2 {
     pub homepage: *const c_char,
 
     // Version compatibility
-    pub skynet_version_min: *const c_char,
-    pub skynet_version_max: *const c_char,
+    pub skylet_version_min: *const c_char,
+    pub skylet_version_max: *const c_char,
     pub abi_version: *const c_char, // MUST be "2.0"
 
     // Dependencies and service discovery

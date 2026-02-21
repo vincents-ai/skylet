@@ -11,6 +11,10 @@ repository = "https://github.com/vincents-ai/skylet"
 name = "skylet"
 path = "main.rs"
 
+[[bin]]
+name = "skylet-lifecycle-cli"
+path = "bin/skylet-lifecycle-cli.rs"
+
 [lib]
 name = "execution_engine_lib"
 path = "lib.rs"

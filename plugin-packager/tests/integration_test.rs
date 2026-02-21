@@ -1340,7 +1340,7 @@ abi_version = "2.0"
 }
 
 // ============================================================================
-// RFC-0003 Task 3: Registry Publishing and skynet-pack CLI Tests
+// RFC-0003 Task 3: Registry Publishing and skylet-pack CLI Tests
 // ============================================================================
 
 /// Test: ArtifactPublisher creation with config

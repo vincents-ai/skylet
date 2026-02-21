@@ -104,7 +104,7 @@ impl Default for DiscoveryConfig {
                 "*_test".to_string(),
                 "*_template".to_string(),
                 // Proc macros and build-time dependencies (not plugins)
-                "skynet_sdk_macros".to_string(),
+                "skylet_sdk_macros".to_string(),
             ],
             include_patterns: vec![],
             probe_abi_version: true,
@@ -119,8 +119,8 @@ impl DiscoveryConfig {
         vec![
             PathBuf::from("./target/release"),
             PathBuf::from("./target/debug"),
-            PathBuf::from("/usr/local/lib/skynet/plugins"),
-            PathBuf::from("/usr/lib/skynet/plugins"),
+            PathBuf::from("/usr/local/lib/skylet/plugins"),
+            PathBuf::from("/usr/lib/skylet/plugins"),
         ]
     }
 

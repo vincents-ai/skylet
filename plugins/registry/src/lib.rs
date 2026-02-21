@@ -90,8 +90,8 @@ fn initialize_plugin_info() {
         homepage: CString::new("https://github.com/vincents-ai/skylet")
             .unwrap()
             .into_raw(),
-        skynet_version_min: CString::new("0.2.0").unwrap().into_raw(),
-        skynet_version_max: ptr::null(),
+        skylet_version_min: CString::new("0.2.0").unwrap().into_raw(),
+        skylet_version_max: ptr::null(),
         abi_version: CString::new("2.0").unwrap().into_raw(),
         dependencies: DEPENDENCIES.load(Ordering::SeqCst),
         num_dependencies: 1,
