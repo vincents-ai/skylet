@@ -58,8 +58,7 @@ impl DiscoveredPlugin {
 
     /// Check if this plugin matches a given name
     pub fn matches_name(&self, pattern: &str) -> bool {
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             self.name.starts_with(prefix)
         } else {
             self.name == pattern

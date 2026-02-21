@@ -463,6 +463,7 @@ fn create_sandbox_policy(name: &str) -> PluginSandboxPolicy {
 ///
 /// RFC-0004 Dual ABI Support:
 /// - Tries v2 ABI first (plugin_init_v2 with PluginContextV2)
+///
 /// Load all bootstrap plugins using V2 ABI
 ///
 /// Security enhancements:

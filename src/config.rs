@@ -98,23 +98,12 @@ impl Default for PluginConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
     pub data: DataConfig,
     pub plugins: PluginConfig,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            data: DataConfig::default(),
-            plugins: PluginConfig::default(),
-        }
-    }
 }
 
 impl AppConfig {
@@ -224,7 +213,7 @@ impl AppConfig {
     }
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Default, Parser)]
 pub struct ConfigArgs {
     #[arg(short, long)]
     pub config: Option<PathBuf>,
@@ -243,19 +232,6 @@ pub struct ConfigArgs {
 
     #[arg(long)]
     pub plugins_directory: Option<PathBuf>,
-}
-
-impl Default for ConfigArgs {
-    fn default() -> Self {
-        Self {
-            config: None,
-            server_host: None,
-            server_port: None,
-            server_workers: None,
-            data_directory: None,
-            plugins_directory: None,
-        }
-    }
 }
 
 #[cfg(test)]

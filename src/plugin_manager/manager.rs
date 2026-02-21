@@ -619,7 +619,7 @@ impl PluginHttpRouterBackend {
 
             let path_item = paths
                 .entry(route.path.clone())
-                .or_insert_with(|| std::collections::HashMap::new());
+                .or_insert_with(std::collections::HashMap::new);
             path_item.insert(method_lower, op);
         }
 
@@ -679,6 +679,7 @@ pub struct PluginServices {
 }
 
 impl PluginServices {
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -692,6 +693,7 @@ impl PluginServices {
     }
 
     /// Create services with OpenTelemetry-enabled tracing
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_tracing(exporter_config: ExporterConfig) -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -796,6 +798,12 @@ pub struct PluginManager {
     services: Arc<PluginServices>,
 }
 
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PluginManager {
     // RFC-0003: Security fixes for unsafe FFI (Phase 3)
     // Issue #7: Vec::from_raw_parts validation (service list allocation)
@@ -807,6 +815,7 @@ impl PluginManager {
     const MAX_ATTRIBUTE_VALUE_LEN: usize = 4096;
 
     /// Create a new plugin manager
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             loaded_plugins_v2: Arc::new(RwLock::new(HashMap::new())),
@@ -816,6 +825,7 @@ impl PluginManager {
     }
 
     /// Create a plugin manager with custom services
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_services(services: Arc<PluginServices>) -> Self {
         Self {
             loaded_plugins_v2: Arc::new(RwLock::new(HashMap::new())),
@@ -883,7 +893,7 @@ impl PluginManager {
         let (context_v2, resources) = self.create_plugin_context_v2(name)?;
 
         // Call plugin initialization
-        let _init_result = loader
+        loader
             .init(&context_v2)
             .map_err(|e| anyhow!("Failed to initialize v2 plugin {}: {}", name, e))?;
 
@@ -1904,8 +1914,10 @@ impl PluginManager {
     /// This is a stub that returns empty stats for backward compatibility.
     pub async fn collect_billing_metrics(&self) -> Result<BillingCollectorStats> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        let mut stats = BillingCollectorStats::default();
-        stats.collections_total = 1;
+        let mut stats = BillingCollectorStats {
+            collections_total: 1,
+            ..Default::default()
+        };
 
         for (name, loader) in plugins_v2.iter() {
             // Check if plugin supports billing metrics
