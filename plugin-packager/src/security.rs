@@ -33,7 +33,7 @@ impl VulnerabilitySeverity {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "informational" => Some(VulnerabilitySeverity::Informational),
             "low" => Some(VulnerabilitySeverity::Low),

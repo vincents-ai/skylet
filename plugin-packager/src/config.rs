@@ -100,21 +100,6 @@ impl Config {
         true
     }
 
-    /// Create default configuration
-    pub fn default() -> Self {
-        Self {
-            plugin_dir: Self::default_plugin_dir(),
-            registry_file: Self::default_registry_file(),
-            verify_on_install: Self::default_verify_on_install(),
-            auto_register: Self::default_auto_register(),
-            check_dependencies: Self::default_check_dependencies(),
-            max_concurrent_installs: Self::default_max_concurrent(),
-            cache_dir: Self::default_cache_dir(),
-            verbose: Self::default_verbose(),
-            backup_on_upgrade: Self::default_backup_on_upgrade(),
-        }
-    }
-
     /// Load configuration from file, or return default if not found
     pub fn load_or_default(path: &Path) -> Result<Self> {
         if path.exists() {
@@ -181,7 +166,17 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::default()
+        Self {
+            plugin_dir: Config::default_plugin_dir(),
+            registry_file: Config::default_registry_file(),
+            verify_on_install: Config::default_verify_on_install(),
+            auto_register: Config::default_auto_register(),
+            check_dependencies: Config::default_check_dependencies(),
+            max_concurrent_installs: Config::default_max_concurrent(),
+            cache_dir: Config::default_cache_dir(),
+            verbose: Config::default_verbose(),
+            backup_on_upgrade: Config::default_backup_on_upgrade(),
+        }
     }
 }
 

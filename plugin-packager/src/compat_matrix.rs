@@ -24,7 +24,7 @@ impl AbiVersion {
         Self { major, minor }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() == 2 {
             if let (Ok(major), Ok(minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
