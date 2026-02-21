@@ -287,11 +287,7 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin shutting down").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
         }
     }
 
@@ -349,6 +345,9 @@ pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const c_char,
 ) -> bool {
+    // SAFETY: Caller must ensure capability is a valid null-terminated C string
+    // This is FFI boundary code where the caller is responsible for pointer validity
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     unsafe {
         if capability.is_null() {
             return false;

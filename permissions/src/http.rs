@@ -330,7 +330,7 @@ pub async fn login_handler(
             success: true,
             token: Some(session.token.token.clone()),
             expires_at: Some(session.token.expires_at.to_rfc3339()),
-            user: Some(UserInfo::from(&session)),
+            user: Some(UserInfo::from(&*session)),
             error: None,
         })),
 

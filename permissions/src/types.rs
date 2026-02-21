@@ -23,7 +23,7 @@ impl UserId {
         Self(Uuid::new_v4().to_string())
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn try_parse(s: &str) -> Self {
         Self(s.to_string())
     }
 }
@@ -182,7 +182,7 @@ impl Permission {
         format!("{}:{}:{}", self.namespace, self.resource, self.action)
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() == 3 {
             Some(Self {
@@ -247,7 +247,7 @@ impl TenantId {
         Self(Uuid::new_v4().to_string())
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn try_parse(s: &str) -> Self {
         Self(s.to_string())
     }
 }
@@ -313,7 +313,7 @@ impl UserContext {
 
     pub fn has_permission(&self, permission: &Permission) -> bool {
         self.permissions.iter().any(|p| {
-            Permission::from_str(p)
+            Permission::try_parse(p)
                 .map(|parsed| permission.matches(&parsed))
                 .unwrap_or(false)
         })
@@ -327,7 +327,7 @@ impl UserContext {
 /// Result of authentication attempt
 #[derive(Debug)]
 pub enum AuthResult {
-    Success(Session),
+    Success(Box<Session>),
     InvalidCredentials,
     AccountLocked,
     AccountExpired,

@@ -224,7 +224,7 @@ impl AuthProvider for LocalAuthProvider {
                         match user {
                             Some(user) => {
                                 let session = self.create_session(&user.user_id, vec![user_role()]);
-                                AuthResult::Success(session)
+                                AuthResult::Success(Box::new(session))
                             }
                             None => AuthResult::InvalidCredentials,
                         }
@@ -279,7 +279,7 @@ impl AuthProvider for LocalAuthProvider {
                             return AuthResult::InvalidCredentials;
                         }
                         let session = self.create_session(&user.user_id, vec![user_role()]);
-                        AuthResult::Success(session)
+                        AuthResult::Success(Box::new(session))
                     }
                     None => AuthResult::InvalidCredentials,
                 }
@@ -314,7 +314,7 @@ impl AuthProvider for LocalAuthProvider {
                             }
                         }
                         let session = self.create_session(&user.user_id, vec![user_role()]);
-                        AuthResult::Success(session)
+                        AuthResult::Success(Box::new(session))
                     }
                     None => AuthResult::InvalidCredentials,
                 }
@@ -323,7 +323,7 @@ impl AuthProvider for LocalAuthProvider {
             Credentials::Jwt { token } => {
                 // Validate JWT token
                 self.validate_token(token)
-                    .map(AuthResult::Success)
+                    .map(|s| AuthResult::Success(Box::new(s)))
                     .unwrap_or(AuthResult::TokenInvalid)
             }
 
