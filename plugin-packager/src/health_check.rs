@@ -595,21 +595,24 @@ mod tests {
     }
 
     #[test]
-    fn test_health_severity_from_str() {
-        assert_eq!(HealthSeverity::from_str("info"), Some(HealthSeverity::Info));
+    fn test_health_severity_try_parse() {
         assert_eq!(
-            HealthSeverity::from_str("warning"),
+            HealthSeverity::try_parse("info"),
+            Some(HealthSeverity::Info)
+        );
+        assert_eq!(
+            HealthSeverity::try_parse("warning"),
             Some(HealthSeverity::Warning)
         );
         assert_eq!(
-            HealthSeverity::from_str("error"),
+            HealthSeverity::try_parse("error"),
             Some(HealthSeverity::Error)
         );
         assert_eq!(
-            HealthSeverity::from_str("critical"),
+            HealthSeverity::try_parse("critical"),
             Some(HealthSeverity::Critical)
         );
-        assert_eq!(HealthSeverity::from_str("unknown"), None);
+        assert_eq!(HealthSeverity::try_parse("unknown"), None);
     }
 
     #[test]

@@ -456,12 +456,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_severity_from_str() {
+    fn test_validation_severity_try_parse() {
         assert_eq!(
-            ValidationSeverity::from_str("critical"),
+            ValidationSeverity::try_parse("critical"),
             Some(ValidationSeverity::Critical)
         );
-        assert_eq!(ValidationSeverity::from_str("invalid"), None);
+        assert_eq!(ValidationSeverity::try_parse("invalid"), None);
     }
 
     #[test]

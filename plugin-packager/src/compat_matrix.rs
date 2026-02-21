@@ -373,8 +373,8 @@ mod tests {
     }
 
     #[test]
-    fn test_abi_version_from_str() {
-        let v = AbiVersion::from_str("2.1").unwrap();
+    fn test_abi_version_from_string() {
+        let v = AbiVersion::from_string("2.1").unwrap();
         assert_eq!(v.major, 2);
         assert_eq!(v.minor, 1);
     }

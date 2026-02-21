@@ -527,13 +527,13 @@ mod tests {
     }
 
     #[test]
-    fn test_permission_from_str() {
+    fn test_permission_try_parse() {
         assert_eq!(
-            Permission::from_str("filesystem"),
+            Permission::try_parse("filesystem"),
             Some(Permission::FileSystem)
         );
-        assert_eq!(Permission::from_str("network"), Some(Permission::Network));
-        assert_eq!(Permission::from_str("unknown"), None);
+        assert_eq!(Permission::try_parse("network"), Some(Permission::Network));
+        assert_eq!(Permission::try_parse("unknown"), None);
     }
 
     #[test]
@@ -564,12 +564,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sandbox_severity_from_str() {
+    fn test_sandbox_severity_try_parse() {
         assert_eq!(
-            SandboxSeverity::from_str("info"),
+            SandboxSeverity::try_parse("info"),
             Some(SandboxSeverity::Info)
         );
-        assert_eq!(SandboxSeverity::from_str("unknown"), None);
+        assert_eq!(SandboxSeverity::try_parse("unknown"), None);
     }
 
     #[test]

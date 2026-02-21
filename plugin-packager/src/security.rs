@@ -388,12 +388,12 @@ mod tests {
     }
 
     #[test]
-    fn test_vulnerability_severity_from_str() {
+    fn test_vulnerability_severity_try_parse() {
         assert_eq!(
-            VulnerabilitySeverity::from_str("critical"),
+            VulnerabilitySeverity::try_parse("critical"),
             Some(VulnerabilitySeverity::Critical)
         );
-        assert_eq!(VulnerabilitySeverity::from_str("invalid"), None);
+        assert_eq!(VulnerabilitySeverity::try_parse("invalid"), None);
     }
 
     #[test]
