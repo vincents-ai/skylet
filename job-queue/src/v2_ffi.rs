@@ -22,7 +22,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::job_queue::JobQueue;
-use tracing;
 
 // ============================================================================
 // Plugin Metadata Constants
@@ -73,28 +72,28 @@ fn init_plugin_info() {
     // Initialize capabilities
     let capabilities = [
         CapabilityInfo {
-            name: b"job.submit\0".as_ptr() as *const c_char,
-            description: b"Submit a new job to the queue\0".as_ptr() as *const c_char,
+            name: c"job.submit".as_ptr(),
+            description: c"Submit a new job to the queue".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"job.cancel\0".as_ptr() as *const c_char,
-            description: b"Cancel a pending or running job\0".as_ptr() as *const c_char,
+            name: c"job.cancel".as_ptr(),
+            description: c"Cancel a pending or running job".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"job.status\0".as_ptr() as *const c_char,
-            description: b"Get job status and progress\0".as_ptr() as *const c_char,
+            name: c"job.status".as_ptr(),
+            description: c"Get job status and progress".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"job.list\0".as_ptr() as *const c_char,
-            description: b"List jobs by status or time range\0".as_ptr() as *const c_char,
+            name: c"job.list".as_ptr(),
+            description: c"List jobs by status or time range".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"job.retry\0".as_ptr() as *const c_char,
-            description: b"Retry a failed job\0".as_ptr() as *const c_char,
+            name: c"job.retry".as_ptr(),
+            description: c"Retry a failed job".as_ptr(),
             required_permission: ptr::null(),
         },
     ];
@@ -106,10 +105,10 @@ fn init_plugin_info() {
 
     // Initialize tags
     let tags = [
-        TAG_JOBS.as_ptr() as *const c_char,
-        TAG_QUEUE.as_ptr() as *const c_char,
-        TAG_SCHEDULER.as_ptr() as *const c_char,
-        TAG_BACKGROUND.as_ptr() as *const c_char,
+        TAG_JOBS.as_ptr().cast::<c_char>(),
+        TAG_QUEUE.as_ptr().cast::<c_char>(),
+        TAG_SCHEDULER.as_ptr().cast::<c_char>(),
+        TAG_BACKGROUND.as_ptr().cast::<c_char>(),
     ];
 
     TAGS_STORAGE.store(
@@ -119,10 +118,10 @@ fn init_plugin_info() {
 
     // Initialize service info
     let service = ServiceInfo {
-        name: SERVICE_NAME.as_ptr() as *const c_char,
-        version: SERVICE_VERSION.as_ptr() as *const c_char,
-        description: SERVICE_DESC.as_ptr() as *const c_char,
-        interface_spec: SERVICE_SPEC.as_ptr() as *const c_char,
+        name: SERVICE_NAME.as_ptr().cast::<c_char>(),
+        version: SERVICE_VERSION.as_ptr().cast::<c_char>(),
+        description: SERVICE_DESC.as_ptr().cast::<c_char>(),
+        interface_spec: SERVICE_SPEC.as_ptr().cast::<c_char>(),
     };
 
     SERVICE_STORAGE.store(
@@ -133,17 +132,17 @@ fn init_plugin_info() {
     // Initialize plugin info
     let info = PluginInfoV2 {
         // Basic metadata
-        name: PLUGIN_NAME.as_ptr() as *const c_char,
-        version: PLUGIN_VERSION.as_ptr() as *const c_char,
-        description: PLUGIN_DESCRIPTION.as_ptr() as *const c_char,
-        author: PLUGIN_AUTHOR.as_ptr() as *const c_char,
-        license: PLUGIN_LICENSE.as_ptr() as *const c_char,
-        homepage: PLUGIN_HOMEPAGE.as_ptr() as *const c_char,
+        name: PLUGIN_NAME.as_ptr().cast::<c_char>(),
+        version: PLUGIN_VERSION.as_ptr().cast::<c_char>(),
+        description: PLUGIN_DESCRIPTION.as_ptr().cast::<c_char>(),
+        author: PLUGIN_AUTHOR.as_ptr().cast::<c_char>(),
+        license: PLUGIN_LICENSE.as_ptr().cast::<c_char>(),
+        homepage: PLUGIN_HOMEPAGE.as_ptr().cast::<c_char>(),
 
         // Version compatibility
-        skynet_version_min: PLUGIN_SKYNET_MIN.as_ptr() as *const c_char,
-        skynet_version_max: PLUGIN_SKYNET_MAX.as_ptr() as *const c_char,
-        abi_version: PLUGIN_ABI_VERSION.as_ptr() as *const c_char,
+        skynet_version_min: PLUGIN_SKYNET_MIN.as_ptr().cast::<c_char>(),
+        skynet_version_max: PLUGIN_SKYNET_MAX.as_ptr().cast::<c_char>(),
+        abi_version: PLUGIN_ABI_VERSION.as_ptr().cast::<c_char>(),
 
         // Dependencies and services
         dependencies: ptr::null(),

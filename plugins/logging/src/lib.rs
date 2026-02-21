@@ -19,7 +19,6 @@ use std::sync::Mutex;
 
 use chrono::Utc;
 use serde_json::{json, Value};
-use tracing;
 
 // Static storage
 static PLUGIN_INFO: AtomicPtr<PluginInfoV2> = AtomicPtr::new(ptr::null_mut());
