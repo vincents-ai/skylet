@@ -78,6 +78,27 @@ enum PackageCommands {
 
 #[derive(Subcommand)]
 enum PluginCommands {
+    /// Create a new plugin from template
+    New {
+        /// Plugin name (e.g., my-api-plugin)
+        name: String,
+        /// Template to use: api-integration, database, communication, basic
+        #[arg(short, long, default_value = "basic")]
+        template: String,
+        /// Output directory (default: current directory)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Plugin description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Plugin author
+        #[arg(short, long)]
+        author: Option<String>,
+        /// Initialize git repository
+        #[arg(long)]
+        git: bool,
+    },
+
     /// List available plugins
     List {
         /// Filter by plugin type (optional)
@@ -191,6 +212,14 @@ fn handle_package_commands(cmd: PackageCommands) -> anyhow::Result<()> {
 
 fn handle_plugin_commands(cmd: PluginCommands) -> anyhow::Result<()> {
     match cmd {
+        PluginCommands::New {
+            name,
+            template,
+            output,
+            description,
+            author,
+            git,
+        } => new_plugin(&name, &template, output, description, author, git),
         PluginCommands::List { filter } => list_plugins(filter),
         PluginCommands::Info { plugin } => show_plugin_info(&plugin),
         PluginCommands::Install { archive, dest } => install_plugin(&archive, dest),
@@ -204,6 +233,479 @@ fn handle_plugin_commands(cmd: PluginCommands) -> anyhow::Result<()> {
             allow_breaking,
         } => upgrade_plugin(&name, &archive, no_backup, allow_breaking),
     }
+}
+
+/// Create a new plugin from template
+fn new_plugin(
+    name: &str,
+    template: &str,
+    output: Option<PathBuf>,
+    description: Option<String>,
+    author: Option<String>,
+    git: bool,
+) -> anyhow::Result<()> {
+    use std::process::Command;
+
+    // Validate plugin name (must be valid Rust crate name)
+    if !is_valid_crate_name(name) {
+        anyhow::bail!(
+            "Invalid plugin name '{}'. Must be lowercase, alphanumeric with hyphens, and start with a letter.",
+            name
+        );
+    }
+
+    // Determine output directory
+    let output_dir = output.unwrap_or_else(|| PathBuf::from(".")).join(name);
+
+    if output_dir.exists() {
+        anyhow::bail!(
+            "Directory already exists: {}. Use a different name or remove the existing directory.",
+            output_dir.display()
+        );
+    }
+
+    tracing::info!(
+        "Creating new plugin '{}' from '{}' template...",
+        name,
+        template
+    );
+
+    // Create directory structure
+    fs::create_dir_all(output_dir.join("src"))?;
+
+    // Get template content
+    let (cargo_toml, lib_rs, plugin_toml) =
+        get_template_files(name, template, &description, &author)?;
+
+    // Write files
+    fs::write(output_dir.join("Cargo.toml"), cargo_toml)?;
+    fs::write(output_dir.join("src/lib.rs"), lib_rs)?;
+    fs::write(output_dir.join("plugin.toml"), plugin_toml)?;
+    fs::write(
+        output_dir.join("README.md"),
+        get_readme_template(name, template, &description),
+    )?;
+    fs::write(output_dir.join(".gitignore"), get_gitignore_template())?;
+
+    tracing::info!("  Created {}/Cargo.toml", name);
+    tracing::info!("  Created {}/src/lib.rs", name);
+    tracing::info!("  Created {}/plugin.toml", name);
+    tracing::info!("  Created {}/README.md", name);
+    tracing::info!("  Created {}/.gitignore", name);
+
+    // Initialize git if requested
+    if git {
+        tracing::info!("Initializing git repository...");
+        let status = Command::new("git")
+            .args(["init"])
+            .current_dir(&output_dir)
+            .status();
+
+        if let Ok(s) = status {
+            if s.success() {
+                tracing::info!("  Initialized git repository");
+            }
+        }
+    }
+
+    tracing::info!("");
+    tracing::info!("✓ Plugin '{}' created successfully!", name);
+    tracing::info!("");
+    tracing::info!("Next steps:");
+    tracing::info!("  cd {}", name);
+    tracing::info!("  cargo build --release");
+    tracing::info!("  skylet-plugin package pack . {}.tar.gz", name);
+    tracing::info!("");
+    tracing::info!("For development:");
+    tracing::info!("  cargo test");
+    tracing::info!("  cargo clippy");
+
+    Ok(())
+}
+
+/// Validate crate name follows Rust conventions
+fn is_valid_crate_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > 64 {
+        return false;
+    }
+
+    let first_char = name.chars().next().unwrap();
+    if !first_char.is_ascii_lowercase() {
+        return false;
+    }
+
+    name.chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+/// Get template files for a plugin
+fn get_template_files(
+    name: &str,
+    template: &str,
+    description: &Option<String>,
+    author: &Option<String>,
+) -> anyhow::Result<(String, String, String)> {
+    let desc = description
+        .clone()
+        .unwrap_or_else(|| format!("A {} plugin for Skylet", template));
+    let auth = author
+        .clone()
+        .unwrap_or_else(|| "Plugin Author".to_string());
+    let snake_name = name.replace('-', "_");
+
+    let cargo_toml = format!(
+        r#"[package]
+name = "{name}"
+version = "0.1.0"
+edition = "2021"
+description = "{desc}"
+authors = ["{auth}"]
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+skylet-abi = {{ version = "0.2" }}
+skylet-plugin-common = {{ version = "0.5" }}
+serde = {{ version = "1.0", features = ["derive"] }}
+serde_json = "1.0"
+anyhow = "1.0"
+{extra_deps}
+
+[dev-dependencies]
+"#,
+        name = name,
+        desc = desc,
+        auth = auth,
+        extra_deps = get_extra_deps(template),
+    );
+
+    let lib_rs = get_lib_rs_template(name, &snake_name, template, &desc);
+    let plugin_toml = get_plugin_toml_template(name, &desc, &auth, template);
+
+    Ok((cargo_toml, lib_rs, plugin_toml))
+}
+
+/// Get extra dependencies based on template type
+fn get_extra_deps(template: &str) -> String {
+    match template {
+        "api-integration" => r#"ureq = "2.9"
+tokio = { version = "1.0", features = ["rt", "macros"] }"#
+            .to_string(),
+        "database" => r#"sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite"] }
+tokio = { version = "1.0", features = ["rt", "macros"] }"#
+            .to_string(),
+        "communication" => {
+            r#"tokio = { version = "1.0", features = ["rt", "macros", "sync"] }"#.to_string()
+        }
+        _ => String::new(),
+    }
+}
+
+/// Get lib.rs template using V2 ABI
+fn get_lib_rs_template(name: &str, _snake_name: &str, template: &str, description: &str) -> String {
+    let plugin_type = match template {
+        "api-integration" => "Integration",
+        "database" => "Database",
+        "communication" => "Communication",
+        _ => "Extension",
+    };
+
+    format!(
+        r#"//! {description}
+//!
+//! This plugin was generated with `skylet-plugin plugin new`.
+
+use skylet_plugin_common::{{
+    skylet_plugin_v2, CapabilityBuilder, ServiceInfoBuilder, TagsBuilder,
+    static_cstr, cstr_ptr,
+}};
+use skylet_abi::v2::*;
+use serde_json::json;
+use std::ffi::{{CStr, CString}};
+use std::os::raw::c_char;
+
+// Plugin static strings
+static_cstr!(PLUGIN_NAME, "{name}");
+static_cstr!(PLUGIN_VERSION, "0.1.0");
+static_cstr!(PLUGIN_DESCRIPTION, "{description}");
+static_cstr!(PLUGIN_AUTHOR, "Plugin Author");
+
+// Define capabilities
+static CAPABILITIES: &[&CStr] = &[
+    // Add your plugin capabilities here
+    // Example: c"read_config", c"write_data"
+];
+
+// Define tags
+static TAGS: &[&CStr] = &[
+    // Add your plugin tags here
+    // Example: c"{template}", c"skylet"
+];
+
+/// Generate the V2 ABI entry points
+skylet_plugin_v2!(
+    name: PLUGIN_NAME,
+    version: PLUGIN_VERSION,
+    description: PLUGIN_DESCRIPTION,
+    author: PLUGIN_AUTHOR,
+    plugin_type: PluginType::{plugin_type},
+    capabilities: CAPABILITIES,
+    tags: TAGS,
+    init: plugin_init_impl,
+    shutdown: plugin_shutdown_impl,
+    execute: plugin_execute_impl,
+);
+
+/// Plugin initialization
+fn plugin_init_impl(_ctx: *const PluginContextV2) -> PluginResultV2 {{
+    // Initialize your plugin state here
+    // Example: set up connections, load config, etc.
+    PluginResultV2::Success
+}}
+
+/// Plugin shutdown
+fn plugin_shutdown_impl(_ctx: *const PluginContextV2) -> PluginResultV2 {{
+    // Clean up plugin resources here
+    // Example: close connections, flush buffers, etc.
+    PluginResultV2::Success
+}}
+
+/// Plugin execute - main entry point for plugin actions
+fn plugin_execute_impl(
+    _ctx: *const PluginContextV2,
+    action: *const c_char,
+    args: *const c_char,
+) -> *mut c_char {{
+    // Parse action and arguments
+    let action_str = if action.is_null() {{
+        ""
+    }} else {{
+        unsafe {{ CStr::from_ptr(action) }}.to_str().unwrap_or("")
+    }};
+
+    let args_str = if args.is_null() {{
+        "{{}}"
+    }} else {{
+        unsafe {{ CStr::from_ptr(args) }}.to_str().unwrap_or("{{}}")
+    }};
+
+    // Parse JSON arguments
+    let args_json: serde_json::Value = serde_json::from_str(args_str).unwrap_or(json!({{}}));
+
+    // Handle different actions
+    let result = match action_str {{
+        "ping" => handle_ping(&args_json),
+        "info" => handle_info(),
+        _ => Err(format!("Unknown action: {{}}", action_str)),
+    }};
+
+    // Convert result to JSON string
+    let response = match result {{
+        Ok(value) => json!({{ "success": true, "data": value }}),
+        Err(error) => json!({{ "success": false, "error": error }}),
+    }};
+
+    // Return as C string (caller must free)
+    match CString::new(response.to_string()) {{
+        Ok(cstr) => cstr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }}
+}}
+
+/// Handle ping action
+fn handle_ping(args: &serde_json::Value) -> Result<serde_json::Value, String> {{
+    let message = args.get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or("pong");
+    
+    Ok(json!({{
+        "response": message,
+        "plugin": "{name}",
+        "version": "0.1.0"
+    }}))
+}}
+
+/// Handle info action
+fn handle_info() -> Result<serde_json::Value, String> {{
+    Ok(json!({{
+        "name": "{name}",
+        "version": "0.1.0",
+        "description": "{description}",
+        "abi_version": "2.0.0"
+    }}))
+}}
+
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    #[test]
+    fn test_handle_ping() {{
+        let args = json!({{"message": "hello"}});
+        let result = handle_ping(&args).unwrap();
+        assert_eq!(result["response"], "hello");
+        assert_eq!(result["plugin"], "{name}");
+    }}
+
+    #[test]
+    fn test_handle_info() {{
+        let result = handle_info().unwrap();
+        assert_eq!(result["name"], "{name}");
+        assert_eq!(result["abi_version"], "2.0.0");
+    }}
+}}
+"#,
+        name = name,
+        description = description,
+        plugin_type = plugin_type,
+        template = template,
+    )
+}
+
+/// Get plugin.toml manifest template
+fn get_plugin_toml_template(name: &str, description: &str, author: &str, template: &str) -> String {
+    let category = match template {
+        "api-integration" => "integration",
+        "database" => "database",
+        "communication" => "communication",
+        _ => "extension",
+    };
+
+    format!(
+        r#"# Skylet Plugin Manifest (RFC-0003 compliant)
+# See: https://github.com/vincents-ai/skylet/blob/main/docs/PLUGIN_CONTRACT.md
+
+[package]
+name = "{name}"
+version = "0.1.0"
+abi_version = "2.0.0"
+description = "{description}"
+authors = ["{author}"]
+license = "MIT"
+repository = ""
+homepage = ""
+
+[plugin]
+type = "{category}"
+entry_point = "lib{snake_name}"
+min_skylet_version = "0.2.0"
+
+# Capabilities this plugin provides
+capabilities = []
+
+# Permissions this plugin requires
+[permissions]
+network = false
+filesystem = false
+secrets = false
+
+# Plugin-specific configuration schema
+[config]
+# Define your config schema here
+# Example:
+# api_url = {{ type = "string", required = true }}
+# timeout_seconds = {{ type = "integer", default = 30 }}
+
+# Build configuration
+[build]
+# Target triples to build for
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+"#,
+        name = name,
+        description = description,
+        author = author,
+        category = category,
+        snake_name = name.replace('-', "_"),
+    )
+}
+
+/// Get README template
+fn get_readme_template(name: &str, template: &str, description: &Option<String>) -> String {
+    let desc = description
+        .clone()
+        .unwrap_or_else(|| format!("A {} plugin for Skylet", template));
+
+    format!(
+        r#"# {name}
+
+{desc}
+
+## Overview
+
+This plugin was generated using `skylet-plugin plugin new` with the `{template}` template.
+
+## Building
+
+```bash
+cargo build --release
+```
+
+The plugin binary will be at `target/release/lib{snake_name}.so` (Linux) or `.dylib` (macOS).
+
+## Packaging
+
+```bash
+skylet-plugin package pack . {name}.tar.gz
+```
+
+## Testing
+
+```bash
+cargo test
+```
+
+## Configuration
+
+Configure the plugin in your Skylet config:
+
+```toml
+[[plugins]]
+name = "{name}"
+path = "/path/to/lib{snake_name}.so"
+enabled = true
+
+[plugins.config]
+# Add your configuration here
+```
+
+## Actions
+
+This plugin supports the following actions:
+
+- `ping` - Health check, returns plugin info
+- `info` - Returns plugin metadata
+
+## License
+
+MIT
+"#,
+        name = name,
+        desc = desc,
+        template = template,
+        snake_name = name.replace('-', "_"),
+    )
+}
+
+/// Get .gitignore template
+fn get_gitignore_template() -> String {
+    r#"/target
+Cargo.lock
+*.so
+*.dylib
+*.dll
+*.tar.gz
+*.sha256
+.env
+.env.local
+"#
+    .to_string()
 }
 
 fn list_plugins(_filter: Option<String>) -> anyhow::Result<()> {

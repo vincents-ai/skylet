@@ -6,6 +6,7 @@ members = [
     "job-queue",
     "core",
     "plugin-packager",
+    "plugin-test-harness",
     "permissions",
     "src",
     "plugins/config-manager",
