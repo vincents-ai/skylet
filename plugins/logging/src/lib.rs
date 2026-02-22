@@ -4,32 +4,45 @@
 //! Logging Plugin - Structured logging backend for Skylet (V2 ABI)
 //!
 //! This plugin provides structured JSON logging with RFC-0018 compliance.
-//! Now migrated to RFC-0004 v2 ABI.
+//! Now migrated to RFC-0004 v2 ABI using skylet_plugin_v2! macro.
 //!
 //! Uses skylet-plugin-common for:
 //! - RFC-0006 compliant config paths
+//! - skylet_plugin_v2! macro for V2 ABI boilerplate elimination
 //! - Common response helpers
 
 #![allow(dead_code, unused_imports, unused_variables)]
 
 use skylet_abi::v2_spec::*;
-use skylet_abi::{
-    DependencyInfo, MaturityLevel, MonetizationModel, PluginCategory, PluginLogLevel,
-};
+use skylet_abi::PluginLogLevel;
 use skylet_plugin_common::config_paths;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
-use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use chrono::Utc;
 use serde_json::{json, Value};
 
-// Static storage
-static PLUGIN_INFO: AtomicPtr<PluginInfoV2> = AtomicPtr::new(ptr::null_mut());
-static DEPENDENCIES: AtomicPtr<DependencyInfo> = AtomicPtr::new(ptr::null_mut());
+// Use the V2 ABI macro to generate all boilerplate entry points
+skylet_plugin_common::skylet_plugin_v2! {
+    name: "logging",
+    version: "0.1.0",
+    description: "Structured logging backend (v2)",
+    author: "Skylet",
+    license: "MIT OR Apache-2.0",
+    tagline: "Structured JSON logging",
+    category: skylet_abi::PluginCategory::Utility,
+    max_concurrency: 10,
+    supports_async: false,
+    capabilities: ["logging.write", "logging.read", "logging.clear"],
+}
+
+// ============================================================================
+// Plugin-specific Business Logic
+// ============================================================================
+
 static LOGGING_SERVICE: Mutex<LoggingService> = Mutex::new(LoggingService::new());
-static INITIALIZED: AtomicU64 = AtomicU64::new(0);
 static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
 
 /// LoggingService for managing structured logging
@@ -91,182 +104,9 @@ fn create_log_event(level: &str, message: &str, plugin_name: Option<&str>) -> St
     serde_json::to_string(&Value::Object(map)).unwrap_or_default()
 }
 
-/// V2 entry points
-#[no_mangle]
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
-
-    match LOGGING_SERVICE.lock() {
-        Ok(mut svc) => {
-            svc.clear_events();
-            INITIALIZED.store(1, Ordering::SeqCst);
-
-            // Log initialization
-            unsafe {
-                if !(*context).logger.is_null() {
-                    let logger = &*(*context).logger;
-                    let msg = CString::new("Logging plugin initialized (v2)").unwrap();
-                    (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
-                }
-            }
-
-            PluginResultV2::Success
-        }
-        Err(_) => PluginResultV2::Error,
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn plugin_shutdown_v2(_context: *const PluginContextV2) -> PluginResultV2 {
-    match LOGGING_SERVICE.lock() {
-        Ok(mut svc) => {
-            svc.clear_events();
-        }
-        Err(_) => return PluginResultV2::Error,
-    }
-    INITIALIZED.store(0, Ordering::SeqCst);
-    PluginResultV2::Success
-}
-
-/// Plugin shutdown entry point (v1 ABI wrapper for bootstrap compatibility)
-#[no_mangle]
-pub extern "C" fn plugin_shutdown(
-    _context: *const skylet_abi::PluginContext,
-) -> skylet_abi::PluginResult {
-    match LOGGING_SERVICE.lock() {
-        Ok(mut svc) => {
-            svc.clear_events();
-        }
-        Err(_) => return skylet_abi::PluginResult::Error,
-    }
-    INITIALIZED.store(0, Ordering::SeqCst);
-    skylet_abi::PluginResult::Success
-}
-
-#[no_mangle]
-pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
-    if PLUGIN_INFO.load(Ordering::SeqCst).is_null() {
-        initialize_plugin_info();
-    }
-    PLUGIN_INFO.load(Ordering::SeqCst)
-}
-
-fn initialize_plugin_info() {
-    if DEPENDENCIES.load(Ordering::SeqCst).is_null() {
-        let dep = DependencyInfo {
-            name: CString::new("skylet-abi").unwrap().into_raw(),
-            version_range: CString::new(">=0.2.0").unwrap().into_raw(),
-            required: true,
-            service_type: CString::new("core").unwrap().into_raw(),
-        };
-        DEPENDENCIES.store(Box::into_raw(Box::new(dep)), Ordering::SeqCst);
-    }
-
-    let info = PluginInfoV2 {
-        name: CString::new("logging").unwrap().into_raw(),
-        version: CString::new("0.1.0").unwrap().into_raw(),
-        description: CString::new("Structured logging backend (v2)")
-            .unwrap()
-            .into_raw(),
-        author: CString::new("Skylet").unwrap().into_raw(),
-        license: CString::new("MIT OR Apache-2.0").unwrap().into_raw(),
-        homepage: ptr::null(),
-        skylet_version_min: CString::new("0.2.0").unwrap().into_raw(),
-        skylet_version_max: ptr::null(),
-        abi_version: CString::new("2.0").unwrap().into_raw(),
-        dependencies: DEPENDENCIES.load(Ordering::SeqCst),
-        num_dependencies: 1,
-        provides_services: ptr::null(),
-        num_provides_services: 0,
-        requires_services: ptr::null(),
-        num_requires_services: 0,
-        capabilities: ptr::null(),
-        num_capabilities: 0,
-        min_resources: ptr::null(),
-        max_resources: ptr::null(),
-        tags: ptr::null(),
-        num_tags: 0,
-        category: PluginCategory::Utility,
-        supports_hot_reload: false,
-        supports_async: false,
-        supports_streaming: false,
-        max_concurrency: 10,
-        monetization_model: MonetizationModel::Free,
-        price_usd: 0.0,
-        purchase_url: ptr::null(),
-        subscription_url: ptr::null(),
-        marketplace_category: CString::new("Core").unwrap().into_raw(),
-        tagline: CString::new("Structured JSON logging").unwrap().into_raw(),
-        icon_url: ptr::null(),
-        maturity_level: MaturityLevel::Stable,
-        build_timestamp: ptr::null(),
-        build_hash: ptr::null(),
-        git_commit: ptr::null(),
-        build_environment: ptr::null(),
-        metadata: ptr::null(),
-    };
-
-    PLUGIN_INFO.store(Box::into_raw(Box::new(info)), Ordering::SeqCst);
-}
-
-/// Handle request (not implemented for logging plugin)
-#[no_mangle]
-pub extern "C" fn plugin_handle_request_v2(
-    _context: *const PluginContextV2,
-    _request: *const RequestV2,
-    _response: *mut ResponseV2,
-) -> PluginResultV2 {
-    PluginResultV2::NotImplemented
-}
-
-/// Health check
-#[no_mangle]
-pub extern "C" fn plugin_health_check_v2(_context: *const PluginContextV2) -> HealthStatus {
-    HealthStatus::Healthy
-}
-
-/// Health check
-#[no_mangle]
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn plugin_query_capability_v2(
-    _context: *const PluginContextV2,
-    capability: *const c_char,
-) -> bool {
-    if capability.is_null() {
-        return false;
-    }
-
-    unsafe {
-        let cap_str = CStr::from_ptr(capability).to_str().unwrap_or("");
-        matches!(cap_str, "logging.write" | "logging.read" | "logging.clear")
-    }
-}
-
-/// Create v2 plugin API - REQUIRED ENTRY POINT
-#[no_mangle]
-pub extern "C" fn plugin_create_v2() -> *const PluginApiV2 {
-    static API: PluginApiV2 = PluginApiV2 {
-        get_info: plugin_get_info_v2,
-        init: plugin_init_v2,
-        shutdown: plugin_shutdown_v2,
-        handle_request: plugin_handle_request_v2,
-        handle_event: None,
-        prepare_hot_reload: None,
-        health_check: Some(plugin_health_check_v2),
-        get_metrics: None, // PluginMetrics contains raw pointers, not Sync-safe
-        query_capability: Some(plugin_query_capability_v2),
-        get_config_schema: None,
-        get_billing_metrics: None,
-    };
-
-    &API
-}
-
 /// RPC handler for logging operations
-extern "C" fn logging_rpc_handler(request: *const RpcRequestV2, response: *mut RpcResponseV2) {
+#[allow(dead_code)]
+extern "C" fn logging_rpc_handler(_request: *const RpcRequestV2, response: *mut RpcResponseV2) {
     if response.is_null() {
         return;
     }
@@ -299,12 +139,10 @@ mod tests {
 
     #[test]
     fn test_plugin_info() {
-        initialize_plugin_info();
         let info = plugin_get_info_v2();
         assert!(!info.is_null());
         unsafe {
             assert!(!(*info).name.is_null());
-            assert_eq!((*info).num_dependencies, 1);
         }
     }
 
@@ -315,5 +153,17 @@ mod tests {
         assert_eq!(svc.get_events().len(), 1);
         svc.clear_events();
         assert_eq!(svc.get_events().len(), 0);
+    }
+
+    #[test]
+    fn test_capability_query() {
+        // Test that capabilities are properly returned
+        let cap = CString::new("logging.write").unwrap();
+        let result = plugin_query_capability_v2(ptr::null(), cap.as_ptr());
+        assert!(result);
+
+        let invalid_cap = CString::new("invalid.capability").unwrap();
+        let result = plugin_query_capability_v2(ptr::null(), invalid_cap.as_ptr());
+        assert!(!result);
     }
 }

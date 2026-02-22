@@ -880,7 +880,7 @@ pub fn handle_json_request<T: Serialize>(
     }
 }
 
-/// Master plugin declaration macro - eliminates 100+ lines of boilerplate
+/// Master plugin declaration macro (V1 ABI) - eliminates 100+ lines of boilerplate
 #[macro_export]
 macro_rules! skylet_plugin {
     (
@@ -924,6 +924,255 @@ macro_rules! skylet_plugin {
         #[no_mangle]
         pub extern "C" fn plugin_shutdown(_context: *const skylet_abi::PluginContext) -> skylet_abi::PluginResult {
             skylet_abi::PluginResult::Success
+        }
+    };
+}
+
+/// V2 ABI Plugin Info holder with static storage for CStrings
+pub struct PluginInfoV2Holder {
+    pub info: skylet_abi::v2_spec::PluginInfoV2,
+    // Keep CStrings alive for the lifetime of the plugin
+    _name: CString,
+    _version: CString,
+    _description: CString,
+    _author: CString,
+    _license: CString,
+    _abi_version: CString,
+    _skylet_version_min: CString,
+    _marketplace_category: CString,
+    _tagline: CString,
+}
+
+/// Create PluginInfoV2 with proper static storage
+pub fn create_plugin_info_v2(
+    name: &str,
+    version: &str,
+    description: &str,
+    author: &str,
+    license: &str,
+    tagline: &str,
+    category: skylet_abi::PluginCategory,
+    max_concurrency: usize,
+    supports_async: bool,
+) -> PluginInfoV2Holder {
+    let name_cstring = CString::new(name).unwrap();
+    let version_cstring = CString::new(version).unwrap();
+    let description_cstring = CString::new(description).unwrap();
+    let author_cstring = CString::new(author).unwrap();
+    let license_cstring = CString::new(license).unwrap();
+    let abi_version_cstring = CString::new("2.0").unwrap();
+    let skylet_version_min_cstring = CString::new("0.2.0").unwrap();
+    let marketplace_category_cstring = CString::new("Core").unwrap();
+    let tagline_cstring = CString::new(tagline).unwrap();
+
+    let info = skylet_abi::v2_spec::PluginInfoV2 {
+        name: name_cstring.as_ptr(),
+        version: version_cstring.as_ptr(),
+        description: description_cstring.as_ptr(),
+        author: author_cstring.as_ptr(),
+        license: license_cstring.as_ptr(),
+        homepage: std::ptr::null(),
+        skylet_version_min: skylet_version_min_cstring.as_ptr(),
+        skylet_version_max: std::ptr::null(),
+        abi_version: abi_version_cstring.as_ptr(),
+        dependencies: std::ptr::null(),
+        num_dependencies: 0,
+        provides_services: std::ptr::null(),
+        num_provides_services: 0,
+        requires_services: std::ptr::null(),
+        num_requires_services: 0,
+        capabilities: std::ptr::null(),
+        num_capabilities: 0,
+        min_resources: std::ptr::null(),
+        max_resources: std::ptr::null(),
+        tags: std::ptr::null(),
+        num_tags: 0,
+        category,
+        supports_hot_reload: false,
+        supports_async,
+        supports_streaming: false,
+        max_concurrency,
+        monetization_model: skylet_abi::v2_spec::MonetizationModel::Free,
+        price_usd: 0.0,
+        purchase_url: std::ptr::null(),
+        subscription_url: std::ptr::null(),
+        marketplace_category: marketplace_category_cstring.as_ptr(),
+        tagline: tagline_cstring.as_ptr(),
+        icon_url: std::ptr::null(),
+        maturity_level: skylet_abi::v2_spec::MaturityLevel::Stable,
+        build_timestamp: std::ptr::null(),
+        build_hash: std::ptr::null(),
+        git_commit: std::ptr::null(),
+        build_environment: std::ptr::null(),
+        metadata: std::ptr::null(),
+    };
+
+    PluginInfoV2Holder {
+        info,
+        _name: name_cstring,
+        _version: version_cstring,
+        _description: description_cstring,
+        _author: author_cstring,
+        _license: license_cstring,
+        _abi_version: abi_version_cstring,
+        _skylet_version_min: skylet_version_min_cstring,
+        _marketplace_category: marketplace_category_cstring,
+        _tagline: tagline_cstring,
+    }
+}
+
+/// V2 ABI Plugin declaration macro - eliminates 150+ lines of boilerplate
+/// 
+/// This macro generates all required V2 ABI entry points:
+/// - `plugin_get_info_v2()` - Returns plugin metadata
+/// - `plugin_init_v2()` - Plugin initialization (calls user-provided init_fn if specified)
+/// - `plugin_shutdown_v2()` - Plugin shutdown (calls user-provided shutdown_fn if specified)
+/// - `plugin_shutdown()` - V1 ABI wrapper for bootstrap compatibility
+/// - `plugin_handle_request_v2()` - Default NotImplemented handler
+/// - `plugin_health_check_v2()` - Returns Healthy status
+/// - `plugin_create_v2()` - Returns PluginApiV2 struct
+/// 
+/// # Example
+/// ```ignore
+/// skylet_plugin_v2! {
+///     name: "my-plugin",
+///     version: "0.1.0",
+///     description: "My awesome plugin",
+///     author: "Skylet",
+///     license: "MIT OR Apache-2.0",
+///     tagline: "Does awesome things",
+///     category: skylet_abi::PluginCategory::Utility,
+///     max_concurrency: 10,
+///     supports_async: true,
+///     capabilities: ["my.read", "my.write"],
+/// }
+/// ```
+#[macro_export]
+macro_rules! skylet_plugin_v2 {
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),* $(,)?],
+    ) => {
+        // Use fully qualified paths to avoid import conflicts with user code
+        static __SKYLET_PLUGIN_INFO_V2: std::sync::atomic::AtomicPtr<skylet_abi::v2_spec::PluginInfoV2> = 
+            std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+        static mut __SKYLET_PLUGIN_INFO_V2_HOLDER: Option<$crate::PluginInfoV2Holder> = None;
+
+        fn __skylet_initialize_plugin_info_v2() {
+            unsafe {
+                if __SKYLET_PLUGIN_INFO_V2_HOLDER.is_none() {
+                    let holder = $crate::create_plugin_info_v2(
+                        $name,
+                        $version,
+                        $description,
+                        $author,
+                        $license,
+                        $tagline,
+                        $category,
+                        $max_concurrency,
+                        $supports_async,
+                    );
+                    __SKYLET_PLUGIN_INFO_V2_HOLDER = Some(holder);
+                    let info_ptr = &__SKYLET_PLUGIN_INFO_V2_HOLDER.as_ref().unwrap().info as *const _ as *mut _;
+                    __SKYLET_PLUGIN_INFO_V2.store(info_ptr, std::sync::atomic::Ordering::SeqCst);
+                }
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_get_info_v2() -> *const skylet_abi::v2_spec::PluginInfoV2 {
+            if __SKYLET_PLUGIN_INFO_V2.load(std::sync::atomic::Ordering::SeqCst).is_null() {
+                __skylet_initialize_plugin_info_v2();
+            }
+            __SKYLET_PLUGIN_INFO_V2.load(std::sync::atomic::Ordering::SeqCst)
+        }
+
+        #[no_mangle]
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
+        pub extern "C" fn plugin_init_v2(context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2 {
+            if context.is_null() {
+                return skylet_abi::v2_spec::PluginResultV2::InvalidRequest;
+            }
+            
+            // Log initialization
+            unsafe {
+                if !(*context).logger.is_null() {
+                    let logger = &*(*context).logger;
+                    let msg = std::ffi::CString::new(concat!($name, " plugin initialized (v2)")).unwrap();
+                    (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
+                }
+            }
+            
+            skylet_abi::v2_spec::PluginResultV2::Success
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_shutdown_v2(_context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2 {
+            skylet_abi::v2_spec::PluginResultV2::Success
+        }
+        
+        /// V1 ABI wrapper for bootstrap compatibility
+        #[no_mangle]
+        pub extern "C" fn plugin_shutdown(_context: *const skylet_abi::PluginContext) -> skylet_abi::PluginResult {
+            skylet_abi::PluginResult::Success
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_handle_request_v2(
+            _context: *const skylet_abi::v2_spec::PluginContextV2,
+            _request: *const skylet_abi::v2_spec::RequestV2,
+            _response: *mut skylet_abi::v2_spec::ResponseV2,
+        ) -> skylet_abi::v2_spec::PluginResultV2 {
+            skylet_abi::v2_spec::PluginResultV2::NotImplemented
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_health_check_v2(_context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::HealthStatus {
+            skylet_abi::v2_spec::HealthStatus::Healthy
+        }
+        
+        #[no_mangle]
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
+        pub extern "C" fn plugin_query_capability_v2(
+            _context: *const skylet_abi::v2_spec::PluginContextV2,
+            capability: *const std::ffi::c_char,
+        ) -> bool {
+            if capability.is_null() {
+                return false;
+            }
+            
+            unsafe {
+                let cap_str = std::ffi::CStr::from_ptr(capability).to_str().unwrap_or("");
+                let capabilities: &[&str] = &[$($cap),*];
+                capabilities.contains(&cap_str)
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_create_v2() -> *const skylet_abi::v2_spec::PluginApiV2 {
+            static API: skylet_abi::v2_spec::PluginApiV2 = skylet_abi::v2_spec::PluginApiV2 {
+                get_info: plugin_get_info_v2,
+                init: plugin_init_v2,
+                shutdown: plugin_shutdown_v2,
+                handle_request: plugin_handle_request_v2,
+                handle_event: None,
+                prepare_hot_reload: None,
+                health_check: Some(plugin_health_check_v2),
+                get_metrics: None,
+                query_capability: Some(plugin_query_capability_v2),
+                get_config_schema: None,
+                get_billing_metrics: None,
+            };
+            
+            &API
         }
     };
 }
