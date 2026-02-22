@@ -128,6 +128,9 @@ pub enum LifecycleStage {
     /// Plugin initialization
     Initialization,
 
+    /// State transfer during hot-reload (serialize/deserialize)
+    StateTransfer,
+
     /// Plugin unloading
     Unloading,
 }
@@ -139,6 +142,7 @@ impl fmt::Display for LifecycleStage {
             LifecycleStage::SymbolResolution => write!(f, "SymbolResolution"),
             LifecycleStage::AbiCompatibility => write!(f, "AbiCompatibility"),
             LifecycleStage::Initialization => write!(f, "Initialization"),
+            LifecycleStage::StateTransfer => write!(f, "StateTransfer"),
             LifecycleStage::Unloading => write!(f, "Unloading"),
         }
     }
@@ -168,6 +172,18 @@ pub enum LifecycleErrorType {
     /// Plugin not loaded
     NotLoaded,
 
+    /// State serialization failed during hot-reload
+    StateSerializationFailed,
+
+    /// State deserialization failed during hot-reload
+    StateDeserializationFailed,
+
+    /// State schema version mismatch between epochs
+    StateVersionMismatch,
+
+    /// State checksum validation failed (data corruption)
+    StateChecksumFailed,
+
     /// Internal error
     Internal,
 }
@@ -182,6 +198,12 @@ impl fmt::Display for LifecycleErrorType {
             LifecycleErrorType::InitializationFailed => write!(f, "InitializationFailed"),
             LifecycleErrorType::AlreadyLoaded => write!(f, "AlreadyLoaded"),
             LifecycleErrorType::NotLoaded => write!(f, "NotLoaded"),
+            LifecycleErrorType::StateSerializationFailed => write!(f, "StateSerializationFailed"),
+            LifecycleErrorType::StateDeserializationFailed => {
+                write!(f, "StateDeserializationFailed")
+            }
+            LifecycleErrorType::StateVersionMismatch => write!(f, "StateVersionMismatch"),
+            LifecycleErrorType::StateChecksumFailed => write!(f, "StateChecksumFailed"),
             LifecycleErrorType::Internal => write!(f, "Internal"),
         }
     }
@@ -776,6 +798,11 @@ impl PluginLoadPipeline {
                 // Would call plugin's shutdown handler
                 Ok(())
             }
+            LifecycleStage::StateTransfer => {
+                // State transfer rollback - discard serialized state
+                // The new epoch plugin continues without state restoration
+                Ok(())
+            }
             LifecycleStage::Unloading => {
                 // Cannot rollback from unloading
                 Err(LifecycleError::new(
@@ -1186,10 +1213,11 @@ mod tests {
             LifecycleStage::SymbolResolution,
             LifecycleStage::AbiCompatibility,
             LifecycleStage::Initialization,
+            LifecycleStage::StateTransfer,
             LifecycleStage::Unloading,
         ];
 
-        assert_eq!(stages.len(), 5);
+        assert_eq!(stages.len(), 6);
         for stage in stages {
             let s = format!("{}", stage);
             assert!(!s.is_empty());
@@ -1206,10 +1234,14 @@ mod tests {
             LifecycleErrorType::InitializationFailed,
             LifecycleErrorType::AlreadyLoaded,
             LifecycleErrorType::NotLoaded,
+            LifecycleErrorType::StateSerializationFailed,
+            LifecycleErrorType::StateDeserializationFailed,
+            LifecycleErrorType::StateVersionMismatch,
+            LifecycleErrorType::StateChecksumFailed,
             LifecycleErrorType::Internal,
         ];
 
-        assert_eq!(error_types.len(), 8);
+        assert_eq!(error_types.len(), 12);
         for et in error_types {
             let s = format!("{}", et);
             assert!(!s.is_empty());
@@ -1535,6 +1567,7 @@ mod tests {
             LifecycleStage::SymbolResolution,
             LifecycleStage::AbiCompatibility,
             LifecycleStage::Initialization,
+            LifecycleStage::StateTransfer,
             LifecycleStage::Unloading,
         ];
 
@@ -1548,6 +1581,7 @@ mod tests {
                     assert_eq!(stage, LifecycleStage::AbiCompatibility)
                 }
                 LifecycleStage::Initialization => assert_eq!(stage, LifecycleStage::Initialization),
+                LifecycleStage::StateTransfer => assert_eq!(stage, LifecycleStage::StateTransfer),
                 LifecycleStage::Unloading => assert_eq!(stage, LifecycleStage::Unloading),
             }
         }

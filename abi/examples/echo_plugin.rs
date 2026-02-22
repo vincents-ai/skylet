@@ -133,6 +133,9 @@ static PLUGIN_API: PluginApiV2 = PluginApiV2 {
     query_capability: None,
     get_config_schema: None,
     get_billing_metrics: None,
+    serialize_state: None,
+    deserialize_state: None,
+    free_state: None,
 };
 
 #[no_mangle]

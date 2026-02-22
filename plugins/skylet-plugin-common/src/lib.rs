@@ -1170,6 +1170,10 @@ macro_rules! skylet_plugin_v2 {
                 query_capability: Some(plugin_query_capability_v2),
                 get_config_schema: None,
                 get_billing_metrics: None,
+                // State transfer for epoch-based hot-reload (not implemented by default)
+                serialize_state: None,
+                deserialize_state: None,
+                free_state: None,
             };
             
             &API

@@ -298,6 +298,9 @@ pub extern "C" fn plugin_create_v2() -> *const PluginApiV2 {
         query_capability: Some(plugin_query_capability_v2),
         get_config_schema: Some(plugin_get_config_schema_json),
         get_billing_metrics: None,
+        serialize_state: None,
+        deserialize_state: None,
+        free_state: None,
     };
 
     &API
