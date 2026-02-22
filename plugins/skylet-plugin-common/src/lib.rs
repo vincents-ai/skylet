@@ -673,6 +673,314 @@ pub mod test_utils {
     }
 }
 
+// Comprehensive tests for V2 ABI builders and macros
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    // =========================================================================
+    // CapabilityBuilder Tests
+    // =========================================================================
+
+    #[test]
+    fn test_capability_builder_empty() {
+        let (ptr, count) = CapabilityBuilder::new().build();
+        assert!(ptr.is_null());
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_capability_builder_single() {
+        let (ptr, count) = CapabilityBuilder::new()
+            .add("test.capability", "Test capability", None)
+            .build();
+
+        assert!(!ptr.is_null());
+        assert_eq!(count, 1);
+
+        unsafe {
+            let cap = &*ptr;
+            let name = CStr::from_ptr(cap.name).to_str().unwrap();
+            let desc = CStr::from_ptr(cap.description).to_str().unwrap();
+            assert_eq!(name, "test.capability");
+            assert_eq!(desc, "Test capability");
+            assert!(cap.required_permission.is_null());
+        }
+    }
+
+    #[test]
+    fn test_capability_builder_with_permission() {
+        let (ptr, count) = CapabilityBuilder::new()
+            .add("secrets.get", "Get secret value", Some("secrets.read"))
+            .build();
+
+        assert!(!ptr.is_null());
+        assert_eq!(count, 1);
+
+        unsafe {
+            let cap = &*ptr;
+            let name = CStr::from_ptr(cap.name).to_str().unwrap();
+            let perm = CStr::from_ptr(cap.required_permission).to_str().unwrap();
+            assert_eq!(name, "secrets.get");
+            assert_eq!(perm, "secrets.read");
+        }
+    }
+
+    #[test]
+    fn test_capability_builder_multiple() {
+        let (ptr, count) = CapabilityBuilder::new()
+            .add("secrets.get", "Get secret", Some("secrets.read"))
+            .add("secrets.set", "Set secret", Some("secrets.write"))
+            .add("secrets.delete", "Delete secret", Some("secrets.admin"))
+            .build();
+
+        assert!(!ptr.is_null());
+        assert_eq!(count, 3);
+
+        unsafe {
+            let caps = std::slice::from_raw_parts(ptr, count);
+            
+            let name0 = CStr::from_ptr(caps[0].name).to_str().unwrap();
+            let name1 = CStr::from_ptr(caps[1].name).to_str().unwrap();
+            let name2 = CStr::from_ptr(caps[2].name).to_str().unwrap();
+            
+            assert_eq!(name0, "secrets.get");
+            assert_eq!(name1, "secrets.set");
+            assert_eq!(name2, "secrets.delete");
+        }
+    }
+
+    #[test]
+    fn test_capability_builder_default() {
+        let builder = CapabilityBuilder::default();
+        let (ptr, count) = builder.build();
+        assert!(ptr.is_null());
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // ServiceInfoBuilder Tests
+    // =========================================================================
+
+    #[test]
+    fn test_service_info_builder_minimal() {
+        let ptr = ServiceInfoBuilder::new("TestService", "1.0.0").build();
+
+        assert!(!ptr.is_null());
+
+        unsafe {
+            let info = &*ptr;
+            let name = CStr::from_ptr(info.name).to_str().unwrap();
+            let version = CStr::from_ptr(info.version).to_str().unwrap();
+            assert_eq!(name, "TestService");
+            assert_eq!(version, "1.0.0");
+            assert!(info.description.is_null());
+            assert!(info.interface_spec.is_null());
+        }
+    }
+
+    #[test]
+    fn test_service_info_builder_full() {
+        let ptr = ServiceInfoBuilder::new("ConfigService", "2.0.0")
+            .description("Centralized configuration management")
+            .interface_spec("config-service-v2")
+            .build();
+
+        assert!(!ptr.is_null());
+
+        unsafe {
+            let info = &*ptr;
+            let name = CStr::from_ptr(info.name).to_str().unwrap();
+            let version = CStr::from_ptr(info.version).to_str().unwrap();
+            let desc = CStr::from_ptr(info.description).to_str().unwrap();
+            let spec = CStr::from_ptr(info.interface_spec).to_str().unwrap();
+            
+            assert_eq!(name, "ConfigService");
+            assert_eq!(version, "2.0.0");
+            assert_eq!(desc, "Centralized configuration management");
+            assert_eq!(spec, "config-service-v2");
+        }
+    }
+
+    #[test]
+    fn test_service_info_builder_partial() {
+        let ptr = ServiceInfoBuilder::new("LogService", "1.5.0")
+            .description("Logging service")
+            .build();
+
+        assert!(!ptr.is_null());
+
+        unsafe {
+            let info = &*ptr;
+            let desc = CStr::from_ptr(info.description).to_str().unwrap();
+            assert_eq!(desc, "Logging service");
+            assert!(info.interface_spec.is_null());
+        }
+    }
+
+    // =========================================================================
+    // TagsBuilder Tests
+    // =========================================================================
+
+    #[test]
+    fn test_tags_builder_empty() {
+        let (ptr, count) = TagsBuilder::new().build();
+        assert!(ptr.is_null());
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_tags_builder_single() {
+        let (ptr, count) = TagsBuilder::new()
+            .add("security")
+            .build();
+
+        assert!(!ptr.is_null());
+        assert_eq!(count, 1);
+
+        unsafe {
+            let tag_ptr = *ptr;
+            let tag = CStr::from_ptr(tag_ptr).to_str().unwrap();
+            assert_eq!(tag, "security");
+        }
+    }
+
+    #[test]
+    fn test_tags_builder_multiple() {
+        let (ptr, count) = TagsBuilder::new()
+            .add("security")
+            .add("encryption")
+            .add("bootstrap")
+            .add("core")
+            .build();
+
+        assert!(!ptr.is_null());
+        assert_eq!(count, 4);
+
+        unsafe {
+            let tags = std::slice::from_raw_parts(ptr, count);
+            
+            let tag0 = CStr::from_ptr(tags[0]).to_str().unwrap();
+            let tag1 = CStr::from_ptr(tags[1]).to_str().unwrap();
+            let tag2 = CStr::from_ptr(tags[2]).to_str().unwrap();
+            let tag3 = CStr::from_ptr(tags[3]).to_str().unwrap();
+            
+            assert_eq!(tag0, "security");
+            assert_eq!(tag1, "encryption");
+            assert_eq!(tag2, "bootstrap");
+            assert_eq!(tag3, "core");
+        }
+    }
+
+    #[test]
+    fn test_tags_builder_default() {
+        let builder = TagsBuilder::default();
+        let (ptr, count) = builder.build();
+        assert!(ptr.is_null());
+        assert_eq!(count, 0);
+    }
+
+    // =========================================================================
+    // static_cstr! and cstr_ptr! Macro Tests
+    // =========================================================================
+
+    #[test]
+    fn test_static_cstr_macro() {
+        const TEST_STR: &[u8] = static_cstr!("hello");
+        
+        // Should be null-terminated
+        assert_eq!(TEST_STR, b"hello\0");
+        assert_eq!(TEST_STR.len(), 6);
+        assert_eq!(TEST_STR[5], 0); // null terminator
+    }
+
+    #[test]
+    fn test_static_cstr_empty() {
+        const EMPTY: &[u8] = static_cstr!("");
+        
+        assert_eq!(EMPTY, b"\0");
+        assert_eq!(EMPTY.len(), 1);
+    }
+
+    #[test]
+    fn test_static_cstr_with_special_chars() {
+        const SPECIAL: &[u8] = static_cstr!("test-plugin_v2.0");
+        
+        assert_eq!(SPECIAL, b"test-plugin_v2.0\0");
+    }
+
+    #[test]
+    fn test_cstr_ptr_macro() {
+        const NAME: &[u8] = static_cstr!("my-plugin");
+        let ptr = cstr_ptr!(NAME);
+        
+        assert!(!ptr.is_null());
+        
+        unsafe {
+            let recovered = CStr::from_ptr(ptr).to_str().unwrap();
+            assert_eq!(recovered, "my-plugin");
+        }
+    }
+
+    #[test]
+    fn test_cstr_ptr_roundtrip() {
+        const VERSION: &[u8] = static_cstr!("1.2.3");
+        let ptr = cstr_ptr!(VERSION);
+        
+        unsafe {
+            let cstr = CStr::from_ptr(ptr);
+            assert_eq!(cstr.to_bytes_with_nul(), VERSION);
+        }
+    }
+
+    // =========================================================================
+    // Integration Tests - Builders used together
+    // =========================================================================
+
+    #[test]
+    fn test_builders_integration() {
+        // Build capabilities
+        let (caps_ptr, num_caps) = CapabilityBuilder::new()
+            .add("plugin.init", "Initialize plugin", None)
+            .add("plugin.shutdown", "Shutdown plugin", None)
+            .build();
+
+        // Build tags
+        let (tags_ptr, num_tags) = TagsBuilder::new()
+            .add("core")
+            .add("v2")
+            .build();
+
+        // Build service info
+        let service_ptr = ServiceInfoBuilder::new("PluginService", "2.0.0")
+            .description("Core plugin service")
+            .build();
+
+        // Verify all builders produced valid output
+        assert!(!caps_ptr.is_null());
+        assert_eq!(num_caps, 2);
+        assert!(!tags_ptr.is_null());
+        assert_eq!(num_tags, 2);
+        assert!(!service_ptr.is_null());
+
+        // Verify data integrity
+        unsafe {
+            let caps = std::slice::from_raw_parts(caps_ptr, num_caps);
+            let cap_name = CStr::from_ptr(caps[0].name).to_str().unwrap();
+            assert_eq!(cap_name, "plugin.init");
+
+            let tags = std::slice::from_raw_parts(tags_ptr, num_tags);
+            let tag = CStr::from_ptr(tags[0]).to_str().unwrap();
+            assert_eq!(tag, "core");
+
+            let service = &*service_ptr;
+            let service_name = CStr::from_ptr(service.name).to_str().unwrap();
+            assert_eq!(service_name, "PluginService");
+        }
+    }
+}
+
 // Common API client traits
 pub trait ApiClient {
     type ResponseType;
