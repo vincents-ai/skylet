@@ -13,6 +13,7 @@ members = [
     "plugins/marketplace",
     "plugins/registry",
     "plugins/secrets-manager",
+    "plugins/skylet-plugin-common",
 ]
 
 [workspace.package]
