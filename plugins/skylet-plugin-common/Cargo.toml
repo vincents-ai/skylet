@@ -1,8 +1,8 @@
 [package]
 name = "skylet-plugin-common"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
-description = "Common utilities and abstractions for Skylet plugins - V2 ABI compatible"
+description = "Common utilities and abstractions for Skylet plugins - V2 ABI only"
 license = "MIT OR Apache-2.0"
 authors = ["Skylet Team"]
 repository = "https://github.com/vincents-ai/skylet"

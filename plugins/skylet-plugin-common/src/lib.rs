@@ -1,8 +1,13 @@
 // Common utilities for Skylet plugins - eliminates boilerplate and ensures consistency
-// v0.3.0 - Enhanced with support for all plugin types (API, Database, Workflow, etc.) and secrets management
+// v0.5.0 - V2 ABI only: capability builders, service info builders, and improved V2 ABI macros
 #![allow(dead_code, unused_imports, unused_variables)]
 use anyhow::Result;
-use skylet_abi::*;
+// Import specific types to avoid ambiguity - V2 ABI only
+use skylet_abi::v2_spec::{
+    CapabilityInfo, HealthStatus, MaturityLevel, MonetizationModel, PluginApiV2, PluginCategory,
+    PluginContextV2, PluginInfoV2, PluginResultV2, RequestV2, ResponseV2, ServiceInfo,
+};
+use skylet_abi::{HttpResponse, PluginType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
@@ -11,6 +16,203 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+
+// ============================================================================
+// Static String Helpers - Efficient static CStrings for FFI
+// ============================================================================
+
+/// Create a static null-terminated byte string for FFI use.
+/// This avoids runtime CString allocation.
+///
+/// # Example
+/// ```ignore
+/// const PLUGIN_NAME: &[u8] = static_cstr!("my-plugin");
+/// let ptr = PLUGIN_NAME.as_ptr() as *const c_char;
+/// ```
+#[macro_export]
+macro_rules! static_cstr {
+    ($s:expr) => {
+        concat!($s, "\0").as_bytes()
+    };
+}
+
+/// Convert a static byte string to a c_char pointer.
+/// Use with `static_cstr!` macro.
+///
+/// # Example
+/// ```ignore
+/// const NAME: &[u8] = static_cstr!("my-plugin");
+/// let ptr = cstr_ptr!(NAME);
+/// ```
+#[macro_export]
+macro_rules! cstr_ptr {
+    ($bytes:expr) => {
+        $bytes.as_ptr() as *const std::ffi::c_char
+    };
+}
+
+// ============================================================================
+// Capability Builder - Fluent API for building capability arrays
+// ============================================================================
+
+/// Builder for creating CapabilityInfo arrays efficiently.
+///
+/// # Example
+/// ```ignore
+/// let caps = CapabilityBuilder::new()
+///     .add("secrets.get", "Get secret value", Some("secrets.read"))
+///     .add("secrets.set", "Set secret value", Some("secrets.write"))
+///     .build();
+/// ```
+pub struct CapabilityBuilder {
+    capabilities: Vec<(CString, CString, Option<CString>)>,
+}
+
+impl CapabilityBuilder {
+    pub fn new() -> Self {
+        Self {
+            capabilities: Vec::new(),
+        }
+    }
+
+    /// Add a capability with name, description, and optional required permission.
+    pub fn add(mut self, name: &str, description: &str, required_permission: Option<&str>) -> Self {
+        self.capabilities.push((
+            CString::new(name).unwrap(),
+            CString::new(description).unwrap(),
+            required_permission.map(|p| CString::new(p).unwrap()),
+        ));
+        self
+    }
+
+    /// Build and leak the capability array, returning a pointer and count.
+    /// The memory is intentionally leaked to provide static lifetime for FFI.
+    pub fn build(self) -> (*const CapabilityInfo, usize) {
+        let count = self.capabilities.len();
+        if count == 0 {
+            return (std::ptr::null(), 0);
+        }
+
+        let infos: Vec<CapabilityInfo> = self
+            .capabilities
+            .into_iter()
+            .map(|(name, desc, perm)| CapabilityInfo {
+                name: name.into_raw() as *const c_char,
+                description: desc.into_raw() as *const c_char,
+                required_permission: perm.map(|p| p.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
+            })
+            .collect();
+
+        let ptr = Box::leak(infos.into_boxed_slice()).as_ptr();
+        (ptr, count)
+    }
+}
+
+impl Default for CapabilityBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// Service Info Builder - For plugins that provide services
+// ============================================================================
+
+/// Builder for creating ServiceInfo efficiently.
+///
+/// # Example
+/// ```ignore
+/// let service = ServiceInfoBuilder::new("ConfigService", "2.0.0")
+///     .description("Centralized configuration management")
+///     .interface_spec("config-service-v2")
+///     .build();
+/// ```
+pub struct ServiceInfoBuilder {
+    name: CString,
+    version: CString,
+    description: Option<CString>,
+    interface_spec: Option<CString>,
+}
+
+impl ServiceInfoBuilder {
+    pub fn new(name: &str, version: &str) -> Self {
+        Self {
+            name: CString::new(name).unwrap(),
+            version: CString::new(version).unwrap(),
+            description: None,
+            interface_spec: None,
+        }
+    }
+
+    pub fn description(mut self, desc: &str) -> Self {
+        self.description = Some(CString::new(desc).unwrap());
+        self
+    }
+
+    pub fn interface_spec(mut self, spec: &str) -> Self {
+        self.interface_spec = Some(CString::new(spec).unwrap());
+        self
+    }
+
+    /// Build and leak the ServiceInfo, returning a pointer.
+    /// The memory is intentionally leaked to provide static lifetime for FFI.
+    pub fn build(self) -> *const ServiceInfo {
+        let info = ServiceInfo {
+            name: self.name.into_raw() as *const c_char,
+            version: self.version.into_raw() as *const c_char,
+            description: self.description.map(|d| d.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
+            interface_spec: self.interface_spec.map(|s| s.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
+        };
+        Box::leak(Box::new(info))
+    }
+}
+
+// ============================================================================
+// Tags Builder - For building tag arrays
+// ============================================================================
+
+/// Builder for creating tag arrays efficiently.
+///
+/// # Example
+/// ```ignore
+/// let tags = TagsBuilder::new()
+///     .add("security")
+///     .add("encryption")
+///     .add("bootstrap")
+///     .build();
+/// ```
+pub struct TagsBuilder {
+    tags: Vec<CString>,
+}
+
+impl TagsBuilder {
+    pub fn new() -> Self {
+        Self { tags: Vec::new() }
+    }
+
+    pub fn add(mut self, tag: &str) -> Self {
+        self.tags.push(CString::new(tag).unwrap());
+        self
+    }
+
+    /// Build and leak the tag array, returning a pointer and count.
+    pub fn build(self) -> (*const *const c_char, usize) {
+        let count = self.tags.len();
+        if count == 0 {
+            return (std::ptr::null(), 0);
+        }
+
+        let ptrs: Vec<*const c_char> = self.tags.into_iter().map(|t| t.into_raw() as *const c_char).collect();
+        let ptr = Box::leak(ptrs.into_boxed_slice()).as_ptr();
+        (ptr, count)
+    }
+}
+
+impl Default for TagsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // ============================================================================
 // Standard Config Paths - RFC-0006
@@ -237,15 +439,6 @@ pub struct RateLimitInfo {
     pub reset_after: Option<u64>,
 }
 
-// Common plugin info structure
-pub struct PluginInfoHolder {
-    pub info: PluginInfo,
-    pub _name: CString,
-    pub _version: CString,
-    pub _abi: CString,
-    pub _description: CString,
-}
-
 // Generic plugin context for state management
 pub struct PluginContext {
     pub plugin_name: String,
@@ -444,66 +637,8 @@ pub fn extract_method_and_path(_request: *const HttpResponse) -> PluginResult<(S
     Ok(("POST".to_string(), "/api".to_string()))
 }
 
-// Plugin info creation (simplified for v0.3.0)
-pub fn create_plugin_info(
-    name: &str,
-    version: &str,
-    description: &str,
-    _provides_services: Vec<&str>,
-    _capabilities: Vec<&str>,
-    max_concurrency: u32,
-) -> PluginInfoHolder {
-    let name_cstring = CString::new(name).unwrap();
-    let version_cstring = CString::new(version).unwrap();
-    let abi_cstring = CString::new("2.0").unwrap();
-    let description_cstring = CString::new(description).unwrap();
-
-    let info = PluginInfo {
-        name: name_cstring.as_ptr(),
-        version: version_cstring.as_ptr(),
-        description: description_cstring.as_ptr(),
-        author: std::ptr::null(),
-        license: std::ptr::null(),
-        homepage: std::ptr::null(),
-        skylet_version_min: std::ptr::null(),
-        skylet_version_max: std::ptr::null(),
-        abi_version: abi_cstring.as_ptr(),
-        dependencies: std::ptr::null(),
-        num_dependencies: 0,
-        provides_services: std::ptr::null(),
-        num_provides_services: 0,
-        requires_services: std::ptr::null(),
-        num_requires_services: 0,
-        supported_operations: std::ptr::null(),
-        num_supported_operations: 0,
-        capabilities: std::ptr::null(),
-        num_capabilities: 0,
-        resource_requirements: std::ptr::null(),
-        max_concurrency: max_concurrency as usize,
-        supports_hot_reload: false,
-        supports_async: true,
-        supports_streaming: false,
-        plugin_type: PluginType::Integration,
-        tags: std::ptr::null(),
-        num_tags: 0,
-        build_timestamp: std::ptr::null(),
-        build_hash: std::ptr::null(),
-        git_commit: std::ptr::null(),
-        build_environment: std::ptr::null(),
-        metadata: std::ptr::null(),
-    };
-
-    PluginInfoHolder {
-        info,
-        _name: name_cstring,
-        _version: version_cstring,
-        _abi: abi_cstring,
-        _description: description_cstring,
-    }
-}
-
 // Logging utility (simplified for v0.3.0)
-pub fn log_message(_context: *const PluginContext, _level: PluginLogLevel, message: &str) {
+pub fn log_message(_context: *const skylet_abi::PluginContext, _level: skylet_abi::PluginLogLevel, message: &str) {
     println!("PLUGIN_LOG: {}", message);
 }
 
@@ -880,54 +1015,6 @@ pub fn handle_json_request<T: Serialize>(
     }
 }
 
-/// Master plugin declaration macro (V1 ABI) - eliminates 100+ lines of boilerplate
-#[macro_export]
-macro_rules! skylet_plugin {
-    (
-        name: $name:expr,
-        version: $version:expr,
-        description: $description:expr,
-        plugin_type: $plugin_type:expr,
-        max_concurrency: $max_concurrency:expr,
-    ) => {
-        static mut PLUGIN_INFO: Option<$crate::PluginInfoHolder> = None;
-
-        #[no_mangle]
-        pub extern "C" fn plugin_get_info() -> *const skylet_abi::PluginInfo {
-            unsafe {
-                if PLUGIN_INFO.is_none() {
-                    let info = $crate::create_plugin_info(
-                        $name,
-                        $version,
-                        $description,
-                        vec![],
-                        vec!["json", "async"],
-                        $max_concurrency,
-                    );
-                    PLUGIN_INFO = Some(info);
-                }
-                &PLUGIN_INFO.as_ref().unwrap().info
-            }
-        }
-
-        #[no_mangle]
-        pub extern "C" fn plugin_init(context: *const skylet_abi::PluginContext) -> skylet_abi::PluginResult {
-            unsafe {
-                if context.is_null() {
-                    return skylet_abi::PluginResult::InvalidRequest;
-                }
-                
-                skylet_abi::PluginResult::Success
-            }
-        }
-
-        #[no_mangle]
-        pub extern "C" fn plugin_shutdown(_context: *const skylet_abi::PluginContext) -> skylet_abi::PluginResult {
-            skylet_abi::PluginResult::Success
-        }
-    };
-}
-
 /// V2 ABI Plugin Info holder with static storage for CStrings
 pub struct PluginInfoV2Holder {
     pub info: skylet_abi::v2_spec::PluginInfoV2,
@@ -1027,12 +1114,11 @@ pub fn create_plugin_info_v2(
 /// - `plugin_get_info_v2()` - Returns plugin metadata
 /// - `plugin_init_v2()` - Plugin initialization (calls user-provided init_fn if specified)
 /// - `plugin_shutdown_v2()` - Plugin shutdown (calls user-provided shutdown_fn if specified)
-/// - `plugin_shutdown()` - V1 ABI wrapper for bootstrap compatibility
 /// - `plugin_handle_request_v2()` - Default NotImplemented handler
 /// - `plugin_health_check_v2()` - Returns Healthy status
 /// - `plugin_create_v2()` - Returns PluginApiV2 struct
 /// 
-/// # Example
+/// # Basic Example
 /// ```ignore
 /// skylet_plugin_v2! {
 ///     name: "my-plugin",
@@ -1047,8 +1133,60 @@ pub fn create_plugin_info_v2(
 ///     capabilities: ["my.read", "my.write"],
 /// }
 /// ```
+///
+/// # Advanced Example with Hooks
+/// ```ignore
+/// skylet_plugin_v2! {
+///     name: "my-plugin",
+///     version: "0.1.0",
+///     description: "My awesome plugin",
+///     author: "Skylet",
+///     license: "MIT OR Apache-2.0",
+///     tagline: "Does awesome things",
+///     category: skylet_abi::PluginCategory::Utility,
+///     max_concurrency: 10,
+///     supports_async: true,
+///     capabilities: ["my.read", "my.write"],
+///     tags: ["core", "utility"],
+///     on_init: my_init_function,
+///     on_shutdown: my_shutdown_function,
+///     health_check: my_health_check,
+/// }
+/// ```
 #[macro_export]
 macro_rules! skylet_plugin_v2 {
+    // Basic form without hooks
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),* $(,)?] $(,)?
+    ) => {
+        $crate::skylet_plugin_v2_impl! {
+            name: $name,
+            version: $version,
+            description: $description,
+            author: $author,
+            license: $license,
+            tagline: $tagline,
+            category: $category,
+            max_concurrency: $max_concurrency,
+            supports_async: $supports_async,
+            capabilities: [$($cap),*],
+            tags: [],
+            on_init: None,
+            on_shutdown: None,
+            health_check: None,
+        }
+    };
+    
+    // Form with tags
     (
         name: $name:expr,
         version: $version:expr,
@@ -1060,6 +1198,148 @@ macro_rules! skylet_plugin_v2 {
         max_concurrency: $max_concurrency:expr,
         supports_async: $supports_async:expr,
         capabilities: [$($cap:expr),* $(,)?],
+        tags: [$($tag:expr),* $(,)?] $(,)?
+    ) => {
+        $crate::skylet_plugin_v2_impl! {
+            name: $name,
+            version: $version,
+            description: $description,
+            author: $author,
+            license: $license,
+            tagline: $tagline,
+            category: $category,
+            max_concurrency: $max_concurrency,
+            supports_async: $supports_async,
+            capabilities: [$($cap),*],
+            tags: [$($tag),*],
+            on_init: None,
+            on_shutdown: None,
+            health_check: None,
+        }
+    };
+    
+    // Form with hooks
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),* $(,)?],
+        tags: [$($tag:expr),* $(,)?],
+        on_init: $init_fn:expr $(,)?
+    ) => {
+        $crate::skylet_plugin_v2_impl! {
+            name: $name,
+            version: $version,
+            description: $description,
+            author: $author,
+            license: $license,
+            tagline: $tagline,
+            category: $category,
+            max_concurrency: $max_concurrency,
+            supports_async: $supports_async,
+            capabilities: [$($cap),*],
+            tags: [$($tag),*],
+            on_init: Some($init_fn),
+            on_shutdown: None,
+            health_check: None,
+        }
+    };
+    
+    // Form with init and shutdown hooks
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),* $(,)?],
+        tags: [$($tag:expr),* $(,)?],
+        on_init: $init_fn:expr,
+        on_shutdown: $shutdown_fn:expr $(,)?
+    ) => {
+        $crate::skylet_plugin_v2_impl! {
+            name: $name,
+            version: $version,
+            description: $description,
+            author: $author,
+            license: $license,
+            tagline: $tagline,
+            category: $category,
+            max_concurrency: $max_concurrency,
+            supports_async: $supports_async,
+            capabilities: [$($cap),*],
+            tags: [$($tag),*],
+            on_init: Some($init_fn),
+            on_shutdown: Some($shutdown_fn),
+            health_check: None,
+        }
+    };
+    
+    // Full form with all hooks
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),* $(,)?],
+        tags: [$($tag:expr),* $(,)?],
+        on_init: $init_fn:expr,
+        on_shutdown: $shutdown_fn:expr,
+        health_check: $health_fn:expr $(,)?
+    ) => {
+        $crate::skylet_plugin_v2_impl! {
+            name: $name,
+            version: $version,
+            description: $description,
+            author: $author,
+            license: $license,
+            tagline: $tagline,
+            category: $category,
+            max_concurrency: $max_concurrency,
+            supports_async: $supports_async,
+            capabilities: [$($cap),*],
+            tags: [$($tag),*],
+            on_init: Some($init_fn),
+            on_shutdown: Some($shutdown_fn),
+            health_check: Some($health_fn),
+        }
+    };
+}
+
+/// Internal implementation macro - do not use directly
+#[macro_export]
+#[doc(hidden)]
+macro_rules! skylet_plugin_v2_impl {
+    (
+        name: $name:expr,
+        version: $version:expr,
+        description: $description:expr,
+        author: $author:expr,
+        license: $license:expr,
+        tagline: $tagline:expr,
+        category: $category:expr,
+        max_concurrency: $max_concurrency:expr,
+        supports_async: $supports_async:expr,
+        capabilities: [$($cap:expr),*],
+        tags: [$($tag:expr),*],
+        on_init: $init_hook:expr,
+        on_shutdown: $shutdown_hook:expr,
+        health_check: $health_hook:expr,
     ) => {
         // Use fully qualified paths to avoid import conflicts with user code
         static __SKYLET_PLUGIN_INFO_V2: std::sync::atomic::AtomicPtr<skylet_abi::v2_spec::PluginInfoV2> = 
@@ -1111,18 +1391,30 @@ macro_rules! skylet_plugin_v2 {
                 }
             }
             
+            // Call user-provided init hook if specified
+            let init_hook: Option<fn(*const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2> = $init_hook;
+            if let Some(hook) = init_hook {
+                let result = hook(context);
+                if result != skylet_abi::v2_spec::PluginResultV2::Success {
+                    return result;
+                }
+            }
+            
             skylet_abi::v2_spec::PluginResultV2::Success
         }
 
         #[no_mangle]
-        pub extern "C" fn plugin_shutdown_v2(_context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2 {
+        pub extern "C" fn plugin_shutdown_v2(context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2 {
+            // Call user-provided shutdown hook if specified
+            let shutdown_hook: Option<fn(*const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2> = $shutdown_hook;
+            if let Some(hook) = shutdown_hook {
+                let result = hook(context);
+                if result != skylet_abi::v2_spec::PluginResultV2::Success {
+                    return result;
+                }
+            }
+            
             skylet_abi::v2_spec::PluginResultV2::Success
-        }
-        
-        /// V1 ABI wrapper for bootstrap compatibility
-        #[no_mangle]
-        pub extern "C" fn plugin_shutdown(_context: *const skylet_abi::PluginContext) -> skylet_abi::PluginResult {
-            skylet_abi::PluginResult::Success
         }
 
         #[no_mangle]
@@ -1135,7 +1427,13 @@ macro_rules! skylet_plugin_v2 {
         }
 
         #[no_mangle]
-        pub extern "C" fn plugin_health_check_v2(_context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::HealthStatus {
+        pub extern "C" fn plugin_health_check_v2(context: *const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::HealthStatus {
+            // Call user-provided health check hook if specified
+            let health_hook: Option<fn(*const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::HealthStatus> = $health_hook;
+            if let Some(hook) = health_hook {
+                return hook(context);
+            }
+            
             skylet_abi::v2_spec::HealthStatus::Healthy
         }
         
