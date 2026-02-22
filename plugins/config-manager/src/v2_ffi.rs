@@ -15,6 +15,9 @@
 
 use skylet_abi::v2_spec::*;
 use skylet_abi::PluginLogLevel;
+use skylet_plugin_common::{
+    cstr_ptr, static_cstr, CapabilityBuilder, ServiceInfoBuilder, TagsBuilder,
+};
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering, Ordering as AOrdering};
@@ -23,30 +26,18 @@ use std::sync::{Arc, RwLock};
 use super::ConfigService;
 
 // ============================================================================
-// Plugin Metadata Constants
+// Plugin Metadata Constants (using static_cstr! for efficiency)
 // ============================================================================
 
-const PLUGIN_NAME: &[u8] = b"config-manager\0";
-const PLUGIN_VERSION: &[u8] = b"0.2.0\0"; // Updated to v2
-const PLUGIN_DESCRIPTION: &[u8] = b"Centralized configuration management with TOML/JSON support, environment overrides, and CLI parsing\0";
-const PLUGIN_AUTHOR: &[u8] = b"Skylet Team\0";
-const PLUGIN_LICENSE: &[u8] = b"MIT OR Apache-2.0\0";
-const PLUGIN_HOMEPAGE: &[u8] = b"https://github.com/vincents-ai/skylet\0";
-const PLUGIN_ABI_VERSION: &[u8] = b"2.0\0";
-const PLUGIN_SKYLET_MIN: &[u8] = b"1.0.0\0";
-const PLUGIN_SKYLET_MAX: &[u8] = b"2.0.0\0";
-
-// Plugin tags
-const TAG_CONFIG: &[u8] = b"config\0";
-const TAG_SETTINGS: &[u8] = b"settings\0";
-const TAG_BOOTSTRAP: &[u8] = b"bootstrap\0";
-const TAG_CORE: &[u8] = b"core\0";
-
-// Service info - this plugin provides configuration service
-const SERVICE_NAME: &[u8] = b"ConfigService\0";
-const SERVICE_VERSION: &[u8] = b"2.0.0\0"; // Updated to v2
-const SERVICE_DESC: &[u8] = b"Centralized configuration management service\0";
-const SERVICE_SPEC: &[u8] = b"config-service-v2\0"; // Updated spec
+const PLUGIN_NAME: &[u8] = static_cstr!("config-manager");
+const PLUGIN_VERSION: &[u8] = static_cstr!("0.2.0");
+const PLUGIN_DESCRIPTION: &[u8] = static_cstr!("Centralized configuration management with TOML/JSON support, environment overrides, and CLI parsing");
+const PLUGIN_AUTHOR: &[u8] = static_cstr!("Skylet Team");
+const PLUGIN_LICENSE: &[u8] = static_cstr!("MIT OR Apache-2.0");
+const PLUGIN_HOMEPAGE: &[u8] = static_cstr!("https://github.com/vincents-ai/skylet");
+const PLUGIN_ABI_VERSION: &[u8] = static_cstr!("2.0");
+const PLUGIN_SKYLET_MIN: &[u8] = static_cstr!("1.0.0");
+const PLUGIN_SKYLET_MAX: &[u8] = static_cstr!("2.0.0");
 
 // ============================================================================
 // Static Plugin Information
@@ -54,9 +45,6 @@ const SERVICE_SPEC: &[u8] = b"config-service-v2\0"; // Updated spec
 
 // Static storage for plugin info
 static PLUGIN_INFO: AtomicPtr<PluginInfoV2> = AtomicPtr::new(ptr::null_mut());
-static CAPABILITIES_STORAGE: AtomicPtr<[CapabilityInfo; 4]> = AtomicPtr::new(ptr::null_mut());
-static TAGS_STORAGE: AtomicPtr<[*const c_char; 4]> = AtomicPtr::new(ptr::null_mut());
-static SERVICE_STORAGE: AtomicPtr<ServiceInfo> = AtomicPtr::new(ptr::null_mut());
 
 // Thread-safe configuration service storage
 static CONFIG_SERVICE: RwLock<Option<Arc<ConfigService>>> = RwLock::new(None);
@@ -68,95 +56,62 @@ static CONFIG_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Initialize static plugin information
 fn init_plugin_info() {
-    // Initialize capabilities
-    let capabilities = [
-        CapabilityInfo {
-            name: c"config.get".as_ptr(),
-            description: c"Get configuration value".as_ptr(),
-            required_permission: ptr::null(),
-        },
-        CapabilityInfo {
-            name: c"config.set".as_ptr(),
-            description: c"Set configuration value".as_ptr(),
-            required_permission: ptr::null(),
-        },
-        CapabilityInfo {
-            name: c"config.export".as_ptr(),
-            description: c"Export configuration to JSON/TOML".as_ptr(),
-            required_permission: ptr::null(),
-        },
-        CapabilityInfo {
-            name: c"config.validate".as_ptr(),
-            description: c"Validate configuration".as_ptr(),
-            required_permission: ptr::null(),
-        },
-    ];
+    // Build capabilities using CapabilityBuilder
+    let (capabilities_ptr, num_capabilities) = CapabilityBuilder::new()
+        .add("config.get", "Get configuration value", None)
+        .add("config.set", "Set configuration value", None)
+        .add("config.export", "Export configuration to JSON/TOML", None)
+        .add("config.validate", "Validate configuration", None)
+        .build();
 
-    CAPABILITIES_STORAGE.store(
-        Box::leak(Box::new(capabilities)) as *mut _ as *mut _,
-        Ordering::SeqCst,
-    );
+    // Build tags using TagsBuilder
+    let (tags_ptr, num_tags) = TagsBuilder::new()
+        .add("config")
+        .add("settings")
+        .add("bootstrap")
+        .add("core")
+        .build();
 
-    // Initialize tags
-    let tags = [
-        TAG_CONFIG.as_ptr() as *const c_char,
-        TAG_SETTINGS.as_ptr() as *const c_char,
-        TAG_BOOTSTRAP.as_ptr() as *const c_char,
-        TAG_CORE.as_ptr() as *const c_char,
-    ];
-
-    TAGS_STORAGE.store(
-        Box::leak(Box::new(tags)) as *mut _ as *mut _,
-        Ordering::SeqCst,
-    );
-
-    // Initialize service info
-    let service = ServiceInfo {
-        name: SERVICE_NAME.as_ptr() as *const c_char,
-        version: SERVICE_VERSION.as_ptr() as *const c_char,
-        description: SERVICE_DESC.as_ptr() as *const c_char,
-        interface_spec: SERVICE_SPEC.as_ptr() as *const c_char,
-    };
-
-    SERVICE_STORAGE.store(
-        Box::leak(Box::new(service)) as *mut _ as *mut _,
-        Ordering::SeqCst,
-    );
+    // Build service info using ServiceInfoBuilder
+    let service_ptr = ServiceInfoBuilder::new("ConfigService", "2.0.0")
+        .description("Centralized configuration management service")
+        .interface_spec("config-service-v2")
+        .build();
 
     // Initialize plugin info
     let info = PluginInfoV2 {
         // Basic metadata
-        name: PLUGIN_NAME.as_ptr() as *const c_char,
-        version: PLUGIN_VERSION.as_ptr() as *const c_char,
-        description: PLUGIN_DESCRIPTION.as_ptr() as *const c_char,
-        author: PLUGIN_AUTHOR.as_ptr() as *const c_char,
-        license: PLUGIN_LICENSE.as_ptr() as *const c_char,
-        homepage: PLUGIN_HOMEPAGE.as_ptr() as *const c_char,
+        name: cstr_ptr!(PLUGIN_NAME),
+        version: cstr_ptr!(PLUGIN_VERSION),
+        description: cstr_ptr!(PLUGIN_DESCRIPTION),
+        author: cstr_ptr!(PLUGIN_AUTHOR),
+        license: cstr_ptr!(PLUGIN_LICENSE),
+        homepage: cstr_ptr!(PLUGIN_HOMEPAGE),
 
         // Version compatibility
-        skylet_version_min: PLUGIN_SKYLET_MIN.as_ptr() as *const c_char,
-        skylet_version_max: PLUGIN_SKYLET_MAX.as_ptr() as *const c_char,
-        abi_version: PLUGIN_ABI_VERSION.as_ptr() as *const c_char,
+        skylet_version_min: cstr_ptr!(PLUGIN_SKYLET_MIN),
+        skylet_version_max: cstr_ptr!(PLUGIN_SKYLET_MAX),
+        abi_version: cstr_ptr!(PLUGIN_ABI_VERSION),
 
         // Dependencies and services
         dependencies: ptr::null(),
         num_dependencies: 0,
-        provides_services: SERVICE_STORAGE.load(Ordering::SeqCst),
+        provides_services: service_ptr,
         num_provides_services: 1,
         requires_services: ptr::null(),
         num_requires_services: 0,
 
         // Capabilities
-        capabilities: CAPABILITIES_STORAGE.load(Ordering::SeqCst) as *const CapabilityInfo,
-        num_capabilities: 4,
+        capabilities: capabilities_ptr,
+        num_capabilities,
 
         // No resource requirements (config manager is lightweight)
         min_resources: ptr::null(),
         max_resources: ptr::null(),
 
         // Tags and categorization
-        tags: TAGS_STORAGE.load(Ordering::SeqCst) as *const *const c_char,
-        num_tags: 4,
+        tags: tags_ptr,
+        num_tags,
         category: PluginCategory::Development,
 
         // Runtime capabilities
