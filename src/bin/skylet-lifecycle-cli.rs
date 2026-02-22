@@ -40,6 +40,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use reqwest;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -400,10 +401,10 @@ impl SourcesConfig {
 }
 
 // ============================================================================
-// Mock Registry Client (for demonstration)
+// Registry Client
 // ============================================================================
 
-/// Mock plugin info for demonstration
+/// Plugin info returned from registry API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PluginInfo {
     id: String,
@@ -415,22 +416,46 @@ struct PluginInfo {
     tags: Vec<String>,
     license: String,
     homepage: Option<String>,
+    #[serde(default)]
     installed: bool,
+    #[serde(default)]
     installed_version: Option<String>,
     latest_version: String,
+    #[serde(default)]
     has_update: bool,
 }
 
-/// Registry client for fetching plugin information
+/// Registry API response wrapper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RegistryResponse<T> {
+    data: T,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+/// Registry client for fetching plugin information via HTTP
 struct RegistryClient {
     sources: Vec<RegistrySource>,
-    #[allow(dead_code)]
     global_token: Option<String>,
+    http_client: reqwest::Client,
 }
 
 impl RegistryClient {
     fn new(sources: Vec<RegistrySource>, global_token: Option<String>) -> Self {
-        Self { sources, global_token }
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent(format!("skylet-cli/{}", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("Failed to create HTTP client");
+
+        Self { sources, global_token, http_client }
+    }
+
+    /// Get authorization header for a source
+    fn get_auth_header(&self, source: &RegistrySource) -> Option<String> {
+        source.auth_token.as_ref()
+            .or(self.global_token.as_ref())
+            .map(|token| format!("Bearer {}", token))
     }
 
     /// Search for plugins across all sources
@@ -444,60 +469,40 @@ impl RegistryClient {
                 }
             }
 
-            // Mock search - in real implementation, this would call the registry API
             info!("Searching source '{}' at {}", source.name, source.url);
 
-            // Simulate finding some plugins
-            if query.to_lowercase().contains("database") || query.to_lowercase().contains("postgres") {
-                results.push(PluginInfo {
-                    id: format!("{}::postgres-plugin", source.name),
-                    name: "postgres-plugin".to_string(),
-                    version: "1.2.0".to_string(),
-                    description: "PostgreSQL database integration plugin".to_string(),
-                    author: "Skylet Team".to_string(),
-                    tags: vec!["database".to_string(), "postgresql".to_string()],
-                    license: "Apache-2.0".to_string(),
-                    homepage: Some("https://github.com/skylet/postgres-plugin".to_string()),
-                    installed: false,
-                    installed_version: None,
-                    latest_version: "1.2.0".to_string(),
-                    has_update: false,
-                });
+            let url = format!("{}/api/v1/plugins/search", source.url.trim_end_matches('/'));
+            let mut request = self.http_client.get(&url)
+                .query(&[("q", query), ("limit", &limit.to_string())]);
+
+            if let Some(auth) = self.get_auth_header(source) {
+                request = request.header("Authorization", auth);
             }
 
-            if query.to_lowercase().contains("redis") {
-                results.push(PluginInfo {
-                    id: format!("{}::redis-plugin", source.name),
-                    name: "redis-plugin".to_string(),
-                    version: "0.9.0".to_string(),
-                    description: "Redis cache and pub/sub integration".to_string(),
-                    author: "Skylet Team".to_string(),
-                    tags: vec!["cache".to_string(), "redis".to_string()],
-                    license: "Apache-2.0".to_string(),
-                    homepage: None,
-                    installed: false,
-                    installed_version: None,
-                    latest_version: "0.9.0".to_string(),
-                    has_update: false,
-                });
-            }
-
-            if query.is_empty() || query == "*" {
-                // Return all plugins for wildcard search
-                results.push(PluginInfo {
-                    id: format!("{}::config-manager", source.name),
-                    name: "config-manager".to_string(),
-                    version: "1.0.0".to_string(),
-                    description: "Configuration management plugin".to_string(),
-                    author: "Skylet Team".to_string(),
-                    tags: vec!["config".to_string()],
-                    license: "Apache-2.0".to_string(),
-                    homepage: None,
-                    installed: true,
-                    installed_version: Some("1.0.0".to_string()),
-                    latest_version: "1.0.0".to_string(),
-                    has_update: false,
-                });
+            match request.send().await {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        match response.json::<RegistryResponse<Vec<PluginInfo>>>().await {
+                            Ok(resp) => {
+                                for mut plugin in resp.data {
+                                    // Prefix plugin ID with source name for disambiguation
+                                    if !plugin.id.contains("::") {
+                                        plugin.id = format!("{}::{}", source.name, plugin.id);
+                                    }
+                                    results.push(plugin);
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse response from '{}': {}", source.name, e);
+                            }
+                        }
+                    } else {
+                        warn!("Registry '{}' returned status {}", source.name, response.status());
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to connect to registry '{}': {}", source.name, e);
+                }
             }
         }
 
@@ -512,43 +517,134 @@ impl RegistryClient {
         let (source_name, plugin_name) = if parts.len() == 2 {
             (parts[0], parts[1])
         } else {
-            ("core", parts[0])
+            // If no source specified, search all sources
+            return self.search_for_plugin(parts[0]).await;
         };
 
-        // Mock plugin lookup
-        Ok(Some(PluginInfo {
-            id: plugin_id.to_string(),
-            name: plugin_name.to_string(),
-            version: "1.0.0".to_string(),
-            description: format!("Plugin {} from source {}", plugin_name, source_name),
-            author: "Skylet Team".to_string(),
-            tags: vec!["utility".to_string()],
-            license: "Apache-2.0".to_string(),
-            homepage: None,
-            installed: false,
-            installed_version: None,
-            latest_version: "1.0.0".to_string(),
-            has_update: false,
-        }))
+        // Find the specified source
+        let source = match self.sources.iter().find(|s| s.name == source_name) {
+            Some(s) => s,
+            None => {
+                warn!("Source '{}' not found", source_name);
+                return Ok(None);
+            }
+        };
+
+        info!("Fetching plugin '{}' from '{}'", plugin_name, source.name);
+
+        let url = format!("{}/api/v1/plugins/{}", source.url.trim_end_matches('/'), plugin_name);
+        let mut request = self.http_client.get(&url);
+
+        if let Some(auth) = self.get_auth_header(source) {
+            request = request.header("Authorization", auth);
+        }
+
+        match request.send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.json::<RegistryResponse<PluginInfo>>().await {
+                        Ok(resp) => {
+                            let mut plugin = resp.data;
+                            if !plugin.id.contains("::") {
+                                plugin.id = format!("{}::{}", source.name, plugin.id);
+                            }
+                            Ok(Some(plugin))
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse plugin response: {}", e);
+                            Ok(None)
+                        }
+                    }
+                } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+                    Ok(None)
+                } else {
+                    warn!("Registry returned status {}", response.status());
+                    Ok(None)
+                }
+            }
+            Err(e) => {
+                warn!("Failed to connect to registry '{}': {}", source.name, e);
+                Ok(None)
+            }
+        }
+    }
+
+    /// Search all sources for a plugin by name
+    async fn search_for_plugin(&self, plugin_name: &str) -> Result<Option<PluginInfo>> {
+        for source in &self.sources {
+            let url = format!("{}/api/v1/plugins/{}", source.url.trim_end_matches('/'), plugin_name);
+            let mut request = self.http_client.get(&url);
+
+            if let Some(auth) = self.get_auth_header(source) {
+                request = request.header("Authorization", auth);
+            }
+
+            match request.send().await {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(resp) = response.json::<RegistryResponse<PluginInfo>>().await {
+                        let mut plugin = resp.data;
+                        if !plugin.id.contains("::") {
+                            plugin.id = format!("{}::{}", source.name, plugin.id);
+                        }
+                        return Ok(Some(plugin));
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(None)
     }
 
     /// Check for updates
-    async fn check_updates(&self, _plugin_id: Option<&str>) -> Result<Vec<PluginInfo>> {
-        // Mock update check
-        Ok(vec![PluginInfo {
-            id: "core::example-plugin".to_string(),
-            name: "example-plugin".to_string(),
-            version: "2.0.0".to_string(),
-            description: "Example plugin with an update".to_string(),
-            author: "Skylet Team".to_string(),
-            tags: vec![],
-            license: "Apache-2.0".to_string(),
-            homepage: None,
-            installed: true,
-            installed_version: Some("1.0.0".to_string()),
-            latest_version: "2.0.0".to_string(),
-            has_update: true,
-        }])
+    async fn check_updates(&self, plugin_id: Option<&str>) -> Result<Vec<PluginInfo>> {
+        let mut updates = Vec::new();
+
+        for source in &self.sources {
+            info!("Checking updates from '{}'", source.name);
+
+            let url = match plugin_id {
+                Some(id) => {
+                    let name = id.split("::").last().unwrap_or(id);
+                    format!("{}/api/v1/plugins/{}/updates", source.url.trim_end_matches('/'), name)
+                }
+                None => format!("{}/api/v1/updates", source.url.trim_end_matches('/')),
+            };
+
+            let mut request = self.http_client.get(&url);
+
+            if let Some(auth) = self.get_auth_header(source) {
+                request = request.header("Authorization", auth);
+            }
+
+            match request.send().await {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        match response.json::<RegistryResponse<Vec<PluginInfo>>>().await {
+                            Ok(resp) => {
+                                for mut plugin in resp.data {
+                                    if !plugin.id.contains("::") {
+                                        plugin.id = format!("{}::{}", source.name, plugin.id);
+                                    }
+                                    if plugin.has_update {
+                                        updates.push(plugin);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse updates response from '{}': {}", source.name, e);
+                            }
+                        }
+                    } else {
+                        warn!("Registry '{}' returned status {} for updates check", source.name, response.status());
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to connect to registry '{}' for updates: {}", source.name, e);
+                }
+            }
+        }
+
+        Ok(updates)
     }
 }
 
@@ -917,6 +1013,7 @@ async fn handle_install_command(
     _global_token: Option<String>,
     non_interactive: bool,
     output: OutputFormat,
+    config_path: &PathBuf,
 ) -> Result<()> {
     match command {
         InstallCommands::Plugin { plugin_id, version, source, skip_confirm } => {
@@ -996,23 +1093,36 @@ async fn handle_install_command(
         }
 
         InstallCommands::Installed { verbose } => {
-            // Mock installed plugins list
-            let installed = vec![
-                PluginInfo {
-                    id: "core::config-manager".to_string(),
-                    name: "config-manager".to_string(),
-                    version: "1.0.0".to_string(),
-                    description: "Configuration management".to_string(),
-                    author: "Skylet Team".to_string(),
-                    tags: vec!["config".to_string()],
-                    license: "Apache-2.0".to_string(),
-                    homepage: None,
-                    installed: true,
-                    installed_version: Some("1.0.0".to_string()),
-                    latest_version: "1.0.0".to_string(),
-                    has_update: false,
-                },
-            ];
+            // Read installed plugins from local manifest
+            let manifest_path = config_path.parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("installed.toml");
+
+            let installed: Vec<PluginInfo> = if manifest_path.exists() {
+                match std::fs::read_to_string(&manifest_path) {
+                    Ok(content) => {
+                        #[derive(Deserialize)]
+                        struct InstalledManifest {
+                            #[serde(default)]
+                            plugins: Vec<PluginInfo>,
+                        }
+                        match toml::from_str::<InstalledManifest>(&content) {
+                            Ok(manifest) => manifest.plugins,
+                            Err(e) => {
+                                warn!("Failed to parse installed manifest: {}", e);
+                                Vec::new()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to read installed manifest: {}", e);
+                        Vec::new()
+                    }
+                }
+            } else {
+                // No installed plugins manifest found
+                Vec::new()
+            };
 
             match output {
                 OutputFormat::Text => {
@@ -1066,7 +1176,7 @@ async fn main() -> Result<()> {
             handle_plugin_command(cmd, &config, cli.auth_token.clone(), cli.output).await
         }
         Commands::Install(cmd) => {
-            handle_install_command(cmd, &config, cli.auth_token.clone(), cli.non_interactive, cli.output).await
+            handle_install_command(cmd, &config, cli.auth_token.clone(), cli.non_interactive, cli.output, &config_path).await
         }
     };
 

@@ -239,8 +239,6 @@ impl Drop for PluginGuard<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: These tests would require a mock AbiV2PluginLoader or test plugin
     // For now, we document the expected behavior
 

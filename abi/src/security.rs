@@ -12,6 +12,7 @@ use std::os::raw::c_char;
 use std::sync::{Arc, Mutex, OnceLock};
 use tracing;
 use uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Maximum allowed length for input strings to prevent buffer overflow attacks
 const MAX_INPUT_LENGTH: usize = 65536;
@@ -420,11 +421,13 @@ impl PluginCapacityTracker {
 type EncryptedSecretsMap =
     std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>;
 
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct EncryptedSecretStore {
     /// Master key for encryption (32 bytes for AES-256)
     master_key: [u8; 32],
 
     /// Encrypted secrets: (name -> (ciphertext, nonce))
+    #[zeroize(skip)]
     secrets: EncryptedSecretsMap,
 }
 
@@ -574,16 +577,6 @@ impl EncryptedSecretStore {
             decrypted.len()
         );
         Ok(())
-    }
-}
-
-impl Drop for EncryptedSecretStore {
-    fn drop(&mut self) {
-        use zeroize::Zeroize;
-
-        // Securely clear the master key on drop
-        // Note: zeroize the actual field, not a copy
-        self.master_key.zeroize();
     }
 }
 

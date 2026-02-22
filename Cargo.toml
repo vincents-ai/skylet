@@ -10,6 +10,7 @@ members = [
     "src",
     "plugins/config-manager",
     "plugins/logging",
+    "plugins/marketplace",
     "plugins/registry",
     "plugins/secrets-manager",
 ]
@@ -44,6 +45,7 @@ axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tokio-test = "0.4"
+rusqlite = { version = "0.30", features = ["bundled"] }
 
 [profile.release]
 opt-level = 3

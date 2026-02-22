@@ -16,6 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[cfg(feature = "postgres")]
 use sqlx::Row;
@@ -1079,13 +1080,14 @@ impl AuditLogBackend for InMemoryAuditLog {
 }
 
 /// Encryption configuration for audit logs (Phase 6.1)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct EncryptionConfig {
     /// Current encryption key (AES-256 = 32 bytes)
     pub current_key: [u8; 32],
     /// Previous keys for key rotation support
     pub previous_keys: Vec<[u8; 32]>,
     /// Whether encryption is enabled
+    #[zeroize(skip)]
     pub enabled: bool,
 }
 
@@ -1110,18 +1112,6 @@ impl EncryptionConfig {
         let mut keys = vec![&self.current_key];
         keys.extend(self.previous_keys.iter());
         keys
-    }
-}
-
-impl Drop for EncryptionConfig {
-    fn drop(&mut self) {
-        use zeroize::Zeroize;
-
-        // Securely clear all encryption keys on drop
-        self.current_key.zeroize();
-        for key in &mut self.previous_keys {
-            key.zeroize();
-        }
     }
 }
 
