@@ -3,14 +3,14 @@
 
 // Test modules
 #[cfg(test)]
-pub mod framework_tests;
+pub mod database_test;
 #[cfg(test)]
 pub mod framework_test;
 #[cfg(test)]
-pub mod wallet_test;
-#[cfg(test)]
-pub mod database_test;
+pub mod framework_tests;
 #[cfg(test)]
 pub mod hot_reload_tests;
 #[cfg(test)]
 pub mod integration_tests;
+#[cfg(test)]
+pub mod wallet_test;

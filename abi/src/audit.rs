@@ -16,6 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[cfg(feature = "postgres")]
 use sqlx::Row;
@@ -277,7 +278,9 @@ impl AuditEvent {
         use sha2::Sha256;
 
         if secret.is_empty() {
-            return Err(AuditLogError::BackendError("Secret key cannot be empty".to_string()));
+            return Err(AuditLogError::BackendError(
+                "Secret key cannot be empty".to_string(),
+            ));
         }
 
         // Serialize event fields for signing
@@ -309,7 +312,10 @@ impl AuditEvent {
     /// true if signature is valid, false if tampered or invalid
     pub fn verify(&self, secret: &[u8], signature: &str) -> Result<bool, AuditLogError> {
         let computed = self.sign(secret)?;
-        Ok(constant_time_compare(computed.as_bytes(), signature.as_bytes()))
+        Ok(constant_time_compare(
+            computed.as_bytes(),
+            signature.as_bytes(),
+        ))
     }
 
     /// Verify a chain of audit events
@@ -322,7 +328,11 @@ impl AuditEvent {
     ///
     /// # Returns
     /// true if all events are valid, false if any are tampered
-    pub fn verify_chain(events: &[AuditEvent], secret: &[u8], signatures: &[String]) -> Result<bool, AuditLogError> {
+    pub fn verify_chain(
+        events: &[AuditEvent],
+        secret: &[u8],
+        signatures: &[String],
+    ) -> Result<bool, AuditLogError> {
         if events.len() != signatures.len() {
             return Err(AuditLogError::BackendError(
                 "Event and signature count mismatch".to_string(),
@@ -392,30 +402,39 @@ pub trait AuditLogBackend: Send + Sync {
     // ========================================================================
 
     /// Full-text search on message and metadata fields (Phase 5b)
-    async fn search(&self, query: &FullTextSearchQuery, filter: &AuditLogFilter) -> Result<Vec<AuditEvent>, AuditLogError> {
+    async fn search(
+        &self,
+        query: &FullTextSearchQuery,
+        filter: &AuditLogFilter,
+    ) -> Result<Vec<AuditEvent>, AuditLogError> {
         // Default implementation: read all matching events and filter by search query
         let events = self.read(filter).await?;
         Ok(events.into_iter().filter(|e| query.matches(e)).collect())
     }
 
     /// Time-series aggregation with bucketing (Phase 5b)
-    async fn aggregate(&self, aggregation: &TimeSeriesAggregation) -> Result<Vec<AggregationBucket>, AuditLogError> {
+    async fn aggregate(
+        &self,
+        aggregation: &TimeSeriesAggregation,
+    ) -> Result<Vec<AggregationBucket>, AuditLogError> {
         // Default implementation: read all events and aggregate
         let events = self.read(&aggregation.filter).await?;
         Ok(aggregation.aggregate_events(events))
     }
 
     /// Advanced filter logic with AND/OR support (Phase 5b)
-    async fn query_complex(&self, logic: &FilterLogic, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<AuditEvent>, AuditLogError> {
+    async fn query_complex(
+        &self,
+        logic: &FilterLogic,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<AuditEvent>, AuditLogError> {
         // Default implementation: read all and filter by logic
         // Note: This is inefficient and should be overridden by backends
         let filter = AuditLogFilter::new().with_limit(limit.unwrap_or(1000));
         let events = self.read(&filter).await?;
-        
-        let mut results: Vec<_> = events
-            .into_iter()
-            .filter(|e| logic.matches(e))
-            .collect();
+
+        let mut results: Vec<_> = events.into_iter().filter(|e| logic.matches(e)).collect();
 
         if let Some(offset) = offset {
             results = results.into_iter().skip(offset).collect();
@@ -470,7 +489,8 @@ impl EventStatistics {
         let mut min_timestamp = None;
         let mut max_timestamp = None;
         let mut unique_plugins = std::collections::HashSet::new();
-        let mut event_type_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut event_type_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
 
         for event in events {
             match event.severity {
@@ -534,10 +554,10 @@ impl EventStatistics {
 
     /// Calculate error rate as a percentage
     pub fn error_rate(&self) -> f64 {
-        (((self.error_count + self.critical_count) as f64) / (self.total_events as f64).max(1.0)) * 100.0
+        (((self.error_count + self.critical_count) as f64) / (self.total_events as f64).max(1.0))
+            * 100.0
     }
 }
-
 
 /// Error types for audit logging
 #[derive(Debug, Clone)]
@@ -889,11 +909,14 @@ impl TimeSeriesAggregation {
 
     /// Aggregate events into buckets
     pub fn aggregate_events(&self, events: Vec<AuditEvent>) -> Vec<AggregationBucket> {
-        let mut buckets: std::collections::BTreeMap<u64, AggregationBucket> = std::collections::BTreeMap::new();
+        let mut buckets: std::collections::BTreeMap<u64, AggregationBucket> =
+            std::collections::BTreeMap::new();
 
         for event in events {
             let bucket_time = self.get_bucket_time(event.timestamp);
-            let bucket = buckets.entry(bucket_time).or_insert_with(|| AggregationBucket::new(bucket_time));
+            let bucket = buckets
+                .entry(bucket_time)
+                .or_insert_with(|| AggregationBucket::new(bucket_time));
             bucket.add_event(event.severity);
         }
 
@@ -928,12 +951,8 @@ impl FilterLogic {
     /// Check if an event matches this logic
     pub fn matches(&self, event: &AuditEvent) -> bool {
         match self {
-            FilterLogic::And(filters) => {
-                filters.iter().all(|f| f.matches(event))
-            }
-            FilterLogic::Or(filters) => {
-                filters.iter().any(|f| f.matches(event))
-            }
+            FilterLogic::And(filters) => filters.iter().all(|f| f.matches(event)),
+            FilterLogic::Or(filters) => filters.iter().any(|f| f.matches(event)),
             FilterLogic::Complex { conditions } => {
                 // If all conditions are AND, return true if all match
                 // If all conditions are OR, return true if any match
@@ -1061,13 +1080,14 @@ impl AuditLogBackend for InMemoryAuditLog {
 }
 
 /// Encryption configuration for audit logs (Phase 6.1)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct EncryptionConfig {
     /// Current encryption key (AES-256 = 32 bytes)
     pub current_key: [u8; 32],
     /// Previous keys for key rotation support
     pub previous_keys: Vec<[u8; 32]>,
     /// Whether encryption is enabled
+    #[zeroize(skip)]
     pub enabled: bool,
 }
 
@@ -1267,8 +1287,8 @@ impl FileAuditLog {
     /// # Returns
     /// Number of events encrypted
     pub fn encrypt_at_rest(&mut self, key: &[u8; 32]) -> Result<usize, AuditLogError> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
         use std::io::Write;
 
         if self.encryption.is_some() && self.encryption.as_ref().unwrap().enabled {
@@ -1313,19 +1333,15 @@ impl FileAuditLog {
             // Encrypt the JSON
             let ciphertext = cipher
                 .encrypt(nonce, event_json.as_bytes())
-                .map_err(|e| {
-                    AuditLogError::BackendError(format!("Encryption failed: {}", e))
-                })?;
+                .map_err(|e| AuditLogError::BackendError(format!("Encryption failed: {}", e)))?;
 
             // Write: nonce (12 bytes hex) + ciphertext (hex) on one line
-            let encrypted_line = format!(
-                "{}:{}",
-                hex::encode(&nonce_bytes),
-                hex::encode(&ciphertext)
-            );
+            let encrypted_line =
+                format!("{}:{}", hex::encode(nonce_bytes), hex::encode(&ciphertext));
 
-            writeln!(temp_file, "{}", encrypted_line)
-                .map_err(|e| AuditLogError::IoError(format!("Failed to write encrypted data: {}", e)))?;
+            writeln!(temp_file, "{}", encrypted_line).map_err(|e| {
+                AuditLogError::IoError(format!("Failed to write encrypted data: {}", e))
+            })?;
 
             encrypted_count += 1;
         }
@@ -1347,10 +1363,12 @@ impl FileAuditLog {
     /// # Returns
     /// Vector of decrypted AuditEvent objects
     pub fn decrypt_on_read(&self) -> Result<Vec<AuditEvent>, AuditLogError> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
 
-        let encryption = self.encryption.as_ref()
+        let encryption = self
+            .encryption
+            .as_ref()
             .ok_or_else(|| AuditLogError::BackendError("Log is not encrypted".to_string()))?;
 
         let file = File::open(&self.path)
@@ -1379,15 +1397,13 @@ impl FileAuditLog {
             let ciphertext_hex = parts[1];
 
             // Decode nonce and ciphertext
-            let nonce_bytes = hex::decode(nonce_hex)
-                .map_err(|e| AuditLogError::SerializationError(
-                    format!("Failed to decode nonce: {}", e),
-                ))?;
+            let nonce_bytes = hex::decode(nonce_hex).map_err(|e| {
+                AuditLogError::SerializationError(format!("Failed to decode nonce: {}", e))
+            })?;
 
-            let ciphertext = hex::decode(ciphertext_hex)
-                .map_err(|e| AuditLogError::SerializationError(
-                    format!("Failed to decode ciphertext: {}", e),
-                ))?;
+            let ciphertext = hex::decode(ciphertext_hex).map_err(|e| {
+                AuditLogError::SerializationError(format!("Failed to decode ciphertext: {}", e))
+            })?;
 
             if nonce_bytes.len() != 12 {
                 return Err(AuditLogError::SerializationError(
@@ -1402,25 +1418,30 @@ impl FileAuditLog {
             for key_ref in encryption.all_keys() {
                 let cipher = Aes256Gcm::new(&Key::<Aes256Gcm>::from(*key_ref));
                 if let Ok(plaintext) = cipher.decrypt(nonce, ciphertext.as_ref()) {
-                    let json_str = String::from_utf8(plaintext)
-                        .map_err(|e| AuditLogError::SerializationError(
-                            format!("Invalid UTF-8 in decrypted data: {}", e),
-                        ))?;
+                    let json_str = String::from_utf8(plaintext).map_err(|e| {
+                        AuditLogError::SerializationError(format!(
+                            "Invalid UTF-8 in decrypted data: {}",
+                            e
+                        ))
+                    })?;
 
-                    let event: AuditEvent = serde_json::from_str(&json_str)
-                        .map_err(|e| AuditLogError::SerializationError(
-                            format!("Failed to deserialize event: {}", e),
-                        ))?;
+                    let event: AuditEvent = serde_json::from_str(&json_str).map_err(|e| {
+                        AuditLogError::SerializationError(format!(
+                            "Failed to deserialize event: {}",
+                            e
+                        ))
+                    })?;
 
                     decrypted = Some(event);
                     break;
                 }
             }
 
-            let event = decrypted
-                .ok_or_else(|| AuditLogError::BackendError(
+            let event = decrypted.ok_or_else(|| {
+                AuditLogError::BackendError(
                     "Failed to decrypt event with any available key".to_string(),
-                ))?;
+                )
+            })?;
 
             events.push(event);
         }
@@ -1438,11 +1459,13 @@ impl FileAuditLog {
     /// # Returns
     /// Number of events re-encrypted
     pub fn rotate_encryption_key(&mut self, new_key: &[u8; 32]) -> Result<usize, AuditLogError> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
         use std::io::Write;
 
-        let _encryption = self.encryption.as_ref()
+        let _encryption = self
+            .encryption
+            .as_ref()
             .ok_or_else(|| AuditLogError::BackendError("Log is not encrypted".to_string()))?;
 
         // Decrypt all events
@@ -1457,10 +1480,9 @@ impl FileAuditLog {
         let mut reencrypted_count = 0usize;
 
         for event in &events {
-            let json = serde_json::to_string(event)
-                .map_err(|e| AuditLogError::SerializationError(
-                    format!("Failed to serialize event: {}", e),
-                ))?;
+            let json = serde_json::to_string(event).map_err(|e| {
+                AuditLogError::SerializationError(format!("Failed to serialize event: {}", e))
+            })?;
 
             // Generate random nonce for each event
             use rand::RngCore;
@@ -1471,19 +1493,15 @@ impl FileAuditLog {
             // Encrypt the JSON
             let ciphertext = cipher
                 .encrypt(nonce, json.as_bytes())
-                .map_err(|e| {
-                    AuditLogError::BackendError(format!("Encryption failed: {}", e))
-                })?;
+                .map_err(|e| AuditLogError::BackendError(format!("Encryption failed: {}", e)))?;
 
             // Write: nonce (12 bytes hex) + ciphertext (hex) on one line
-            let encrypted_line = format!(
-                "{}:{}",
-                hex::encode(&nonce_bytes),
-                hex::encode(&ciphertext)
-            );
+            let encrypted_line =
+                format!("{}:{}", hex::encode(nonce_bytes), hex::encode(&ciphertext));
 
-            writeln!(temp_file, "{}", encrypted_line)
-                .map_err(|e| AuditLogError::IoError(format!("Failed to write encrypted data: {}", e)))?;
+            writeln!(temp_file, "{}", encrypted_line).map_err(|e| {
+                AuditLogError::IoError(format!("Failed to write encrypted data: {}", e))
+            })?;
 
             reencrypted_count += 1;
         }
@@ -1556,9 +1574,11 @@ impl FileAuditLog {
     /// - Compression (gzip)
     /// - Checkpointing (track replicated offset)
     /// - Deduplication (prevent duplicate events)
-    pub fn replicate_to_s3(&self, bucket: &str, key_prefix: &str) -> Result<ReplicationHandle, AuditLogError> {
-        
-
+    pub fn replicate_to_s3(
+        &self,
+        bucket: &str,
+        key_prefix: &str,
+    ) -> Result<ReplicationHandle, AuditLogError> {
         let log_path = self.path.clone();
         let bucket = bucket.to_string();
         let key_prefix = key_prefix.to_string();
@@ -1566,12 +1586,7 @@ impl FileAuditLog {
 
         // Spawn background replication task
         tokio::spawn(async move {
-            let _ = Self::s3_replication_task(
-                log_path,
-                checkpoint_path,
-                bucket,
-                key_prefix
-            ).await;
+            let _ = Self::s3_replication_task(log_path, checkpoint_path, bucket, key_prefix).await;
         });
 
         Ok(ReplicationHandle::new("s3"))
@@ -1584,8 +1599,8 @@ impl FileAuditLog {
         bucket: String,
         key_prefix: String,
     ) -> Result<(), AuditLogError> {
-        use std::fs;
         use std::collections::HashSet;
+        use std::fs;
 
         const BATCH_SIZE: usize = 1000;
         const MAX_RETRIES: u32 = 5;
@@ -1610,19 +1625,19 @@ impl FileAuditLog {
             if let Ok(file) = std::fs::File::open(&log_path) {
                 use std::io::{BufRead, BufReader};
                 let reader = BufReader::new(file);
-                
+
                 for (idx, line) in reader.lines().enumerate() {
                     if idx < last_replicated_offset {
                         continue;
                     }
-                    
+
                     if let Ok(line) = line {
                         if let Ok(event) = serde_json::from_str::<AuditEvent>(&line) {
                             // Deduplication: skip if we've seen this event_id
                             if !seen_ids.contains(&event.event_id) {
-                                seen_ids.insert(event.event_id.clone());
+                                seen_ids.insert(event.event_id);
                                 events.push(line);
-                                
+
                                 if events.len() >= BATCH_SIZE {
                                     break;
                                 }
@@ -1651,12 +1666,17 @@ impl FileAuditLog {
                     }
                     Err(_) if retry_count < MAX_RETRIES => {
                         retry_count += 1;
-                        tokio::time::sleep(tokio::time::Duration::from_millis(retry_backoff_ms)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(retry_backoff_ms))
+                            .await;
                         retry_backoff_ms *= 2; // Exponential backoff
                     }
                     Err(e) => {
                         // Max retries reached, log error and continue
-                        tracing::error!("S3 replication failed after {} retries: {}", MAX_RETRIES, e);
+                        tracing::error!(
+                            "S3 replication failed after {} retries: {}",
+                            MAX_RETRIES,
+                            e
+                        );
                         break;
                     }
                 }
@@ -1697,20 +1717,17 @@ impl FileAuditLog {
     /// - JSONB storage for efficient querying
     /// - Checkpointing (track replicated offset)
     /// - Deduplication (prevent duplicate events)
-    pub fn replicate_to_postgres(&self, conn_string: &str) -> Result<ReplicationHandle, AuditLogError> {
-        
-
+    pub fn replicate_to_postgres(
+        &self,
+        conn_string: &str,
+    ) -> Result<ReplicationHandle, AuditLogError> {
         let log_path = self.path.clone();
         let conn_string = conn_string.to_string();
         let checkpoint_path = log_path.with_extension("checkpoint.postgres");
 
         // Spawn background replication task
         tokio::spawn(async move {
-            let _ = Self::postgres_replication_task(
-                log_path,
-                checkpoint_path,
-                conn_string
-            ).await;
+            let _ = Self::postgres_replication_task(log_path, checkpoint_path, conn_string).await;
         });
 
         Ok(ReplicationHandle::new("postgres"))
@@ -1722,8 +1739,8 @@ impl FileAuditLog {
         checkpoint_path: PathBuf,
         _conn_string: String,
     ) -> Result<(), AuditLogError> {
-        use std::fs;
         use std::collections::HashSet;
+        use std::fs;
 
         const BATCH_SIZE: usize = 1000;
         const MAX_RETRIES: u32 = 5;
@@ -1748,19 +1765,19 @@ impl FileAuditLog {
             if let Ok(file) = std::fs::File::open(&log_path) {
                 use std::io::{BufRead, BufReader};
                 let reader = BufReader::new(file);
-                
+
                 for (idx, line) in reader.lines().enumerate() {
                     if idx < last_replicated_offset {
                         continue;
                     }
-                    
+
                     if let Ok(line) = line {
                         if let Ok(event) = serde_json::from_str::<AuditEvent>(&line) {
                             // Deduplication: skip if we've seen this event_id
                             if !seen_ids.contains(&event.event_id) {
-                                seen_ids.insert(event.event_id.clone());
+                                seen_ids.insert(event.event_id);
                                 events.push(event);
-                                
+
                                 if events.len() >= BATCH_SIZE {
                                     break;
                                 }
@@ -1789,12 +1806,17 @@ impl FileAuditLog {
                     }
                     Err(_) if retry_count < MAX_RETRIES => {
                         retry_count += 1;
-                        tokio::time::sleep(tokio::time::Duration::from_millis(retry_backoff_ms)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(retry_backoff_ms))
+                            .await;
                         retry_backoff_ms *= 2; // Exponential backoff
                     }
                     Err(e) => {
                         // Max retries reached, log error and continue
-                        tracing::error!("PostgreSQL replication failed after {} retries: {}", MAX_RETRIES, e);
+                        tracing::error!(
+                            "PostgreSQL replication failed after {} retries: {}",
+                            MAX_RETRIES,
+                            e
+                        );
                         break;
                     }
                 }
@@ -1806,9 +1828,7 @@ impl FileAuditLog {
     }
 
     /// Replicate a batch of events to PostgreSQL (mock implementation)
-    async fn replicate_batch_to_postgres(
-        events: &[AuditEvent],
-    ) -> Result<(), AuditLogError> {
+    async fn replicate_batch_to_postgres(events: &[AuditEvent]) -> Result<(), AuditLogError> {
         // Mock PostgreSQL replication - in production, would use:
         // 1. Connect to PostgreSQL via sqlx
         // 2. Create tables if not exist:
@@ -1840,11 +1860,11 @@ impl FileAuditLog {
     /// Check the status of all active replications
     pub fn check_replication_status(&self) -> Result<ReplicationStatus, AuditLogError> {
         use std::fs;
-        
+
         // Try to read S3 checkpoint
         let s3_checkpoint_path = self.path.with_extension("checkpoint.s3");
         let mut s3_status = ReplicationStatus::new("s3");
-        
+
         if let Ok(checkpoint_data) = fs::read_to_string(&s3_checkpoint_path) {
             if let Ok(offset) = checkpoint_data.trim().parse::<u64>() {
                 s3_status.last_replicated_offset = offset;
@@ -1855,7 +1875,7 @@ impl FileAuditLog {
         // Try to read PostgreSQL checkpoint
         let postgres_checkpoint_path = self.path.with_extension("checkpoint.postgres");
         let mut postgres_status = ReplicationStatus::new("postgres");
-        
+
         if let Ok(checkpoint_data) = fs::read_to_string(&postgres_checkpoint_path) {
             if let Ok(offset) = checkpoint_data.trim().parse::<u64>() {
                 postgres_status.last_replicated_offset = offset;
@@ -2078,7 +2098,9 @@ impl PostgresAuditLog {
             .max_connections(max_connections)
             .connect(database_url)
             .await
-            .map_err(|e| AuditLogError::BackendError(format!("Failed to connect to PostgreSQL: {}", e)))?;
+            .map_err(|e| {
+                AuditLogError::BackendError(format!("Failed to connect to PostgreSQL: {}", e))
+            })?;
 
         // Create tables if they don't exist
         Self::init_schema(&pool).await?;
@@ -2100,7 +2122,9 @@ impl PostgresAuditLog {
         )
         .execute(pool)
         .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create severity enum: {}", e)))?;
+        .map_err(|e| {
+            AuditLogError::BackendError(format!("Failed to create severity enum: {}", e))
+        })?;
 
         sqlx::query(
             r#"
@@ -2119,7 +2143,9 @@ impl PostgresAuditLog {
         )
         .execute(pool)
         .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create event_type enum: {}", e)))?;
+        .map_err(|e| {
+            AuditLogError::BackendError(format!("Failed to create event_type enum: {}", e))
+        })?;
 
         // Create main audit events table
         sqlx::query(
@@ -2143,7 +2169,9 @@ impl PostgresAuditLog {
         )
         .execute(pool)
         .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create audit_events table: {}", e)))?;
+        .map_err(|e| {
+            AuditLogError::BackendError(format!("Failed to create audit_events table: {}", e))
+        })?;
 
         // Create indexes for performance
         sqlx::query(
@@ -2151,28 +2179,30 @@ impl PostgresAuditLog {
         )
         .execute(pool)
         .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create plugin_name index: {}", e)))?;
+        .map_err(|e| {
+            AuditLogError::BackendError(format!("Failed to create plugin_name index: {}", e))
+        })?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create timestamp index: {}", e)))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);")
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                AuditLogError::BackendError(format!("Failed to create timestamp index: {}", e))
+            })?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit_events(severity);",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create severity index: {}", e)))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit_events(severity);")
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                AuditLogError::BackendError(format!("Failed to create severity index: {}", e))
+            })?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_events(event_type);",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| AuditLogError::BackendError(format!("Failed to create event_type index: {}", e)))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_events(event_type);")
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                AuditLogError::BackendError(format!("Failed to create event_type index: {}", e))
+            })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_audit_plugin_timestamp ON audit_events(plugin_name, timestamp DESC);",
@@ -2205,8 +2235,8 @@ impl AuditLogBackend for PostgresAuditLog {
         let stage_str = event.stage.as_ref().map(|s| format!("{}", s));
         let error_type_str = event.error_type.as_ref().map(|e| format!("{}", e));
         let recovery_action_str = event.recovery_action.as_ref().map(|r| format!("{}", r));
-        let metadata_json = serde_json::from_str(&event.metadata)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let metadata_json =
+            serde_json::from_str(&event.metadata).unwrap_or_else(|_| serde_json::json!({}));
 
         sqlx::query(
             r#"
@@ -2240,7 +2270,10 @@ impl AuditLogBackend for PostgresAuditLog {
         let mut query = String::from("SELECT * FROM audit_events WHERE 1=1");
 
         if let Some(plugin_name) = &filter.plugin_name {
-            query.push_str(&format!(" AND plugin_name LIKE '%{}%'", plugin_name.replace("'", "''")));
+            query.push_str(&format!(
+                " AND plugin_name LIKE '%{}%'",
+                plugin_name.replace("'", "''")
+            ));
         }
 
         if let Some(event_type) = filter.event_type {
@@ -2259,7 +2292,10 @@ impl AuditLogBackend for PostgresAuditLog {
 
         if let Some(start) = filter.start_time {
             if let Some(end) = filter.end_time {
-                query.push_str(&format!(" AND timestamp >= {} AND timestamp <= {}", start, end));
+                query.push_str(&format!(
+                    " AND timestamp >= {} AND timestamp <= {}",
+                    start, end
+                ));
             }
         }
 
@@ -2280,8 +2316,9 @@ impl AuditLogBackend for PostgresAuditLog {
 
         let mut events = Vec::new();
         for row in rows {
-            let event = self.row_to_event(&row)
-                .map_err(|e| AuditLogError::SerializationError(format!("Failed to parse row: {}", e)))?;
+            let event = self.row_to_event(&row).map_err(|e| {
+                AuditLogError::SerializationError(format!("Failed to parse row: {}", e))
+            })?;
             events.push(event);
         }
 
@@ -2292,7 +2329,10 @@ impl AuditLogBackend for PostgresAuditLog {
         let mut query = String::from("SELECT COUNT(*) as count FROM audit_events WHERE 1=1");
 
         if let Some(plugin_name) = &filter.plugin_name {
-            query.push_str(&format!(" AND plugin_name LIKE '%{}%'", plugin_name.replace("'", "''")));
+            query.push_str(&format!(
+                " AND plugin_name LIKE '%{}%'",
+                plugin_name.replace("'", "''")
+            ));
         }
 
         if let Some(event_type) = filter.event_type {
@@ -2311,7 +2351,10 @@ impl AuditLogBackend for PostgresAuditLog {
 
         if let Some(start) = filter.start_time {
             if let Some(end) = filter.end_time {
-                query.push_str(&format!(" AND timestamp >= {} AND timestamp <= {}", start, end));
+                query.push_str(&format!(
+                    " AND timestamp >= {} AND timestamp <= {}",
+                    start, end
+                ));
             }
         }
 
@@ -2339,12 +2382,19 @@ impl AuditLogBackend for PostgresAuditLog {
     // ========================================================================
 
     /// Full-text search using PostgreSQL text search capabilities (Phase 5b)
-    async fn search(&self, query: &FullTextSearchQuery, filter: &AuditLogFilter) -> Result<Vec<AuditEvent>, AuditLogError> {
+    async fn search(
+        &self,
+        query: &FullTextSearchQuery,
+        filter: &AuditLogFilter,
+    ) -> Result<Vec<AuditEvent>, AuditLogError> {
         let mut sql = String::from("SELECT * FROM audit_events WHERE 1=1");
 
         // Add base filter conditions
         if let Some(plugin_name) = &filter.plugin_name {
-            sql.push_str(&format!(" AND plugin_name LIKE '%{}%'", plugin_name.replace("'", "''")));
+            sql.push_str(&format!(
+                " AND plugin_name LIKE '%{}%'",
+                plugin_name.replace("'", "''")
+            ));
         }
 
         if let Some(event_type) = filter.event_type {
@@ -2363,7 +2413,10 @@ impl AuditLogBackend for PostgresAuditLog {
 
         if let Some(start) = filter.start_time {
             if let Some(end) = filter.end_time {
-                sql.push_str(&format!(" AND timestamp >= {} AND timestamp <= {}", start, end));
+                sql.push_str(&format!(
+                    " AND timestamp >= {} AND timestamp <= {}",
+                    start, end
+                ));
             }
         }
 
@@ -2406,8 +2459,9 @@ impl AuditLogBackend for PostgresAuditLog {
 
         let mut events = Vec::new();
         for row in rows {
-            let event = self.row_to_event(&row)
-                .map_err(|e| AuditLogError::SerializationError(format!("Failed to parse row: {}", e)))?;
+            let event = self.row_to_event(&row).map_err(|e| {
+                AuditLogError::SerializationError(format!("Failed to parse row: {}", e))
+            })?;
             events.push(event);
         }
 
@@ -2415,7 +2469,10 @@ impl AuditLogBackend for PostgresAuditLog {
     }
 
     /// Time-series aggregation using PostgreSQL window functions (Phase 5b)
-    async fn aggregate(&self, aggregation: &TimeSeriesAggregation) -> Result<Vec<AggregationBucket>, AuditLogError> {
+    async fn aggregate(
+        &self,
+        aggregation: &TimeSeriesAggregation,
+    ) -> Result<Vec<AggregationBucket>, AuditLogError> {
         let bucket_size = aggregation.bucket_size_seconds as i64;
 
         let mut sql = format!(
@@ -2435,7 +2492,10 @@ impl AuditLogBackend for PostgresAuditLog {
 
         // Add filter conditions
         if let Some(plugin_name) = &aggregation.filter.plugin_name {
-            sql.push_str(&format!(" AND plugin_name LIKE '%{}%'", plugin_name.replace("'", "''")));
+            sql.push_str(&format!(
+                " AND plugin_name LIKE '%{}%'",
+                plugin_name.replace("'", "''")
+            ));
         }
 
         if let Some(event_type) = aggregation.filter.event_type {
@@ -2454,7 +2514,10 @@ impl AuditLogBackend for PostgresAuditLog {
 
         if let Some(start) = aggregation.filter.start_time {
             if let Some(end) = aggregation.filter.end_time {
-                sql.push_str(&format!(" AND timestamp >= {} AND timestamp <= {}", start, end));
+                sql.push_str(&format!(
+                    " AND timestamp >= {} AND timestamp <= {}",
+                    start, end
+                ));
             }
         }
 
@@ -2489,17 +2552,19 @@ impl AuditLogBackend for PostgresAuditLog {
     }
 
     /// Advanced complex filter queries using PostgreSQL AND/OR logic (Phase 5b)
-    async fn query_complex(&self, logic: &FilterLogic, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<AuditEvent>, AuditLogError> {
+    async fn query_complex(
+        &self,
+        logic: &FilterLogic,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<AuditEvent>, AuditLogError> {
         // For now, use default implementation but can be optimized with SQL generation
         let filter = AuditLogFilter::new()
             .with_limit(limit.unwrap_or(1000))
             .with_offset(offset.unwrap_or(0));
-        
+
         let events = self.read(&filter).await?;
-        let results: Vec<_> = events
-            .into_iter()
-            .filter(|e| logic.matches(e))
-            .collect();
+        let results: Vec<_> = events.into_iter().filter(|e| logic.matches(e)).collect();
 
         Ok(results)
     }
@@ -2519,12 +2584,15 @@ impl AuditLogBackend for PostgresAuditLog {
                 COUNT(DISTINCT plugin_name) as unique_plugins
             FROM audit_events
             WHERE 1=1
-            "#
+            "#,
         );
 
         // Add filter conditions
         if let Some(plugin_name) = &filter.plugin_name {
-            sql.push_str(&format!(" AND plugin_name LIKE '%{}%'", plugin_name.replace("'", "''")));
+            sql.push_str(&format!(
+                " AND plugin_name LIKE '%{}%'",
+                plugin_name.replace("'", "''")
+            ));
         }
 
         if let Some(event_type) = filter.event_type {
@@ -2543,14 +2611,16 @@ impl AuditLogBackend for PostgresAuditLog {
 
         if let Some(start) = filter.start_time {
             if let Some(end) = filter.end_time {
-                sql.push_str(&format!(" AND timestamp >= {} AND timestamp <= {}", start, end));
+                sql.push_str(&format!(
+                    " AND timestamp >= {} AND timestamp <= {}",
+                    start, end
+                ));
             }
         }
 
-        let row = sqlx::query(&sql)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| AuditLogError::QueryError(format!("Failed to calculate statistics: {}", e)))?;
+        let row = sqlx::query(&sql).fetch_one(&self.pool).await.map_err(|e| {
+            AuditLogError::QueryError(format!("Failed to calculate statistics: {}", e))
+        })?;
 
         use sqlx::Row;
 
@@ -2581,7 +2651,10 @@ impl AuditLogBackend for PostgresAuditLog {
 #[cfg(feature = "postgres")]
 impl PostgresAuditLog {
     /// Convert a database row to an AuditEvent
-    fn row_to_event(&self, row: &sqlx::postgres::PgRow) -> Result<AuditEvent, Box<dyn std::error::Error>> {
+    fn row_to_event(
+        &self,
+        row: &sqlx::postgres::PgRow,
+    ) -> Result<AuditEvent, Box<dyn std::error::Error>> {
         use sqlx::Row;
 
         let event_id: i64 = row.try_get("event_id")?;
@@ -2633,7 +2706,9 @@ impl PostgresAuditLog {
             error_type: error_type_str.and_then(|e| Self::parse_error_type(&e)),
             recovery_action: recovery_action_str.and_then(|r| Self::parse_recovery_action(&r)),
             message,
-            metadata: metadata_json.unwrap_or_else(|| serde_json::json!({})).to_string(),
+            metadata: metadata_json
+                .unwrap_or_else(|| serde_json::json!({}))
+                .to_string(),
             timestamp: timestamp as u64,
             retry_count: retry_count.map(|c| c as usize),
             duration_ms: duration_ms.map(|d| d as u64),
@@ -2680,6 +2755,9 @@ impl PostgresAuditLog {
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Type alias for the audit backend registry map to reduce type complexity
+type AuditBackendMap = Arc<Mutex<HashMap<String, Arc<Box<dyn AuditLogBackend>>>>>;
+
 /// Plugin-based registry for audit backends
 ///
 /// Enables decoupled architecture where backends are registered at runtime
@@ -2698,18 +2776,17 @@ use std::sync::{Arc, Mutex};
 ///
 /// let backend = registry.get("memory");
 /// ```
-
 /// Trait for plugins to register custom audit backends with the registry
-/// 
+///
 /// This allows plugins to provide custom backend implementations that integrate
 /// with the core audit logging system. Plugins can register themselves during
 /// lifecycle initialization.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```ignore
 /// pub struct AuditBackendProvider;
-/// 
+///
 /// impl BackendRegistrar for AuditBackendProvider {
 ///     async fn register_backends(
 ///         registry: &mut DefaultAuditRegistry
@@ -2726,11 +2803,11 @@ use std::sync::{Arc, Mutex};
 /// ```
 pub trait BackendRegistrar: Send + Sync {
     /// Register backends with the provided registry
-    /// 
+    ///
     /// Called by lifecycle during initialization to allow plugins to register
     /// custom backends before the registry is used
     fn register_backends(
-        registry: &mut DefaultAuditRegistry
+        registry: &mut DefaultAuditRegistry,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), AuditLogError>> + Send>>;
 }
 
@@ -2739,7 +2816,11 @@ pub trait AuditPluginRegistry: Send + Sync {
     fn get(&self, name: &str) -> Option<Arc<Box<dyn AuditLogBackend>>>;
 
     /// Register a new backend
-    fn register(&mut self, name: impl Into<String>, backend: Box<dyn AuditLogBackend>) -> Result<(), AuditLogError>;
+    fn register(
+        &mut self,
+        name: impl Into<String>,
+        backend: Box<dyn AuditLogBackend>,
+    ) -> Result<(), AuditLogError>;
 
     /// Unregister a backend
     fn unregister(&mut self, name: &str) -> Result<bool, AuditLogError>;
@@ -2758,9 +2839,9 @@ pub trait AuditPluginRegistry: Send + Sync {
 ///
 /// Uses HashMap to store registered backends. Thread-safe via Arc<Mutex<>>.
 /// Suitable for most deployments.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DefaultAuditRegistry {
-    backends: Arc<Mutex<HashMap<String, Arc<Box<dyn AuditLogBackend>>>>>,
+    backends: AuditBackendMap,
 }
 
 impl DefaultAuditRegistry {
@@ -2774,25 +2855,23 @@ impl DefaultAuditRegistry {
     /// Create a registry with default in-memory backend registered
     pub fn with_defaults() -> Result<Self, AuditLogError> {
         let mut registry = Self::new();
-        
+
         // Register in-memory backend
         let in_memory = Box::new(InMemoryAuditLog::new(100));
         registry.register("memory", in_memory)?;
-        
+
         Ok(registry)
     }
 
     /// Register a file-based backend with the given path
-    pub fn with_file_backend(mut self, path: impl AsRef<std::path::Path>, max_memory_lines: usize) -> Result<Self, AuditLogError> {
+    pub fn with_file_backend(
+        mut self,
+        path: impl AsRef<std::path::Path>,
+        max_memory_lines: usize,
+    ) -> Result<Self, AuditLogError> {
         let file_log = Box::new(FileAuditLog::new(path, max_memory_lines)?);
         self.register("file", file_log)?;
         Ok(self)
-    }
-}
-
-impl Default for DefaultAuditRegistry {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -2802,16 +2881,21 @@ impl AuditPluginRegistry for DefaultAuditRegistry {
         backends.get(name).cloned()
     }
 
-    fn register(&mut self, name: impl Into<String>, backend: Box<dyn AuditLogBackend>) -> Result<(), AuditLogError> {
+    fn register(
+        &mut self,
+        name: impl Into<String>,
+        backend: Box<dyn AuditLogBackend>,
+    ) -> Result<(), AuditLogError> {
         let name_str = name.into();
         let mut backends = self.backends.lock().unwrap();
-        
+
         if backends.contains_key(&name_str) {
-            return Err(AuditLogError::RegistryError(
-                format!("Backend '{}' is already registered", name_str)
-            ));
+            return Err(AuditLogError::RegistryError(format!(
+                "Backend '{}' is already registered",
+                name_str
+            )));
         }
-        
+
         backends.insert(name_str, Arc::new(backend));
         Ok(())
     }
@@ -2857,7 +2941,7 @@ mod registry_tests {
     fn test_registry_register_backend() {
         let mut registry = DefaultAuditRegistry::new();
         let backend = Box::new(InMemoryAuditLog::new(100));
-        
+
         let result = registry.register("memory", backend);
         assert!(result.is_ok());
         assert_eq!(registry.count(), 1);
@@ -2868,10 +2952,10 @@ mod registry_tests {
     fn test_registry_get_backend() {
         let mut registry = DefaultAuditRegistry::new();
         let backend = Box::new(InMemoryAuditLog::new(100));
-        
+
         registry.register("memory", backend).unwrap();
         let retrieved = registry.get("memory");
-        
+
         assert!(retrieved.is_some());
     }
 
@@ -2879,7 +2963,7 @@ mod registry_tests {
     fn test_registry_get_nonexistent() {
         let registry: DefaultAuditRegistry = DefaultAuditRegistry::new();
         let retrieved = registry.get("nonexistent");
-        
+
         assert!(retrieved.is_none());
     }
 
@@ -2888,10 +2972,10 @@ mod registry_tests {
         let mut registry = DefaultAuditRegistry::new();
         let backend1 = Box::new(InMemoryAuditLog::new(100));
         let backend2 = Box::new(InMemoryAuditLog::new(200));
-        
+
         registry.register("memory", backend1).unwrap();
         let result = registry.register("memory", backend2);
-        
+
         assert!(result.is_err());
         match result {
             Err(AuditLogError::RegistryError(msg)) => {
@@ -2905,10 +2989,10 @@ mod registry_tests {
     fn test_registry_unregister() {
         let mut registry = DefaultAuditRegistry::new();
         let backend = Box::new(InMemoryAuditLog::new(100));
-        
+
         registry.register("memory", backend).unwrap();
         assert_eq!(registry.count(), 1);
-        
+
         let result = registry.unregister("memory");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
@@ -2919,7 +3003,7 @@ mod registry_tests {
     fn test_registry_unregister_nonexistent() {
         let mut registry: DefaultAuditRegistry = DefaultAuditRegistry::new();
         let result = registry.unregister("nonexistent");
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
     }
@@ -2927,10 +3011,17 @@ mod registry_tests {
     #[test]
     fn test_registry_list_backends() {
         let mut registry = DefaultAuditRegistry::new();
-        
-        registry.register("memory", Box::new(InMemoryAuditLog::new(100))).unwrap();
-        registry.register("file", Box::new(FileAuditLog::new("/tmp/test.log", 1000).unwrap())).unwrap();
-        
+
+        registry
+            .register("memory", Box::new(InMemoryAuditLog::new(100)))
+            .unwrap();
+        registry
+            .register(
+                "file",
+                Box::new(FileAuditLog::new("/tmp/test.log", 1000).unwrap()),
+            )
+            .unwrap();
+
         let names = registry.list_backends().unwrap();
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"memory".to_string()));
@@ -2945,7 +3036,7 @@ mod registry_tests {
         let registry = DefaultAuditRegistry::with_defaults().unwrap();
         assert_eq!(registry.count(), 1);
         assert!(registry.has("memory"));
-        
+
         let backend = registry.get("memory");
         assert!(backend.is_some());
     }
@@ -2959,8 +3050,10 @@ mod registry_tests {
     #[test]
     fn test_registry_clone() {
         let mut registry = DefaultAuditRegistry::new();
-        registry.register("memory", Box::new(InMemoryAuditLog::new(100))).unwrap();
-        
+        registry
+            .register("memory", Box::new(InMemoryAuditLog::new(100)))
+            .unwrap();
+
         let registry_clone = registry.clone();
         assert_eq!(registry_clone.count(), 1);
         assert!(registry_clone.has("memory"));
@@ -2978,16 +3071,16 @@ mod phase5b_tests {
     #[tokio::test]
     async fn test_full_text_search_query_case_insensitive() {
         let query = FullTextSearchQuery::new("warning").case_sensitive(false);
-        
+
         let mut event = AuditEvent::new(
             AuditEventType::LoadFailed,
             AuditSeverity::Warning,
             "test-plugin",
             "This is a WARNING message",
         );
-        
+
         assert!(query.matches(&event));
-        
+
         event.message = "This is a normal message".to_string();
         assert!(!query.matches(&event));
     }
@@ -2995,24 +3088,26 @@ mod phase5b_tests {
     #[tokio::test]
     async fn test_full_text_search_query_case_sensitive() {
         let query = FullTextSearchQuery::new("Warning").case_sensitive(true);
-        
+
         let mut event = AuditEvent::new(
             AuditEventType::LoadFailed,
             AuditSeverity::Warning,
             "test-plugin",
             "This is a Warning message",
         );
-        
+
         assert!(query.matches(&event));
-        
+
         event.message = "This is a warning message".to_string();
         assert!(!query.matches(&event));
     }
 
     #[tokio::test]
     async fn test_full_text_search_in_metadata() {
-        let query = FullTextSearchQuery::new("critical").search_message(false).search_metadata(true);
-        
+        let query = FullTextSearchQuery::new("critical")
+            .search_message(false)
+            .search_metadata(true);
+
         let mut event = AuditEvent::new(
             AuditEventType::LoadFailed,
             AuditSeverity::Error,
@@ -3020,7 +3115,7 @@ mod phase5b_tests {
             "Regular message",
         );
         event.metadata = r#"{"severity": "critical", "level": 5}"#.to_string();
-        
+
         assert!(query.matches(&event));
     }
 
@@ -3031,7 +3126,7 @@ mod phase5b_tests {
         bucket.add_event(AuditSeverity::Info);
         bucket.add_event(AuditSeverity::Warning);
         bucket.add_event(AuditSeverity::Error);
-        
+
         assert_eq!(bucket.event_count, 4);
         assert_eq!(bucket.info_count, 2);
         assert_eq!(bucket.warning_count, 1);
@@ -3045,7 +3140,7 @@ mod phase5b_tests {
         bucket.add_event(AuditSeverity::Info);
         bucket.add_event(AuditSeverity::Info);
         bucket.add_event(AuditSeverity::Error);
-        
+
         assert!((bucket.severity_percentage(AuditSeverity::Info) - 66.66666666).abs() < 0.1);
         assert!((bucket.severity_percentage(AuditSeverity::Error) - 33.33333333).abs() < 0.1);
     }
@@ -3054,10 +3149,10 @@ mod phase5b_tests {
     async fn test_time_series_hourly_aggregation() {
         let filter = AuditLogFilter::new();
         let agg = TimeSeriesAggregation::hourly(filter);
-        
+
         // Timestamps should fall into same hour (3600 second bucket)
         assert_eq!(agg.get_bucket_time(3000), agg.get_bucket_time(3599));
-        
+
         // But different hours should be different buckets
         assert_ne!(agg.get_bucket_time(3000), agg.get_bucket_time(7200));
     }
@@ -3066,7 +3161,7 @@ mod phase5b_tests {
     async fn test_time_series_daily_aggregation() {
         let filter = AuditLogFilter::new();
         let agg = TimeSeriesAggregation::daily(filter);
-        
+
         // 86400 second bucket
         assert_eq!(agg.get_bucket_time(50000), agg.get_bucket_time(86399));
         assert_ne!(agg.get_bucket_time(50000), agg.get_bucket_time(90000));
@@ -3077,9 +3172,8 @@ mod phase5b_tests {
         let filter1 = AuditLogFilter::new()
             .with_plugin_name("test-plugin")
             .with_event_type(AuditEventType::LoadSucceeded);
-        
-        let filter2 = AuditLogFilter::new()
-            .with_min_severity(AuditSeverity::Info);
+
+        let filter2 = AuditLogFilter::new().with_min_severity(AuditSeverity::Info);
 
         let logic = FilterLogic::and(vec![filter1, filter2]);
 
@@ -3098,11 +3192,9 @@ mod phase5b_tests {
 
     #[tokio::test]
     async fn test_filter_logic_or() {
-        let filter1 = AuditLogFilter::new()
-            .with_plugin_name("plugin-a");
-        
-        let filter2 = AuditLogFilter::new()
-            .with_plugin_name("plugin-b");
+        let filter1 = AuditLogFilter::new().with_plugin_name("plugin-a");
+
+        let filter2 = AuditLogFilter::new().with_plugin_name("plugin-b");
 
         let logic = FilterLogic::or(vec![filter1, filter2]);
 
@@ -3125,9 +3217,24 @@ mod phase5b_tests {
     #[tokio::test]
     async fn test_event_statistics_from_events() {
         let events = vec![
-            AuditEvent::new(AuditEventType::LoadSucceeded, AuditSeverity::Info, "plugin1", "msg1"),
-            AuditEvent::new(AuditEventType::LoadSucceeded, AuditSeverity::Info, "plugin1", "msg2"),
-            AuditEvent::new(AuditEventType::LoadFailed, AuditSeverity::Error, "plugin2", "msg3"),
+            AuditEvent::new(
+                AuditEventType::LoadSucceeded,
+                AuditSeverity::Info,
+                "plugin1",
+                "msg1",
+            ),
+            AuditEvent::new(
+                AuditEventType::LoadSucceeded,
+                AuditSeverity::Info,
+                "plugin1",
+                "msg2",
+            ),
+            AuditEvent::new(
+                AuditEventType::LoadFailed,
+                AuditSeverity::Error,
+                "plugin2",
+                "msg3",
+            ),
         ];
 
         let stats = EventStatistics::from_events(&events);
@@ -3142,10 +3249,20 @@ mod phase5b_tests {
     async fn test_event_statistics_error_rate() {
         let mut events = vec![];
         for _ in 0..90 {
-            events.push(AuditEvent::new(AuditEventType::LoadSucceeded, AuditSeverity::Info, "plugin", "msg"));
+            events.push(AuditEvent::new(
+                AuditEventType::LoadSucceeded,
+                AuditSeverity::Info,
+                "plugin",
+                "msg",
+            ));
         }
         for _ in 0..10 {
-            events.push(AuditEvent::new(AuditEventType::LoadFailed, AuditSeverity::Error, "plugin", "msg"));
+            events.push(AuditEvent::new(
+                AuditEventType::LoadFailed,
+                AuditSeverity::Error,
+                "plugin",
+                "msg",
+            ));
         }
 
         let stats = EventStatistics::from_events(&events);
@@ -3155,7 +3272,7 @@ mod phase5b_tests {
     #[tokio::test]
     async fn test_inmemory_search() {
         let log = InMemoryAuditLog::new(100);
-        
+
         let event1 = AuditEvent::new(
             AuditEventType::LoadSucceeded,
             AuditSeverity::Info,
@@ -3184,7 +3301,7 @@ mod phase5b_tests {
     #[tokio::test]
     async fn test_inmemory_statistics() {
         let log = InMemoryAuditLog::new(100);
-        
+
         let event1 = AuditEvent::new(
             AuditEventType::LoadSucceeded,
             AuditSeverity::Info,
@@ -3214,7 +3331,9 @@ mod phase5b_tests {
     #[cfg(feature = "postgres")]
     async fn test_postgres_full_text_search() {
         let db_url = super::get_test_db_url();
-        let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+        let log = PostgresAuditLog::new(&db_url, 5)
+            .await
+            .expect("Failed to connect");
 
         let event1 = AuditEvent::new(
             AuditEventType::LoadSucceeded,
@@ -3239,7 +3358,7 @@ mod phase5b_tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].plugin_name, "search-test-1");
-        
+
         let _ = log.close().await;
     }
 
@@ -3248,7 +3367,9 @@ mod phase5b_tests {
     #[cfg(feature = "postgres")]
     async fn test_postgres_time_series_aggregation() {
         let db_url = super::get_test_db_url();
-        let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+        let log = PostgresAuditLog::new(&db_url, 5)
+            .await
+            .expect("Failed to connect");
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -3276,7 +3397,7 @@ mod phase5b_tests {
 
         assert!(!buckets.is_empty());
         assert_eq!(buckets.iter().map(|b| b.event_count).sum::<usize>(), 5);
-        
+
         let _ = log.close().await;
     }
 
@@ -3285,28 +3406,42 @@ mod phase5b_tests {
     #[cfg(feature = "postgres")]
     async fn test_postgres_event_statistics() {
         let db_url = super::get_test_db_url();
-        let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+        let log = PostgresAuditLog::new(&db_url, 5)
+            .await
+            .expect("Failed to connect");
 
         let plugin_name = format!("stats-test-{}", chrono::Utc::now().timestamp());
 
         // Write events with different severities
-        let info_event = AuditEvent::new(AuditEventType::LoadSucceeded, AuditSeverity::Info, &plugin_name, "msg");
-        let error_event = AuditEvent::new(AuditEventType::LoadFailed, AuditSeverity::Error, &plugin_name, "msg");
+        let info_event = AuditEvent::new(
+            AuditEventType::LoadSucceeded,
+            AuditSeverity::Info,
+            &plugin_name,
+            "msg",
+        );
+        let error_event = AuditEvent::new(
+            AuditEventType::LoadFailed,
+            AuditSeverity::Error,
+            &plugin_name,
+            "msg",
+        );
 
         log.write(&info_event).await.expect("Failed to write");
         log.write(&error_event).await.expect("Failed to write");
 
         let filter = AuditLogFilter::new().with_plugin_name(&plugin_name);
-        let stats = log.statistics(&filter).await.expect("Failed to get statistics");
+        let stats = log
+            .statistics(&filter)
+            .await
+            .expect("Failed to get statistics");
 
         assert_eq!(stats.total_events, 2);
         assert_eq!(stats.info_count, 1);
         assert_eq!(stats.error_count, 1);
         assert!((stats.error_rate() - 50.0).abs() < 0.1);
-        
+
         let _ = log.close().await;
     }
-
 }
 
 #[cfg(test)]
@@ -3939,17 +4074,18 @@ mod tests {
 
         /// Helper to get test database URL from environment or use default
         fn get_test_db_url() -> String {
-            std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/plugin_audit_test".to_string())
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost/plugin_audit_test".to_string()
+            })
         }
 
         #[tokio::test]
-        #[ignore]  // Run with: cargo test --features postgres -- --ignored --test-threads=1
+        #[ignore] // Run with: cargo test --features postgres -- --ignored --test-threads=1
         async fn test_postgres_connection() {
             let db_url = get_test_db_url();
             let result = PostgresAuditLog::new(&db_url, 5).await;
             assert!(result.is_ok(), "Failed to connect to PostgreSQL");
-            
+
             if let Ok(log) = result {
                 let (idle, total) = log.pool_stats();
                 tracing::info!("Pool stats - Idle: {}, Total: {}", idle, total);
@@ -3961,7 +4097,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_write_event() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let event = AuditEvent::new(
                 AuditEventType::LoadStarted,
@@ -3972,7 +4110,7 @@ mod tests {
 
             let result = log.write(&event).await;
             assert!(result.is_ok(), "Failed to write event: {:?}", result);
-            
+
             let _ = log.close().await;
         }
 
@@ -3980,7 +4118,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_read_event() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let event = AuditEvent::new(
                 AuditEventType::LoadSucceeded,
@@ -3991,13 +4131,12 @@ mod tests {
 
             log.write(&event).await.expect("Failed to write");
 
-            let filter = AuditLogFilter::new()
-                .with_plugin_name("postgres-read-test");
+            let filter = AuditLogFilter::new().with_plugin_name("postgres-read-test");
             let results = log.read(&filter).await.expect("Failed to read");
-            
+
             assert!(!results.is_empty(), "No events found");
             assert_eq!(results[0].plugin_name, "postgres-read-test");
-            
+
             let _ = log.close().await;
         }
 
@@ -4005,7 +4144,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_filter_by_severity() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             // Write events with different severities
             log.write(&AuditEvent::new(
@@ -4013,24 +4154,28 @@ mod tests {
                 AuditSeverity::Info,
                 "severity-test",
                 "Info event",
-            )).await.expect("Failed to write info");
+            ))
+            .await
+            .expect("Failed to write info");
 
             log.write(&AuditEvent::new(
                 AuditEventType::LoadFailed,
                 AuditSeverity::Critical,
                 "severity-test",
                 "Critical event",
-            )).await.expect("Failed to write critical");
+            ))
+            .await
+            .expect("Failed to write critical");
 
             // Filter by minimum severity
             let filter = AuditLogFilter::new()
                 .with_plugin_name("severity-test")
                 .with_min_severity(AuditSeverity::Error);
             let results = log.read(&filter).await.expect("Failed to read");
-            
+
             // Should only get the critical event
             assert!(results.iter().all(|e| e.severity >= AuditSeverity::Error));
-            
+
             let _ = log.close().await;
         }
 
@@ -4038,28 +4183,35 @@ mod tests {
         #[ignore]
         async fn test_postgres_filter_by_event_type() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             log.write(&AuditEvent::new(
                 AuditEventType::LoadStarted,
                 AuditSeverity::Info,
                 "type-filter-test",
                 "Started",
-            )).await.expect("Failed to write");
+            ))
+            .await
+            .expect("Failed to write");
 
             log.write(&AuditEvent::new(
                 AuditEventType::LoadSucceeded,
                 AuditSeverity::Info,
                 "type-filter-test",
                 "Succeeded",
-            )).await.expect("Failed to write");
+            ))
+            .await
+            .expect("Failed to write");
 
-            let filter = AuditLogFilter::new()
-                .with_event_type(AuditEventType::LoadStarted);
+            let filter = AuditLogFilter::new().with_event_type(AuditEventType::LoadStarted);
             let results = log.read(&filter).await.expect("Failed to read");
-            
-            assert!(results.iter().all(|e| e.event_type == AuditEventType::LoadStarted));
-            
+
+            assert!(results
+                .iter()
+                .all(|e| e.event_type == AuditEventType::LoadStarted));
+
             let _ = log.close().await;
         }
 
@@ -4067,10 +4219,12 @@ mod tests {
         #[ignore]
         async fn test_postgres_count_events() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let plugin_name = format!("count-test-{}", chrono::Utc::now().timestamp());
-            
+
             // Write multiple events
             for i in 0..5 {
                 log.write(&AuditEvent::new(
@@ -4078,14 +4232,16 @@ mod tests {
                     AuditSeverity::Info,
                     &plugin_name,
                     &format!("Event {}", i),
-                )).await.expect("Failed to write");
+                ))
+                .await
+                .expect("Failed to write");
             }
 
             let filter = AuditLogFilter::new().with_plugin_name(&plugin_name);
             let count = log.count(&filter).await.expect("Failed to count");
-            
+
             assert_eq!(count, 5);
-            
+
             let _ = log.close().await;
         }
 
@@ -4093,10 +4249,12 @@ mod tests {
         #[ignore]
         async fn test_postgres_pagination() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let plugin_name = format!("pagination-test-{}", chrono::Utc::now().timestamp());
-            
+
             // Write 10 events
             for i in 0..10 {
                 log.write(&AuditEvent::new(
@@ -4104,7 +4262,9 @@ mod tests {
                     AuditSeverity::Info,
                     &plugin_name,
                     &format!("Event {}", i),
-                )).await.expect("Failed to write");
+                ))
+                .await
+                .expect("Failed to write");
             }
 
             // Get first page (limit=3)
@@ -4121,7 +4281,7 @@ mod tests {
                 .with_offset(3);
             let page2 = log.read(&filter2).await.expect("Failed to read page 2");
             assert_eq!(page2.len(), 3);
-            
+
             let _ = log.close().await;
         }
 
@@ -4129,7 +4289,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_purge_events() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -4143,7 +4305,7 @@ mod tests {
                 "purge-test",
                 "Old event",
             );
-            event.timestamp = now - 1000;  // 1000 seconds in the past
+            event.timestamp = now - 1000; // 1000 seconds in the past
             log.write(&event).await.expect("Failed to write old event");
 
             // Write recent event
@@ -4153,7 +4315,9 @@ mod tests {
                 "purge-test",
                 "Recent event",
             );
-            log.write(&recent).await.expect("Failed to write recent event");
+            log.write(&recent)
+                .await
+                .expect("Failed to write recent event");
 
             // Purge events older than 500 seconds
             let purged = log.purge_before(now - 500).await.expect("Failed to purge");
@@ -4164,7 +4328,7 @@ mod tests {
             let remaining = log.read(&filter).await.expect("Failed to read");
             assert_eq!(remaining.len(), 1);
             assert_eq!(remaining[0].event_type, AuditEventType::LoadSucceeded);
-            
+
             let _ = log.close().await;
         }
 
@@ -4172,16 +4336,20 @@ mod tests {
         #[ignore]
         async fn test_postgres_concurrent_writes() {
             let db_url = get_test_db_url();
-            let log = std::sync::Arc::new(PostgresAuditLog::new(&db_url, 20).await.expect("Failed to connect"));
+            let log = std::sync::Arc::new(
+                PostgresAuditLog::new(&db_url, 20)
+                    .await
+                    .expect("Failed to connect"),
+            );
 
             let plugin_name = format!("concurrent-test-{}", chrono::Utc::now().timestamp());
-            
+
             // Spawn 10 concurrent write tasks
             let mut handles = vec![];
             for i in 0..10 {
                 let log_clone = log.clone();
                 let plugin_name_clone = plugin_name.clone();
-                
+
                 let handle = tokio::spawn(async move {
                     let event = AuditEvent::new(
                         AuditEventType::LoadStarted,
@@ -4191,7 +4359,7 @@ mod tests {
                     );
                     log_clone.write(&event).await
                 });
-                
+
                 handles.push(handle);
             }
 
@@ -4207,7 +4375,7 @@ mod tests {
             let filter = AuditLogFilter::new().with_plugin_name(&plugin_name);
             let count = log.count(&filter).await.expect("Failed to count");
             assert_eq!(count, 10);
-            
+
             let _ = log.close().await;
         }
 
@@ -4215,7 +4383,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_metadata_roundtrip() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let mut event = AuditEvent::new(
                 AuditEventType::RecoveryAttempted,
@@ -4231,13 +4401,13 @@ mod tests {
 
             let filter = AuditLogFilter::new().with_plugin_name("metadata-test");
             let results = log.read(&filter).await.expect("Failed to read");
-            
+
             assert_eq!(results.len(), 1);
             let loaded = &results[0];
             assert_eq!(loaded.retry_count, Some(3));
             assert_eq!(loaded.duration_ms, Some(456));
             assert!(loaded.metadata.contains("\"key\""));
-            
+
             let _ = log.close().await;
         }
 
@@ -4245,7 +4415,9 @@ mod tests {
         #[ignore]
         async fn test_postgres_time_range_filter() {
             let db_url = get_test_db_url();
-            let log = PostgresAuditLog::new(&db_url, 5).await.expect("Failed to connect");
+            let log = PostgresAuditLog::new(&db_url, 5)
+                .await
+                .expect("Failed to connect");
 
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -4288,11 +4460,11 @@ mod tests {
                 .with_start_time(now - 700)
                 .with_end_time(now - 100);
             let results = log.read(&filter).await.expect("Failed to read");
-            
+
             // Should only get event2
             assert_eq!(results.len(), 1);
             assert!(results[0].message.contains("Event 2"));
-            
+
             let _ = log.close().await;
         }
 
@@ -4338,8 +4510,7 @@ mod tests {
 
             // For encrypted logs, we manually encrypt and write
             // This is a simplified test - real implementation would use a wrapper
-            let event_json = serde_json::to_string(&event)
-                .expect("Failed to serialize event");
+            let event_json = serde_json::to_string(&event).expect("Failed to serialize event");
 
             // Verify basic serialization works
             assert!(event_json.contains("test-plugin"));
@@ -4354,8 +4525,7 @@ mod tests {
             let log_path = temp_dir.path().join("audit.jsonl");
 
             // Create unencrypted log with events
-            let mut log = FileAuditLog::new(&log_path, 1000)
-                .expect("Failed to create log");
+            let mut log = FileAuditLog::new(&log_path, 1000).expect("Failed to create log");
 
             // Write multiple events as plain JSON
             let event1 = AuditEvent::new(
@@ -4384,7 +4554,8 @@ mod tests {
 
             // Encrypt at rest
             let key: [u8; 32] = [0x03; 32];
-            let encrypted_count = log.encrypt_at_rest(&key)
+            let encrypted_count = log
+                .encrypt_at_rest(&key)
                 .expect("Failed to encrypt at rest");
 
             assert_eq!(encrypted_count, 2);
@@ -4458,8 +4629,11 @@ mod tests {
             assert!(log.is_encrypted());
 
             // Baseline should be very fast (<100ms for 1000 iterations)
-            assert!(baseline_duration.as_millis() < 100, 
-                "Baseline serialization took too long: {:?}", baseline_duration);
+            assert!(
+                baseline_duration.as_millis() < 100,
+                "Baseline serialization took too long: {:?}",
+                baseline_duration
+            );
         }
 
         // ========================================================================
@@ -4494,7 +4668,8 @@ mod tests {
             let secret = b"test-secret-key-with-at-least-32-bytes-of-data";
             let signature = event.sign(secret).expect("Failed to sign event");
 
-            let is_valid = event.verify(secret, &signature)
+            let is_valid = event
+                .verify(secret, &signature)
                 .expect("Failed to verify event");
 
             assert!(is_valid);
@@ -4514,7 +4689,8 @@ mod tests {
 
             // Use wrong secret
             let wrong_secret = b"wrong-secret-key-with-at-least-32-bytes-of-data";
-            let is_valid = event.verify(wrong_secret, &signature)
+            let is_valid = event
+                .verify(wrong_secret, &signature)
                 .expect("Failed to verify event");
 
             assert!(!is_valid);
@@ -4592,8 +4768,11 @@ mod tests {
 
             // 1000 signatures should complete in < 200ms (2ms per event target)
             let per_event_ms = duration.as_millis() as f64 / signature_count as f64;
-            assert!(per_event_ms < 2.0, 
-                "Signature took too long: {:.2}ms per event (target: <2ms)", per_event_ms);
+            assert!(
+                per_event_ms < 2.0,
+                "Signature took too long: {:.2}ms per event (target: <2ms)",
+                per_event_ms
+            );
         }
     }
 
@@ -4644,7 +4823,9 @@ mod tests {
         log.write(&event).await.unwrap();
 
         // Start PostgreSQL replication
-        let handle = log.replicate_to_postgres("postgresql://localhost/audit_db").unwrap();
+        let handle = log
+            .replicate_to_postgres("postgresql://localhost/audit_db")
+            .unwrap();
         assert_eq!(handle.replication_type, "postgres");
         assert!(handle.is_active);
 
@@ -4723,7 +4904,9 @@ mod tests {
         }
 
         // Start replication (would checkpoint progress)
-        let handle = log.replicate_to_postgres("postgresql://localhost/audit").unwrap();
+        let handle = log
+            .replicate_to_postgres("postgresql://localhost/audit")
+            .unwrap();
         assert_eq!(handle.replication_type, "postgres");
 
         // Write more events (should resume from checkpoint)
@@ -4781,7 +4964,9 @@ mod tests {
 
         // Start multiple concurrent replications
         let handle1 = log.replicate_to_s3("bucket1", "logs").unwrap();
-        let handle2 = log.replicate_to_postgres("postgresql://localhost/db1").unwrap();
+        let handle2 = log
+            .replicate_to_postgres("postgresql://localhost/db1")
+            .unwrap();
 
         assert!(handle1.is_active);
         assert!(handle2.is_active);
@@ -4817,4 +5002,3 @@ mod tests {
         let _ = std::fs::remove_file(&log_path);
     }
 }
-

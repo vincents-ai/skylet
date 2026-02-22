@@ -55,13 +55,13 @@ impl Config {
     /// Default plugin installation directory
     fn default_plugin_dir() -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
-        home.join(".skynet").join("plugins")
+        home.join(".skylet").join("plugins")
     }
 
     /// Default registry file path
     fn default_registry_file() -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
-        home.join(".skynet").join("registry.json")
+        home.join(".skylet").join("registry.json")
     }
 
     /// Default verify on install
@@ -87,7 +87,7 @@ impl Config {
     /// Default cache directory
     fn default_cache_dir() -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
-        home.join(".skynet").join("cache")
+        home.join(".skylet").join("cache")
     }
 
     /// Default verbose logging
@@ -98,21 +98,6 @@ impl Config {
     /// Default backup on upgrade
     fn default_backup_on_upgrade() -> bool {
         true
-    }
-
-    /// Create default configuration
-    pub fn default() -> Self {
-        Self {
-            plugin_dir: Self::default_plugin_dir(),
-            registry_file: Self::default_registry_file(),
-            verify_on_install: Self::default_verify_on_install(),
-            auto_register: Self::default_auto_register(),
-            check_dependencies: Self::default_check_dependencies(),
-            max_concurrent_installs: Self::default_max_concurrent(),
-            cache_dir: Self::default_cache_dir(),
-            verbose: Self::default_verbose(),
-            backup_on_upgrade: Self::default_backup_on_upgrade(),
-        }
     }
 
     /// Load configuration from file, or return default if not found
@@ -146,7 +131,7 @@ impl Config {
     /// Get the configuration file path (creating parent directories if needed)
     pub fn config_path() -> Result<PathBuf> {
         let home = dirs::home_dir().context("could not determine home directory")?;
-        let config_path = home.join(".skynet").join("config.toml");
+        let config_path = home.join(".skylet").join("config.toml");
         Ok(config_path)
     }
 
@@ -181,7 +166,17 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::default()
+        Self {
+            plugin_dir: Config::default_plugin_dir(),
+            registry_file: Config::default_registry_file(),
+            verify_on_install: Config::default_verify_on_install(),
+            auto_register: Config::default_auto_register(),
+            check_dependencies: Config::default_check_dependencies(),
+            max_concurrent_installs: Config::default_max_concurrent(),
+            cache_dir: Config::default_cache_dir(),
+            verbose: Config::default_verbose(),
+            backup_on_upgrade: Config::default_backup_on_upgrade(),
+        }
     }
 }
 

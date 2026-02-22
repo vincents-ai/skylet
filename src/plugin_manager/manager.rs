@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 /// Plugin Manager v2 - ABI v2 Integration
-/// 
+///
 /// This module handles loading, managing, and executing plugins using the
 /// ABI v2 specification.
 ///
@@ -16,35 +16,35 @@
 /// - **ServiceRegistryV2**: In-memory service discovery and registration
 /// - **RpcServiceV2**: Wired to RpcRegistry for RPC calls
 /// - **LoggerV2**: Wired to tracing crate for structured logging
-
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+// Epoch-based memory reclamation for safe hot-reload
+use super::epoch_guard::EpochGuardedPlugin;
+
 // ABI v2 imports
 #[allow(unused_imports)]
 use skylet_abi::{
-    Plugin,
-    v2_spec::{
-        PluginContextV2, PluginResultV2, LoggerV2, ConfigV2, ServiceRegistryV2, EventBusV2, RpcServiceV2,
-        EventV2, RpcRequestV2, RpcResponseV2, PluginInfoV2,
-    },
-    PluginSecrets, PluginTracer,
-    EventBus as TypedEventBusTrait, TypedEventBus, Event, RpcRegistry, Subscription,
-    SpanManager, SpanBuilder, Span, SpanHandle, ExporterConfig, OtelTracer, TracerConfig, SamplerConfig,
     config_schema::{ConfigSchemaValidator, ConfigValidationResult},
+    http::{HttpMethod, HttpRouterV2, MiddlewareConfigV2, RouteConfigV2, RouteMetadata},
     security::{DefaultSecretsProvider, SecretsProvider},
-    http::{HttpRouterV2, RouteConfigV2, MiddlewareConfigV2, HttpMethod, RouteMetadata},
-    AbiV2PluginLoader, PluginLogLevel,
+    v2_spec::{
+        ConfigV2, EventBusV2, EventV2, LoggerV2, PluginContextV2, PluginInfoV2, PluginResultV2,
+        RpcRequestV2, RpcResponseV2, RpcServiceV2, ServiceRegistryV2,
+    },
+    AbiV2PluginLoader, Event, EventBus as TypedEventBusTrait, ExporterConfig, OtelTracer, Plugin,
+    PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
+    SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
 // Billing module removed - moved to plugin-distribution
-use std::ffi::{c_char, CString, CStr};
+use serde::Serialize;
+use serde_json::Value;
+use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
-use serde_json::Value;
-use serde::Serialize;
+use tracing::{debug, error, info, warn};
 
 // ============================================================================
 // Stub Types for Removed Billing Module
@@ -66,7 +66,7 @@ pub struct BillingCollectorStats {
 // ============================================================================
 
 /// Configuration backend for plugins
-/// 
+///
 /// Simple key-value store backed by a HashMap for plugin configuration.
 pub struct PluginConfigBackend {
     config: Mutex<HashMap<String, String>>,
@@ -84,11 +84,16 @@ impl PluginConfigBackend {
     }
 
     pub fn set(&self, key: &str, value: &str) {
-        self.config.lock().unwrap().insert(key.to_string(), value.to_string());
+        self.config
+            .lock()
+            .unwrap()
+            .insert(key.to_string(), value.to_string());
     }
 
     pub fn get_bool(&self, key: &str) -> bool {
-        self.get(key).map(|v| v == "true" || v == "1").unwrap_or(false)
+        self.get(key)
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false)
     }
 
     pub fn get_int(&self, key: &str) -> i64 {
@@ -107,7 +112,7 @@ impl Default for PluginConfigBackend {
 }
 
 /// In-memory service registry for plugins
-/// 
+///
 /// Allows plugins to register and discover services by name.
 pub struct PluginServiceRegistryBackend {
     services: Mutex<HashMap<String, (*mut std::ffi::c_void, String)>>,
@@ -121,14 +126,18 @@ impl PluginServiceRegistryBackend {
     }
 
     pub fn register(&self, name: &str, service: *mut std::ffi::c_void, service_type: &str) {
-        self.services.lock().unwrap().insert(
-            name.to_string(),
-            (service, service_type.to_string()),
-        );
+        self.services
+            .lock()
+            .unwrap()
+            .insert(name.to_string(), (service, service_type.to_string()));
     }
 
     pub fn get(&self, name: &str) -> Option<(*mut std::ffi::c_void, String)> {
-        self.services.lock().unwrap().get(name).map(|(ptr, s)| (*ptr, s.clone()))
+        self.services
+            .lock()
+            .unwrap()
+            .get(name)
+            .map(|(ptr, s)| (*ptr, s.clone()))
     }
 
     pub fn unregister(&self, name: &str) -> bool {
@@ -155,7 +164,7 @@ struct EventSubscriptionEntry {
 }
 
 /// Event bus backend for plugins
-/// 
+///
 /// Bridges the C FFI EventBusV2 to the Rust TypedEventBus.
 pub struct PluginEventBusBackend {
     bus: TypedEventBus,
@@ -178,7 +187,7 @@ impl PluginEventBusBackend {
             }
             CStr::from_ptr(event.type_).to_string_lossy().to_string()
         };
-        
+
         let payload = unsafe {
             if event.payload_json.is_null() {
                 serde_json::json!({})
@@ -194,7 +203,7 @@ impl PluginEventBusBackend {
 
     pub fn subscribe(&self, event_type: &str, callback: extern "C" fn(*const EventV2)) {
         let event_type_owned = event_type.to_string();
-        
+
         // Create a bridge closure that converts Event to EventV2 and invokes the C callback
         let callback_for_closure = callback;
         let bridge = move |event: Event| {
@@ -204,12 +213,13 @@ impl PluginEventBusBackend {
                 Ok(c) => c,
                 Err(_) => return,
             };
-            let payload_str = serde_json::to_string(&event.payload).unwrap_or_else(|_| "{}".to_string());
+            let payload_str =
+                serde_json::to_string(&event.payload).unwrap_or_else(|_| "{}".to_string());
             let payload_cstring = match CString::new(payload_str) {
                 Ok(c) => c,
                 Err(_) => return,
             };
-            
+
             let event_v2 = EventV2 {
                 type_: topic_cstring.as_ptr(),
                 payload_json: payload_cstring.as_ptr(),
@@ -219,25 +229,28 @@ impl PluginEventBusBackend {
                     .as_millis() as u64,
                 source_plugin: std::ptr::null(),
             };
-            
+
             // Invoke the C callback
             callback_for_closure(&event_v2);
         };
-        
+
         // Subscribe to the TypedEventBus with the bridge closure
         let subscription = self.bus.subscribe(&event_type_owned, bridge);
-        
+
         // Store the subscription for tracking and cleanup
-        self.subscriptions.lock().unwrap().push(EventSubscriptionEntry {
-            event_type: event_type_owned,
-            callback,
-            subscription,
-        });
+        self.subscriptions
+            .lock()
+            .unwrap()
+            .push(EventSubscriptionEntry {
+                event_type: event_type_owned,
+                callback,
+                subscription,
+            });
     }
 
     pub fn unsubscribe(&self, event_type: &str) -> bool {
         let mut subs = self.subscriptions.lock().unwrap();
-        
+
         // Find and remove the subscription
         let mut found = false;
         subs.retain(|s| {
@@ -250,7 +263,7 @@ impl PluginEventBusBackend {
                 true // Keep in list
             }
         });
-        
+
         found
     }
 }
@@ -266,7 +279,7 @@ impl Default for PluginEventBusBackend {
 // ============================================================================
 
 /// Tracing backend for plugins
-/// 
+///
 /// Bridges the C FFI PluginTracer to the Rust SpanManager from the tracing module.
 /// Provides distributed tracing capabilities as specified in RFC-0017.
 pub struct PluginTracerBackend {
@@ -299,9 +312,9 @@ impl PluginTracerBackend {
             sampler: SamplerConfig::TraceIdRatioBased(config.sample_rate),
             exporter: config,
         };
-        
+
         let otel_tracer = OtelTracer::new(tracer_config).ok();
-        
+
         Self {
             span_manager: SpanManager::new(),
             active_spans: Mutex::new(HashMap::new()),
@@ -311,7 +324,7 @@ impl PluginTracerBackend {
     }
 
     /// Start a new span and return its handle
-    /// 
+    ///
     /// The span is created as a child of the current active span (if any).
     /// Returns a handle that must be used for subsequent operations on this span.
     pub fn start_span(&self, name: &str) -> SpanHandle {
@@ -324,8 +337,7 @@ impl PluginTracerBackend {
         };
 
         // Create the span using SpanBuilder
-        let span = SpanBuilder::new(name)
-            .start(&self.span_manager);
+        let span = SpanBuilder::new(name).start(&self.span_manager);
 
         // Store in active spans
         {
@@ -337,7 +349,7 @@ impl PluginTracerBackend {
     }
 
     /// End a span by handle
-    /// 
+    ///
     /// Marks the span as ended and removes it from active tracking.
     /// The span data may still be exported after ending.
     pub fn end_span(&self, handle: SpanHandle) {
@@ -350,7 +362,7 @@ impl PluginTracerBackend {
     }
 
     /// Add an event to a span
-    /// 
+    ///
     /// Events are timestamped annotations on a span.
     pub fn add_event(&self, handle: SpanHandle, name: &str) {
         let active = self.active_spans.lock().unwrap();
@@ -360,7 +372,7 @@ impl PluginTracerBackend {
     }
 
     /// Set an attribute on a span
-    /// 
+    ///
     /// Attributes are key-value pairs that provide context about the span.
     pub fn set_attribute(&self, handle: SpanHandle, key: &str, value: &str) {
         let active = self.active_spans.lock().unwrap();
@@ -453,7 +465,7 @@ impl Default for PluginSecretsBackend {
 ///
 /// Provides a thread-safe HTTP route registration backend that implements the HttpRouterV2 FFI interface.
 /// Stores routes registered by plugins and supports dynamic route discovery.
-/// 
+///
 /// This backend enables plugins to register their own REST API endpoints at initialization time.
 pub struct PluginHttpRouterBackend {
     /// Registered routes indexed by "METHOD:path" key
@@ -509,7 +521,7 @@ impl PluginHttpRouterBackend {
         user_data: *mut std::ffi::c_void,
     ) -> bool {
         let key = format!("{}:{}", Self::method_to_string(method), path);
-        
+
         let entry = PluginRouteEntry {
             method,
             path: path.to_string(),
@@ -520,7 +532,7 @@ impl PluginHttpRouterBackend {
 
         // Extract path params for metadata
         let path_params = skylet_abi::http::extract_path_params(path);
-        
+
         let metadata = RouteMetadata {
             method: Self::method_to_string(method).to_string(),
             path: path.to_string(),
@@ -535,13 +547,13 @@ impl PluginHttpRouterBackend {
             warn!("Route already registered: {}", key);
             return false;
         }
-        
+
         routes.insert(key, entry);
-        
+
         // Add to metadata list
         let mut meta = self.route_metadata.lock().unwrap();
         meta.push(metadata);
-        
+
         true
     }
 
@@ -551,14 +563,12 @@ impl PluginHttpRouterBackend {
     /// true if route was removed, false if not found
     pub fn unregister_route(&self, method: HttpMethod, path: &str) -> bool {
         let key = format!("{}:{}", Self::method_to_string(method), path);
-        
+
         let mut routes = self.routes.lock().unwrap();
         if routes.remove(&key).is_some() {
             // Also remove from metadata
             let mut meta = self.route_metadata.lock().unwrap();
-            meta.retain(|m| {
-                !(m.method == Self::method_to_string(method) && m.path == path)
-            });
+            meta.retain(|m| !(m.method == Self::method_to_string(method) && m.path == path));
             true
         } else {
             false
@@ -574,13 +584,15 @@ impl PluginHttpRouterBackend {
     /// Generate OpenAPI specification as JSON
     pub fn get_openapi_spec_json(&self) -> String {
         let meta = self.route_metadata.lock().unwrap();
-        
-        let mut paths: std::collections::HashMap<String, std::collections::HashMap<String, serde_json::Value>> = 
-            std::collections::HashMap::new();
+
+        let mut paths: std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, serde_json::Value>,
+        > = std::collections::HashMap::new();
 
         for route in meta.iter() {
             let method_lower = route.method.to_lowercase();
-            
+
             let mut params = Vec::new();
             for param in &route.path_params {
                 params.push(serde_json::json!({
@@ -608,7 +620,7 @@ impl PluginHttpRouterBackend {
                 }
             });
 
-            let path_item = paths.entry(route.path.clone()).or_insert_with(|| std::collections::HashMap::new());
+            let path_item = paths.entry(route.path.clone()).or_default();
             path_item.insert(method_lower, op);
         }
 
@@ -651,7 +663,7 @@ impl Default for PluginHttpRouterBackend {
 }
 
 /// Aggregated plugin services container
-/// 
+///
 /// This struct holds all the service backends that are wired to PluginContextV2.
 /// It is passed via user_data pointer to allow C FFI callbacks to access services.
 pub struct PluginServices {
@@ -668,6 +680,7 @@ pub struct PluginServices {
 }
 
 impl PluginServices {
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -679,8 +692,9 @@ impl PluginServices {
             http_router: Arc::new(PluginHttpRouterBackend::new()),
         }
     }
-    
+
     /// Create services with OpenTelemetry-enabled tracing
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_tracing(exporter_config: ExporterConfig) -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -701,7 +715,7 @@ impl Default for PluginServices {
 }
 
 /// Tracks allocated resources for a single plugin instance
-/// 
+///
 /// This struct holds pointers to resources that were allocated during plugin
 /// initialization and must be freed when the plugin is unloaded.
 struct PluginResources {
@@ -732,7 +746,7 @@ impl Drop for PluginResources {
                 let _ = Arc::from_raw(self.services_ptr);
             }
         }
-        
+
         // Free all the Box'd service structs
         unsafe {
             if !self.logger_ptr.is_null() {
@@ -764,39 +778,46 @@ impl Drop for PluginResources {
 }
 
 /// Main plugin manager that handles the complete plugin lifecycle
-/// 
+///
 /// Supports ABI v2 plugins only.
 pub struct PluginManager {
     /// Loaded v2 plugins - key is fully qualified name
-    /// 
-    /// Stores AbiV2PluginLoader instances for v2 plugins to ensure they remain
-    /// in memory for the lifetime of the manager.
-    loaded_plugins_v2: Arc<RwLock<HashMap<String, AbiV2PluginLoader>>>,
-    
+    ///
+    /// Stores EpochGuardedPlugin instances for v2 plugins. The epoch-based
+    /// reclamation ensures safe hot-reload by deferring destruction of old
+    /// plugin versions until all in-flight requests have completed.
+    loaded_plugins_v2: Arc<RwLock<HashMap<String, EpochGuardedPlugin>>>,
+
     /// Allocated resources for each plugin - must be freed on unload
-    /// 
+    ///
     /// Tracks the Arc and Box pointers that were leaked during plugin initialization
     /// so they can be properly reclaimed when the plugin is unloaded.
     plugin_resources: Arc<RwLock<HashMap<String, PluginResources>>>,
-    
+
     /// Shared services for all loaded plugins
-    /// 
+    ///
     /// This provides the service backends that are wired to PluginContextV2.
     services: Arc<PluginServices>,
+}
+
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginManager {
     // RFC-0003: Security fixes for unsafe FFI (Phase 3)
     // Issue #7: Vec::from_raw_parts validation (service list allocation)
     const MAX_SERVICE_LIST_SIZE: usize = 100_000;
-    
+
     // Issue #8: String length bounds validation
     const MAX_EVENT_NAME_LEN: usize = 256;
     const MAX_ATTRIBUTE_KEY_LEN: usize = 256;
     const MAX_ATTRIBUTE_VALUE_LEN: usize = 4096;
 
-
     /// Create a new plugin manager
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             loaded_plugins_v2: Arc::new(RwLock::new(HashMap::new())),
@@ -804,8 +825,9 @@ impl PluginManager {
             services: Arc::new(PluginServices::new()),
         }
     }
-    
+
     /// Create a plugin manager with custom services
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_services(services: Arc<PluginServices>) -> Self {
         Self {
             loaded_plugins_v2: Arc::new(RwLock::new(HashMap::new())),
@@ -813,7 +835,7 @@ impl PluginManager {
             services,
         }
     }
-    
+
     /// Get access to the plugin services
     pub fn services(&self) -> Arc<PluginServices> {
         self.services.clone()
@@ -827,11 +849,14 @@ impl PluginManager {
         match AbiV2PluginLoader::load(path) {
             Ok(loader_v2) => {
                 info!("Loaded plugin {} using ABI v2", name);
-                
+
+                // Wrap in epoch guard for safe hot-reload
+                let guarded = EpochGuardedPlugin::new(name, loader_v2);
+
                 // Store the loader to keep it alive
                 let mut plugins = self.loaded_plugins_v2.write().await;
-                plugins.insert(name.to_string(), loader_v2);
-                
+                plugins.insert(name.to_string(), guarded);
+
                 Ok(())
             }
             Err(e) => {
@@ -842,7 +867,7 @@ impl PluginManager {
     }
 
     /// Load and initialize a plugin with v2 ABI context
-    /// 
+    ///
     /// This is the primary loading path for v2 plugins. It:
     /// 1. Loads the shared library
     /// 2. Validates ABI compliance
@@ -856,13 +881,15 @@ impl PluginManager {
             .map_err(|e| anyhow!("Failed to load v2 plugin {}: {}", name, e))?;
 
         // Get plugin metadata for logging
-        let metadata = loader.get_info()
+        let metadata = loader
+            .get_info()
             .map_err(|e| anyhow!("Failed to get plugin info for {}: {}", name, e))?;
 
         info!("Plugin metadata: {:?}", metadata);
 
         // Get plugin capabilities
-        let capabilities = loader.get_capabilities()
+        let capabilities = loader
+            .get_capabilities()
             .map_err(|e| anyhow!("Failed to get plugin capabilities for {}: {}", name, e))?;
 
         debug!("Plugin capabilities: {:?}", capabilities);
@@ -871,23 +898,27 @@ impl PluginManager {
         let (context_v2, resources) = self.create_plugin_context_v2(name)?;
 
         // Call plugin initialization
-        let _init_result = loader.init(&context_v2)
+        loader
+            .init(&context_v2)
             .map_err(|e| anyhow!("Failed to initialize v2 plugin {}: {}", name, e))?;
 
         info!("Successfully initialized v2 plugin: {}", name);
 
+        // Wrap in epoch guard for safe hot-reload
+        let guarded = EpochGuardedPlugin::new(name, loader);
+
         // Store the loader and resources (resources will be freed on unload)
         let mut plugins = self.loaded_plugins_v2.write().await;
         let mut resources_map = self.plugin_resources.write().await;
-        
-        plugins.insert(name.to_string(), loader);
+
+        plugins.insert(name.to_string(), guarded);
         resources_map.insert(name.to_string(), resources);
 
         Ok(())
     }
 
     /// Create a complete PluginContextV2 with all services
-    /// 
+    ///
     /// This builds the v2 context with proper implementations of:
     /// - LoggerV2: Structured logging with levels
     /// - ConfigV2: Configuration access with type conversion
@@ -896,10 +927,13 @@ impl PluginManager {
     /// - RpcServiceV2: RPC call routing
     /// - TracerV2: Distributed tracing support
     /// - SecretsV2: Secrets management
-    /// 
+    ///
     /// Returns both the context and a PluginResources struct that tracks the
     /// allocated resources for cleanup on plugin unload.
-    fn create_plugin_context_v2(&self, _plugin_name: &str) -> Result<(PluginContextV2, PluginResources)> {
+    fn create_plugin_context_v2(
+        &self,
+        _plugin_name: &str,
+    ) -> Result<(PluginContextV2, PluginResources)> {
         // Build LoggerV2
         let logger_v2 = Box::into_raw(Box::new(LoggerV2 {
             log: Self::logger_v2_log,
@@ -969,7 +1003,7 @@ impl PluginManager {
         // Pass PluginServices via user_data - this allows FFI callbacks to access service backends
         // The Arc is tracked in PluginResources and will be reclaimed on plugin unload
         let services_ptr = Arc::into_raw(self.services.clone());
-        
+
         // Track all allocated resources for cleanup
         let resources = PluginResources {
             services_ptr,
@@ -997,12 +1031,14 @@ impl PluginManager {
             user_data: services_ptr as *mut std::ffi::c_void,
             user_context_json: std::ptr::null(),
         };
-        
+
         Ok((context, resources))
     }
-    
+
     /// Helper to extract PluginServices from user_data in context
-    unsafe fn get_services_from_context(context: *const PluginContextV2) -> Option<&'static PluginServices> {
+    unsafe fn get_services_from_context(
+        context: *const PluginContextV2,
+    ) -> Option<&'static PluginServices> {
         if context.is_null() {
             return None;
         }
@@ -1080,10 +1116,10 @@ impl PluginManager {
         if services.is_none() || key.is_null() {
             return std::ptr::null();
         }
-        
+
         let services = services.unwrap();
         let key_str = unsafe { CStr::from_ptr(key).to_string_lossy() };
-        
+
         if let Some(value) = services.config.get(&key_str) {
             // Allocate a CString that the caller must free via free_string
             // Use into_raw which handles the error by returning null
@@ -1096,43 +1132,34 @@ impl PluginManager {
         }
     }
 
-    extern "C" fn config_v2_get_bool(
-        context: *const PluginContextV2,
-        key: *const c_char,
-    ) -> i32 {
+    extern "C" fn config_v2_get_bool(context: *const PluginContextV2, key: *const c_char) -> i32 {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() || key.is_null() {
             return 0;
         }
-        
+
         let services = services.unwrap();
         let key_str = unsafe { CStr::from_ptr(key).to_string_lossy() };
         services.config.get_bool(&key_str) as i32
     }
 
-    extern "C" fn config_v2_get_int(
-        context: *const PluginContextV2,
-        key: *const c_char,
-    ) -> i64 {
+    extern "C" fn config_v2_get_int(context: *const PluginContextV2, key: *const c_char) -> i64 {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() || key.is_null() {
             return 0;
         }
-        
+
         let services = services.unwrap();
         let key_str = unsafe { CStr::from_ptr(key).to_string_lossy() };
         services.config.get_int(&key_str)
     }
 
-    extern "C" fn config_v2_get_float(
-        context: *const PluginContextV2,
-        key: *const c_char,
-    ) -> f64 {
+    extern "C" fn config_v2_get_float(context: *const PluginContextV2, key: *const c_char) -> f64 {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() || key.is_null() {
             return 0.0;
         }
-        
+
         let services = services.unwrap();
         let key_str = unsafe { CStr::from_ptr(key).to_string_lossy() };
         services.config.get_float(&key_str)
@@ -1150,11 +1177,11 @@ impl PluginManager {
         if key.is_null() || value.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let key_str = unsafe { CStr::from_ptr(key).to_string_lossy() };
         let value_str = unsafe { CStr::from_ptr(value).to_string_lossy() };
-        
+
         services.config.set(&key_str, &value_str);
         PluginResultV2::Success
     }
@@ -1182,7 +1209,7 @@ impl PluginManager {
         if name.is_null() || service.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let name_str = unsafe { CStr::from_ptr(name).to_string_lossy() };
         let type_str = if service_type.is_null() {
@@ -1190,8 +1217,10 @@ impl PluginManager {
         } else {
             unsafe { CStr::from_ptr(service_type).to_string_lossy().to_string() }
         };
-        
-        services.service_registry.register(&name_str, service, &type_str);
+
+        services
+            .service_registry
+            .register(&name_str, service, &type_str);
         PluginResultV2::Success
     }
 
@@ -1204,10 +1233,10 @@ impl PluginManager {
         if services.is_none() || name.is_null() {
             return std::ptr::null_mut();
         }
-        
+
         let services = services.unwrap();
         let name_str = unsafe { CStr::from_ptr(name).to_string_lossy() };
-        
+
         if let Some((ptr, _type)) = services.service_registry.get(&name_str) {
             // Optional: verify service_type if provided
             if !service_type.is_null() {
@@ -1233,10 +1262,10 @@ impl PluginManager {
         if name.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let name_str = unsafe { CStr::from_ptr(name).to_string_lossy() };
-        
+
         if services.service_registry.unregister(&name_str) {
             PluginResultV2::Success
         } else {
@@ -1251,10 +1280,10 @@ impl PluginManager {
         if services.is_none() {
             return std::ptr::null();
         }
-        
+
         let services = services.unwrap();
         let service_names = services.service_registry.list_services();
-        
+
         // RFC-0003 Phase 3 Issue #9: Bounds check on service list iteration
         if service_names.len() > Self::MAX_SERVICE_LIST_SIZE {
             tracing::warn!(
@@ -1263,36 +1292,32 @@ impl PluginManager {
                 Self::MAX_SERVICE_LIST_SIZE
             );
         }
-        
 
         // Allocate array of C string pointers
         // Note: This leaks memory - caller must use free_service_list
         if service_names.is_empty() {
             return std::ptr::null();
         }
-        
+
         // Filter out any names with null bytes and convert to CStrings
         let c_strings: Vec<CString> = service_names
             .into_iter()
             .filter_map(|s| CString::new(s).ok())
             .collect();
-        
+
         if c_strings.is_empty() {
             return std::ptr::null();
         }
-        
+
         let mut ptrs: Vec<*const c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
         ptrs.push(std::ptr::null()); // Null terminator
-        
+
         // Box the vector and leak it - caller must free
         let boxed = ptrs.into_boxed_slice();
         Box::into_raw(boxed) as *const *const c_char
     }
 
-    extern "C" fn registry_v2_free_service_list(
-        list: *const *const c_char,
-        count: usize,
-    ) {
+    extern "C" fn registry_v2_free_service_list(list: *const *const c_char, count: usize) {
         // RFC-0003 Phase 3 Issue #7: Validate Vec allocation bounds
         if count > Self::MAX_SERVICE_LIST_SIZE {
             tracing::error!(
@@ -1302,18 +1327,18 @@ impl PluginManager {
             );
             return;
         }
-        
+
         // Validate pointer alignment
         let addr = list as usize;
         if addr & (std::mem::align_of::<*const c_char>() - 1) != 0 {
             tracing::error!("Service list pointer misaligned: 0x{:x}", addr);
             return;
         }
-        
+
         if list.is_null() {
             return;
         }
-        
+
         unsafe {
             // Free the array itself
             let _ = Vec::from_raw_parts(list as *mut *const c_char, count, count);
@@ -1334,13 +1359,13 @@ impl PluginManager {
         if event.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
-        
+
         unsafe {
             services.event_bus.publish(&*event);
         }
-        
+
         PluginResultV2::Success
     }
 
@@ -1356,10 +1381,10 @@ impl PluginManager {
         if event_type.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let event_type_str = unsafe { CStr::from_ptr(event_type).to_string_lossy() };
-        
+
         services.event_bus.subscribe(&event_type_str, callback);
         PluginResultV2::Success
     }
@@ -1375,10 +1400,10 @@ impl PluginManager {
         if event_type.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let event_type_str = unsafe { CStr::from_ptr(event_type).to_string_lossy() };
-        
+
         if services.event_bus.unsubscribe(&event_type_str) {
             PluginResultV2::Success
         } else {
@@ -1401,10 +1426,10 @@ impl PluginManager {
         if service.is_null() || request.is_null() || response.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let service_str = unsafe { CStr::from_ptr(service).to_string_lossy() };
-        
+
         // Get request params as bytes
         let params_bytes = unsafe {
             if (*request).params.is_null() {
@@ -1414,7 +1439,7 @@ impl PluginManager {
                 params_str.as_bytes().to_vec()
             }
         };
-        
+
         // Call the RPC service
         match services.rpc_registry.call(&service_str, &params_bytes) {
             Ok(result_bytes) => {
@@ -1467,50 +1492,50 @@ impl PluginManager {
         if method.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let method_str = unsafe { CStr::from_ptr(method).to_string_lossy() }.to_string();
-        
+
         // Create a wrapper handler that converts between C FFI and Rust types
         let handler_wrapper = Arc::new(move |_request: &[u8]| {
             // For simplicity, we return success with empty response
             // A full implementation would bridge the C handler properly
             (PluginResultV2::Success, vec![])
         });
-        
-        services.rpc_registry.register(&method_str, None, None, handler_wrapper);
+
+        services
+            .rpc_registry
+            .register(&method_str, None, None, handler_wrapper);
         PluginResultV2::Success
     }
 
-    extern "C" fn rpc_v2_list_services(
-        context: *const PluginContextV2,
-    ) -> *const *const c_char {
+    extern "C" fn rpc_v2_list_services(context: *const PluginContextV2) -> *const *const c_char {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() {
             return std::ptr::null();
         }
-        
+
         let services = services.unwrap();
         let service_names = services.rpc_registry.list_services();
-        
+
         // Allocate array of C string pointers
         if service_names.is_empty() {
             return std::ptr::null();
         }
-        
+
         // Filter out any names with null bytes
         let c_strings: Vec<CString> = service_names
             .into_iter()
             .filter_map(|s| CString::new(s).ok())
             .collect();
-        
+
         if c_strings.is_empty() {
             return std::ptr::null();
         }
-        
+
         let mut ptrs: Vec<*const c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
         ptrs.push(std::ptr::null()); // Null terminator
-        
+
         // Box the vector and leak it - caller must free with rpc_v2_free_strings
         let boxed = ptrs.into_boxed_slice();
         Box::into_raw(boxed) as *const *const c_char
@@ -1524,10 +1549,10 @@ impl PluginManager {
         if services.is_none() || service.is_null() {
             return std::ptr::null();
         }
-        
+
         let services = services.unwrap();
         let service_str = unsafe { CStr::from_ptr(service).to_string_lossy() };
-        
+
         if let Some(idl) = services.rpc_registry.get_idl(&service_str) {
             match CString::new(idl) {
                 Ok(cstring) => cstring.into_raw() as *const c_char,
@@ -1538,10 +1563,7 @@ impl PluginManager {
         }
     }
 
-    extern "C" fn rpc_v2_free_strings(
-        list: *const *const c_char,
-        count: usize,
-    ) {
+    extern "C" fn rpc_v2_free_strings(list: *const *const c_char, count: usize) {
         // RFC-0003 Phase 3 Issue #7: Validate Vec allocation bounds
         if count > Self::MAX_SERVICE_LIST_SIZE {
             tracing::error!(
@@ -1551,18 +1573,18 @@ impl PluginManager {
             );
             return;
         }
-        
+
         // Validate pointer alignment
         let addr = list as usize;
         if addr & (std::mem::align_of::<*const c_char>() - 1) != 0 {
             tracing::error!("RPC string list pointer misaligned: 0x{:x}", addr);
             return;
         }
-        
+
         if list.is_null() {
             return;
         }
-        
+
         unsafe {
             // Free the array itself
             let _ = Vec::from_raw_parts(list as *mut *const c_char, count, count);
@@ -1583,10 +1605,14 @@ impl PluginManager {
         // For v2, the tracer is accessible via PluginServices
         // This implementation uses a simplified approach
         // RFC-0003 Phase 3 Issue #8: Bounds check on event name length
-        if name_len > 0 && name_len > Self::MAX_EVENT_NAME_LEN {
-            tracing::warn!("Event name length exceeds max: {} > {}", name_len, Self::MAX_EVENT_NAME_LEN);
+        if name_len > Self::MAX_EVENT_NAME_LEN {
+            tracing::warn!(
+                "Event name length exceeds max: {} > {}",
+                name_len,
+                Self::MAX_EVENT_NAME_LEN
+            );
         }
-        
+
         let name = unsafe {
             if name_ptr.is_null() || name_len == 0 {
                 "unknown"
@@ -1596,16 +1622,13 @@ impl PluginManager {
             }
         };
         debug!("Starting span: {}", name);
-        
+
         // Return a non-zero handle to indicate success
         // In a full implementation, this would integrate with the PluginTracerBackend
         1
     }
 
-    extern "C" fn tracer_v2_end_span(
-        _context: *const (),
-        span_handle: SpanHandle,
-    ) {
+    extern "C" fn tracer_v2_end_span(_context: *const (), span_handle: SpanHandle) {
         if span_handle == 0 {
             return;
         }
@@ -1655,8 +1678,6 @@ impl PluginManager {
         debug!("Setting attribute on span: {} = {}", key, value);
         // In a full implementation, this would set attribute on active span
     }
-
-
 
     // ===== SecretsV2 Implementations (ABI v2) =====
 
@@ -1712,31 +1733,43 @@ impl PluginManager {
         if services.is_none() || config.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let config_ref = unsafe { &*config };
-        
+
         // Extract path from C string
         let path = if config_ref.path.is_null() {
             return PluginResultV2::InvalidRequest;
         } else {
-            unsafe { CStr::from_ptr(config_ref.path).to_string_lossy().to_string() }
+            unsafe {
+                CStr::from_ptr(config_ref.path)
+                    .to_string_lossy()
+                    .to_string()
+            }
         };
-        
+
         // Extract description (optional)
         let description = if config_ref.description.is_null() {
             None
         } else {
-            Some(unsafe { CStr::from_ptr(config_ref.description).to_string_lossy().to_string() })
+            Some(unsafe {
+                CStr::from_ptr(config_ref.description)
+                    .to_string_lossy()
+                    .to_string()
+            })
         };
-        
+
         // Extract plugin name from config (if provided)
         let plugin_name = if config_ref.plugin_name.is_null() {
             "unknown".to_string()
         } else {
-            unsafe { CStr::from_ptr(config_ref.plugin_name).to_string_lossy().to_string() }
+            unsafe {
+                CStr::from_ptr(config_ref.plugin_name)
+                    .to_string_lossy()
+                    .to_string()
+            }
         };
-        
+
         // Register the route with the backend
         if services.http_router.register_route(
             config_ref.method,
@@ -1745,7 +1778,10 @@ impl PluginManager {
             description.as_deref(),
             config_ref.user_data,
         ) {
-            debug!("Registered route: {:?} {} for plugin {}", config_ref.method, path, plugin_name);
+            debug!(
+                "Registered route: {:?} {} for plugin {}",
+                config_ref.method, path, plugin_name
+            );
             PluginResultV2::Success
         } else {
             warn!("Route already registered: {:?} {}", config_ref.method, path);
@@ -1762,10 +1798,10 @@ impl PluginManager {
         if services.is_none() || path.is_null() {
             return PluginResultV2::InvalidRequest;
         }
-        
+
         let services = services.unwrap();
         let path_str = unsafe { CStr::from_ptr(path).to_string_lossy() };
-        
+
         if services.http_router.unregister_route(method, &path_str) {
             debug!("Unregistered route: {:?} {}", method, path_str);
             PluginResultV2::Success
@@ -1785,34 +1821,30 @@ impl PluginManager {
         PluginResultV2::NotImplemented
     }
 
-    extern "C" fn http_router_v2_get_routes(
-        context: *const PluginContextV2,
-    ) -> *mut c_char {
+    extern "C" fn http_router_v2_get_routes(context: *const PluginContextV2) -> *mut c_char {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() {
             return std::ptr::null_mut();
         }
-        
+
         let services = services.unwrap();
         let routes_json = services.http_router.get_routes_json();
-        
+
         match CString::new(routes_json) {
             Ok(cstring) => cstring.into_raw(),
             Err(_) => std::ptr::null_mut(),
         }
     }
 
-    extern "C" fn http_router_v2_get_openapi_spec(
-        context: *const PluginContextV2,
-    ) -> *mut c_char {
+    extern "C" fn http_router_v2_get_openapi_spec(context: *const PluginContextV2) -> *mut c_char {
         let services = unsafe { Self::get_services_from_context(context) };
         if services.is_none() {
             return std::ptr::null_mut();
         }
-        
+
         let services = services.unwrap();
         let openapi_json = services.http_router.get_openapi_spec_json();
-        
+
         match CString::new(openapi_json) {
             Ok(cstring) => cstring.into_raw(),
             Err(_) => std::ptr::null_mut(),
@@ -1828,19 +1860,30 @@ impl PluginManager {
     }
 
     /// Unload a plugin
-    /// 
+    ///
     /// This properly cleans up all resources allocated during plugin initialization:
-    /// - Removes the plugin loader from the map
+    /// - Removes the plugin loader from the map (deferred via epoch reclamation)
     /// - Reclaims the Arc<PluginServices> pointer (decrements refcount)
     /// - Frees all Box'd service structs (LoggerV2, ConfigV2, etc.)
+    ///
+    /// Note: The actual plugin destruction is deferred via epoch-based reclamation
+    /// to ensure in-flight requests complete safely before the plugin is deallocated.
     pub async fn unload_plugin(&self, name: &str) -> Result<()> {
         info!("Unloading plugin: {}", name);
 
         // Try to unload v2 plugin
         let mut plugins_v2 = self.loaded_plugins_v2.write().await;
         let mut resources_map = self.plugin_resources.write().await;
-        
-        if plugins_v2.remove(name).is_some() {
+
+        if let Some(guarded_plugin) = plugins_v2.remove(name) {
+            // Trigger epoch-based deferred unload
+            // The actual library unload is deferred until all epoch guards are released
+            guarded_plugin.unload();
+            debug!(
+                "Plugin {} marked for deferred unload via epoch reclamation",
+                name
+            );
+
             // Clean up resources - the Drop impl handles freeing memory
             if let Some(resources) = resources_map.remove(name) {
                 // Verify cleanup by checking Arc strong count before/after
@@ -1849,16 +1892,17 @@ impl PluginManager {
                     "Cleaning up resources for plugin {}, services Arc strong_count before: {}",
                     name, services_strong_count
                 );
-                
+
                 // Resources are dropped here, which reclaims the Arc and frees Box'd structs
                 drop(resources);
-                
+
                 debug!(
                     "Resources cleaned up for plugin {}, services Arc strong_count after: {}",
-                    name, Arc::strong_count(&self.services)
+                    name,
+                    Arc::strong_count(&self.services)
                 );
             }
-            
+
             info!("Successfully unloaded v2 plugin: {}", name);
             return Ok(());
         }
@@ -1884,15 +1928,24 @@ impl PluginManager {
     ///
     /// Returns statistics about the collection process.
     /// Collect billing metrics from plugins
-    /// 
+    ///
     /// Note: Billing collection functionality has been moved to the plugin-distribution plugin.
     /// This is a stub that returns empty stats for backward compatibility.
     pub async fn collect_billing_metrics(&self) -> Result<BillingCollectorStats> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        let mut stats = BillingCollectorStats::default();
-        stats.collections_total = 1;
+        let mut stats = BillingCollectorStats {
+            collections_total: 1,
+            ..Default::default()
+        };
 
-        for (name, loader) in plugins_v2.iter() {
+        for (name, guarded) in plugins_v2.iter() {
+            // Access plugin via epoch guard for safe hot-reload
+            let Some(guard) = guarded.access() else {
+                stats.failed_collections += 1;
+                continue;
+            };
+            let loader = guard.plugin();
+
             // Check if plugin supports billing metrics
             if !loader.has_billing_metrics() {
                 stats.plugins_without_metrics += 1;
@@ -1913,7 +1966,7 @@ impl PluginManager {
                     }
                     // Resources are dropped here, cleaning up the temporary allocations
                     drop(resources);
-                },
+                }
                 Err(_) => {
                     stats.failed_collections += 1;
                 }
@@ -1934,8 +1987,10 @@ impl PluginManager {
     /// Check if a specific plugin supports billing metrics
     pub async fn plugin_supports_billing(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.has_billing_metrics();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().has_billing_metrics();
+            }
         }
         false
     }
@@ -1948,14 +2003,18 @@ impl PluginManager {
     ///
     /// Looks for config in the following locations (in order):
     /// 1. `data/{plugin_name}.toml`
-    /// 2. `~/.config/skynet/plugins/{plugin_name}.toml`
+    /// 2. `~/.config/skylet/plugins/{plugin_name}.toml`
     ///
     /// Returns the config as a JSON Value for schema validation.
     pub fn load_plugin_config_from_toml(plugin_name: &str) -> Result<Value> {
         let config_paths = vec![
             PathBuf::from(format!("data/{}.toml", plugin_name)),
             dirs::config_dir()
-                .map(|p| p.join("skynet").join("plugins").join(format!("{}.toml", plugin_name)))
+                .map(|p| {
+                    p.join("skylet")
+                        .join("plugins")
+                        .join(format!("{}.toml", plugin_name))
+                })
                 .unwrap_or_else(|| PathBuf::from("")),
         ];
 
@@ -1985,37 +2044,59 @@ impl PluginManager {
     /// Validate a plugin's configuration against its schema
     ///
     /// Returns validation result with any errors found.
-    pub async fn validate_plugin_config(&self, plugin_name: &str) -> Result<ConfigValidationResult> {
+    pub async fn validate_plugin_config(
+        &self,
+        plugin_name: &str,
+    ) -> Result<ConfigValidationResult> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        
-        let loader = plugins_v2.get(plugin_name)
+
+        let guarded = plugins_v2
+            .get(plugin_name)
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_name))?;
+
+        // Access plugin via epoch guard
+        let guard = guarded
+            .access()
+            .ok_or_else(|| anyhow!("Plugin '{}' is being unloaded", plugin_name))?;
+        let loader = guard.plugin();
 
         // Get schema from plugin
         let schema_json = match loader.get_config_schema_string() {
             Some(schema) => schema,
             None => {
-                debug!("Plugin {} does not export a config schema, skipping validation", plugin_name);
+                debug!(
+                    "Plugin {} does not export a config schema, skipping validation",
+                    plugin_name
+                );
                 return Ok(ConfigValidationResult::valid());
             }
         };
 
         // Load config from TOML file
         let config_json = Self::load_plugin_config_from_toml(plugin_name)?;
-        
+
         // Create validator from schema
-        let validator = ConfigSchemaValidator::from_json(&schema_json)
-            .map_err(|e| anyhow!("Failed to compile config schema for {}: {:?}", plugin_name, e))?;
+        let validator = ConfigSchemaValidator::from_json(&schema_json).map_err(|e| {
+            anyhow!(
+                "Failed to compile config schema for {}: {:?}",
+                plugin_name,
+                e
+            )
+        })?;
 
         // Validate config against schema
         let config_str = serde_json::to_string(&config_json)
             .map_err(|e| anyhow!("Failed to serialize config: {}", e))?;
-        
-        let result = validator.validate(&config_str)
+
+        let result = validator
+            .validate(&config_str)
             .map_err(|e| anyhow!("Config validation error: {:?}", e))?;
 
         if !result.is_valid() {
-            warn!("Config validation failed for plugin {}: {:?}", plugin_name, result.errors);
+            warn!(
+                "Config validation failed for plugin {}: {:?}",
+                plugin_name, result.errors
+            );
         } else {
             debug!("Config validation passed for plugin {}", plugin_name);
         }
@@ -2034,7 +2115,7 @@ impl PluginManager {
 
         // Validate against schema if available
         let validation_result = self.validate_plugin_config(plugin_name).await?;
-        
+
         if !validation_result.is_valid() {
             warn!(
                 "Plugin {} config validation failed: {:?}",
@@ -2051,8 +2132,12 @@ impl PluginManager {
                     Value::String(s) => s.clone(),
                     Value::Number(n) => n.to_string(),
                     Value::Bool(b) => b.to_string(),
-                    Value::Array(arr) => serde_json::to_string(arr).unwrap_or_else(|_| "[]".to_string()),
-                    Value::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| "{}".to_string()),
+                    Value::Array(arr) => {
+                        serde_json::to_string(arr).unwrap_or_else(|_| "[]".to_string())
+                    }
+                    Value::Object(obj) => {
+                        serde_json::to_string(obj).unwrap_or_else(|_| "{}".to_string())
+                    }
                     Value::Null => String::new(),
                 };
                 self.services.config.set(key, &value_str);
@@ -2065,8 +2150,10 @@ impl PluginManager {
     /// Check if a plugin exports a configuration schema
     pub async fn plugin_has_config_schema(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.get_config_schema_string().is_some();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().get_config_schema_string().is_some();
+            }
         }
         false
     }
@@ -2074,8 +2161,10 @@ impl PluginManager {
     /// Get the JSON schema for a plugin's configuration
     pub async fn get_plugin_config_schema(&self, plugin_name: &str) -> Option<String> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(loader) = plugins_v2.get(plugin_name) {
-            return loader.get_config_schema_string();
+        if let Some(guarded) = plugins_v2.get(plugin_name) {
+            if let Some(guard) = guarded.access() {
+                return guard.plugin().get_config_schema_string();
+            }
         }
         None
     }
@@ -2095,9 +2184,12 @@ fn toml_to_json(toml: toml::Value) -> Value {
         }
         toml::Value::Boolean(b) => Value::Bool(b),
         toml::Value::Array(arr) => Value::Array(arr.into_iter().map(toml_to_json).collect()),
-        toml::Value::Table(table) => {
-            Value::Object(table.into_iter().map(|(k, v)| (k, toml_to_json(v))).collect())
-        }
+        toml::Value::Table(table) => Value::Object(
+            table
+                .into_iter()
+                .map(|(k, v)| (k, toml_to_json(v)))
+                .collect(),
+        ),
         toml::Value::Datetime(dt) => Value::String(dt.to_string()),
     }
 }
@@ -2119,122 +2211,131 @@ mod tests {
         let result = manager.unload_plugin("nonexistent").await;
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_plugin_services_creation() {
         let services = PluginServices::new();
-        
+
         // Test config backend
         services.config.set("test_key", "test_value");
-        assert_eq!(services.config.get("test_key"), Some("test_value".to_string()));
+        assert_eq!(
+            services.config.get("test_key"),
+            Some("test_value".to_string())
+        );
         assert_eq!(services.config.get_bool("test_key"), false);
-        
+
         services.config.set("bool_key", "true");
         assert_eq!(services.config.get_bool("bool_key"), true);
-        
+
         services.config.set("int_key", "42");
         assert_eq!(services.config.get_int("int_key"), 42);
-        
+
         services.config.set("float_key", "3.14");
         assert!((services.config.get_float("float_key") - 3.14).abs() < 0.001);
     }
-    
+
     #[test]
     fn test_service_registry_backend() {
         let services = PluginServices::new();
-        
+
         // Test registration
         let service_ptr = 0x1000 as *mut std::ffi::c_void;
-        services.service_registry.register("test_service", service_ptr, "test_type");
-        
+        services
+            .service_registry
+            .register("test_service", service_ptr, "test_type");
+
         // Test retrieval
         let result = services.service_registry.get("test_service");
         assert!(result.is_some());
         let (ptr, type_str) = result.unwrap();
         assert_eq!(ptr, service_ptr);
         assert_eq!(type_str, "test_type");
-        
+
         // Test list
         let list = services.service_registry.list_services();
         assert!(list.contains(&"test_service".to_string()));
-        
+
         // Test unregister
         let removed = services.service_registry.unregister("test_service");
         assert!(removed);
-        
+
         let not_found = services.service_registry.get("test_service");
         assert!(not_found.is_none());
     }
-    
+
     #[test]
     fn test_event_bus_backend() {
         let services = PluginServices::new();
-        
+
         // Create a test event
         let event_type = std::ffi::CString::new("test.event").unwrap();
         let payload = std::ffi::CString::new("{\"data\":\"test\"}").unwrap();
-        
+
         let event = EventV2 {
             type_: event_type.as_ptr(),
             payload_json: payload.as_ptr(),
             timestamp_ms: 0,
             source_plugin: std::ptr::null(),
         };
-        
+
         // Test publish (should not panic)
         services.event_bus.publish(&event);
-        
+
         // Test unsubscribe for non-existent subscription
         let result = services.event_bus.unsubscribe("nonexistent");
         assert!(!result);
     }
-    
+
     #[test]
     fn test_rpc_registry() {
         let services = PluginServices::new();
-        
+
         // Register a simple RPC handler
-        let handler = Arc::new(|_request: &[u8]| {
-            (PluginResultV2::Success, b"{\"result\":\"ok\"}".to_vec())
-        });
-        
-        services.rpc_registry.register("test_rpc", None, None, handler);
-        
+        let handler =
+            Arc::new(|_request: &[u8]| (PluginResultV2::Success, b"{\"result\":\"ok\"}".to_vec()));
+
+        services
+            .rpc_registry
+            .register("test_rpc", None, None, handler);
+
         // Test call
         let result = services.rpc_registry.call("test_rpc", b"{}");
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(response, b"{\"result\":\"ok\"}");
-        
+
         // Test non-existent service
         let not_found = services.rpc_registry.call("nonexistent", b"{}");
         assert!(not_found.is_err());
     }
-    
+
     #[tokio::test]
     async fn test_plugin_manager_with_custom_services() {
         let custom_services = Arc::new(PluginServices::new());
         custom_services.config.set("custom_key", "custom_value");
-        
+
         let manager = PluginManager::with_services(custom_services.clone());
-        
+
         // Verify services are accessible
         let services = manager.services();
-        assert_eq!(services.config.get("custom_key"), Some("custom_value".to_string()));
+        assert_eq!(
+            services.config.get("custom_key"),
+            Some("custom_value".to_string())
+        );
     }
-    
+
     #[test]
     fn test_plugin_resources_cleanup() {
         // Test that PluginResources Drop implementation properly cleans up
         let services = Arc::new(PluginServices::new());
         let initial_count = Arc::strong_count(&services);
-        
+
         // Simulate what create_plugin_context_v2 does
         let services_ptr = Arc::into_raw(services.clone());
-        
+
         // After Arc::into_raw, the count should increase
         assert_eq!(Arc::strong_count(&services), initial_count + 1);
-        
+
         // Create PluginResources with the leaked Arc and some null pointers
         // (we don't need real Box allocations to test the Arc cleanup)
         let resources = PluginResources {
@@ -2248,28 +2349,28 @@ mod tests {
             secrets_ptr: std::ptr::null_mut(),
             http_router_ptr: std::ptr::null_mut(),
         };
-        
+
         // Drop the resources - this should reclaim the Arc
         drop(resources);
-        
+
         // After drop, the count should be back to initial
         assert_eq!(Arc::strong_count(&services), initial_count);
     }
-    
+
     #[test]
     fn test_plugin_resources_box_cleanup() {
         // Test that Box'd structs are properly freed
         // We create actual Box allocations and verify no panic on drop
-        
+
         let services = Arc::new(PluginServices::new());
         let services_ptr = Arc::into_raw(services.clone());
-        
+
         // Create actual Box allocations
         let logger = Box::into_raw(Box::new(LoggerV2 {
             log: PluginManager::logger_v2_log,
             log_structured: PluginManager::logger_v2_log_structured,
         }));
-        
+
         let config = Box::into_raw(Box::new(ConfigV2 {
             get: PluginManager::config_v2_get,
             get_bool: PluginManager::config_v2_get_bool,
@@ -2278,7 +2379,7 @@ mod tests {
             set: PluginManager::config_v2_set,
             free_string: PluginManager::config_v2_free_string,
         }));
-        
+
         let resources = PluginResources {
             services_ptr,
             logger_ptr: logger,
@@ -2290,10 +2391,10 @@ mod tests {
             secrets_ptr: std::ptr::null_mut(),
             http_router_ptr: std::ptr::null_mut(),
         };
-        
+
         // This should not panic - all allocations should be properly freed
         drop(resources);
-        
+
         // If we get here without panic or memory error, the test passes
     }
 }

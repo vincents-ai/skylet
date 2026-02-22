@@ -38,14 +38,17 @@ impl PluginManager {
     pub async fn reload_plugin(&self, plugin_id: &str) -> Result<ReloadResult> {
         info!("🔄 Hot reload requested for plugin: {}", plugin_id);
         warn!("Hot reload via PluginManager is not yet implemented. Use the HTTP API instead.");
-        
+
         Ok(ReloadResult {
             plugin_id: plugin_id.to_string(),
             success: false,
             old_version: None,
             new_version: None,
             state_preserved: false,
-            error: Some("Hot reload not implemented. Use HTTP API endpoint /plugins/{id}/reload".to_string()),
+            error: Some(
+                "Hot reload not implemented. Use HTTP API endpoint /plugins/{id}/reload"
+                    .to_string(),
+            ),
         })
     }
 
@@ -53,10 +56,14 @@ impl PluginManager {
     ///
     /// This is a placeholder that returns an error indicating the feature
     /// is not yet implemented.
-    pub async fn reload_plugin_from_path(&self, plugin_id: &str, _new_manifest_path: &Path) -> Result<ReloadResult> {
+    pub async fn reload_plugin_from_path(
+        &self,
+        plugin_id: &str,
+        _new_manifest_path: &Path,
+    ) -> Result<ReloadResult> {
         info!("🔄 Reload from path requested for plugin: {}", plugin_id);
         warn!("Hot reload via PluginManager is not yet implemented.");
-        
+
         Err(anyhow!(
             "Hot reload from path not implemented. Use HTTP API endpoint /plugins/{}/reload",
             plugin_id
@@ -73,7 +80,7 @@ impl PluginManager {
 /// - `supports_hot_reload()` - checks if ABI symbols are available
 /// - `prepare_hot_reload()` - serializes state via FFI
 /// - `init_from_state()` - restores state via FFI
-/// 
+///
 /// This trait is kept for potential future extensions that need custom
 /// hot reload behavior beyond the ABI-level support.
 #[allow(dead_code)]

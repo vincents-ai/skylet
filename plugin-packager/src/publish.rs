@@ -11,12 +11,14 @@
 /// - Publishing metadata extraction from artifacts
 ///
 /// RFC-0003: Plugin Package and Artifact Specification
-
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::abi_compat::{ABICompatibleInfo, ABIVersion, MaturityLevel, PluginCategory, ResourceRequirements, MarketplaceMetadata};
+use crate::abi_compat::{
+    ABICompatibleInfo, ABIVersion, MarketplaceMetadata, MaturityLevel, PluginCategory,
+    ResourceRequirements,
+};
 use crate::marketplace::{MarketplaceClient, PublishRequest, PublishSignature};
 use crate::platform::ArtifactMetadata;
 
@@ -29,7 +31,7 @@ pub struct ArtifactPublisher {
 /// Configuration for artifact publishing
 #[derive(Debug, Clone)]
 pub struct PublishConfig {
-    /// Registry base URL (e.g., "https://marketplace.skynet.dev")
+    /// Registry base URL (e.g., "https://marketplace.skylet.dev")
     pub registry_url: String,
     /// Authentication token (required for publishing)
     pub auth_token: String,
@@ -107,7 +109,7 @@ impl ArtifactPublisher {
     /// #[tokio::main]
     /// async fn main() -> anyhow::Result<()> {
     ///     let config = PublishConfig {
-    ///         registry_url: "https://marketplace.skynet.dev".to_string(),
+    ///         registry_url: "https://marketplace.skylet.dev".to_string(),
     ///         auth_token: "my-token".to_string(),
     ///         skip_verify: false,
     ///         as_draft: false,
@@ -132,10 +134,7 @@ impl ArtifactPublisher {
     ) -> Result<ArtifactPublishResult> {
         // Step 1: Validate artifact exists
         if !artifact_path.exists() {
-            return Err(anyhow!(
-                "Artifact not found: {}",
-                artifact_path.display()
-            ));
+            return Err(anyhow!("Artifact not found: {}", artifact_path.display()));
         }
 
         // Step 2: Parse artifact metadata from filename
@@ -158,15 +157,16 @@ impl ArtifactPublisher {
         let plugin_metadata = extract_plugin_metadata(artifact_path)?;
 
         // Step 6: Build ABI-compatible info
-        let abi_version = ABIVersion::parse(&plugin_metadata.abi_version)
-            .unwrap_or(ABIVersion::V1);
-        
-        let maturity_level = plugin_metadata.maturity
+        let abi_version = ABIVersion::parse(&plugin_metadata.abi_version).unwrap_or(ABIVersion::V1);
+
+        let maturity_level = plugin_metadata
+            .maturity
             .as_deref()
             .and_then(|m| MaturityLevel::parse(m).ok())
             .unwrap_or(MaturityLevel::Alpha);
-        
-        let category = plugin_metadata.plugin_type
+
+        let category = plugin_metadata
+            .plugin_type
             .as_deref()
             .and_then(|c| PluginCategory::parse(c).ok())
             .unwrap_or(PluginCategory::Other);
@@ -175,8 +175,8 @@ impl ArtifactPublisher {
             name: artifact_metadata.name.clone(),
             version: artifact_metadata.version.clone(),
             abi_version,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level,
             category,
             author: plugin_metadata.author,
@@ -189,10 +189,7 @@ impl ArtifactPublisher {
         };
 
         // Step 7: Build publish request
-        let package_url = format!(
-            "file://{}",
-            artifact_path.canonicalize()?.display()
-        );
+        let package_url = format!("file://{}", artifact_path.canonicalize()?.display());
 
         let request = PublishRequest {
             metadata: abi_info,
@@ -227,10 +224,7 @@ impl ArtifactPublisher {
     /// Returns metadata about the artifact if valid
     pub fn validate(&self, artifact_path: &Path) -> Result<LocalArtifact> {
         if !artifact_path.exists() {
-            return Err(anyhow!(
-                "Artifact not found: {}",
-                artifact_path.display()
-            ));
+            return Err(anyhow!("Artifact not found: {}", artifact_path.display()));
         }
 
         let filename = artifact_path
@@ -328,7 +322,8 @@ fn parse_plugin_toml(content: &str) -> Result<PluginMetadataExtract> {
     let value: toml::Value = toml::from_str(content)?;
 
     let get_str = |key: &str| -> Option<String> {
-        value.get("package")
+        value
+            .get("package")
             .and_then(|p| p.get(key))
             .or_else(|| value.get(key))
             .and_then(|v| v.as_str())
@@ -336,7 +331,8 @@ fn parse_plugin_toml(content: &str) -> Result<PluginMetadataExtract> {
     };
 
     let get_vec = |key: &str| -> Option<Vec<String>> {
-        value.get("package")
+        value
+            .get("package")
             .and_then(|p| p.get(key))
             .or_else(|| value.get(key))
             .and_then(|v| v.as_array())
@@ -416,7 +412,10 @@ keywords = ["test", "plugin"]
         assert_eq!(metadata.description, Some("A test plugin".to_string()));
         assert_eq!(metadata.author, Some("Test Author".to_string()));
         assert_eq!(metadata.license, Some("MIT".to_string()));
-        assert_eq!(metadata.keywords, Some(vec!["test".to_string(), "plugin".to_string()]));
+        assert_eq!(
+            metadata.keywords,
+            Some(vec!["test".to_string(), "plugin".to_string()])
+        );
     }
 
     #[test]

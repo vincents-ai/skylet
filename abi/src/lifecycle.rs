@@ -128,6 +128,9 @@ pub enum LifecycleStage {
     /// Plugin initialization
     Initialization,
 
+    /// State transfer during hot-reload (serialize/deserialize)
+    StateTransfer,
+
     /// Plugin unloading
     Unloading,
 }
@@ -139,6 +142,7 @@ impl fmt::Display for LifecycleStage {
             LifecycleStage::SymbolResolution => write!(f, "SymbolResolution"),
             LifecycleStage::AbiCompatibility => write!(f, "AbiCompatibility"),
             LifecycleStage::Initialization => write!(f, "Initialization"),
+            LifecycleStage::StateTransfer => write!(f, "StateTransfer"),
             LifecycleStage::Unloading => write!(f, "Unloading"),
         }
     }
@@ -168,6 +172,18 @@ pub enum LifecycleErrorType {
     /// Plugin not loaded
     NotLoaded,
 
+    /// State serialization failed during hot-reload
+    StateSerializationFailed,
+
+    /// State deserialization failed during hot-reload
+    StateDeserializationFailed,
+
+    /// State schema version mismatch between epochs
+    StateVersionMismatch,
+
+    /// State checksum validation failed (data corruption)
+    StateChecksumFailed,
+
     /// Internal error
     Internal,
 }
@@ -182,6 +198,12 @@ impl fmt::Display for LifecycleErrorType {
             LifecycleErrorType::InitializationFailed => write!(f, "InitializationFailed"),
             LifecycleErrorType::AlreadyLoaded => write!(f, "AlreadyLoaded"),
             LifecycleErrorType::NotLoaded => write!(f, "NotLoaded"),
+            LifecycleErrorType::StateSerializationFailed => write!(f, "StateSerializationFailed"),
+            LifecycleErrorType::StateDeserializationFailed => {
+                write!(f, "StateDeserializationFailed")
+            }
+            LifecycleErrorType::StateVersionMismatch => write!(f, "StateVersionMismatch"),
+            LifecycleErrorType::StateChecksumFailed => write!(f, "StateChecksumFailed"),
             LifecycleErrorType::Internal => write!(f, "Internal"),
         }
     }
@@ -470,7 +492,7 @@ impl PerformanceMetrics {
             0.0
         };
 
-        let avg_stage_time = if result.stages.len() > 0 {
+        let avg_stage_time = if !result.stages.is_empty() {
             result.total_ms as f64 / result.stages.len() as f64
         } else {
             0.0
@@ -689,7 +711,7 @@ impl PluginLoadPipeline {
     #[allow(dead_code)]
     fn calculate_backoff_delay(&self, retry_count: usize, base_delay_ms: u64) -> u64 {
         // Exponential backoff: 2^retry_count, capped at 2^10 (1024x)
-        let exponential = (base_delay_ms as u64).saturating_mul(1 << (retry_count.min(10)));
+        let exponential = base_delay_ms.saturating_mul(1 << (retry_count.min(10)));
 
         // Add jitter: 0-25% of exponential delay
         // This prevents synchronized retries
@@ -774,6 +796,11 @@ impl PluginLoadPipeline {
             LifecycleStage::Initialization => {
                 // Plugin initialization rollback (if needed)
                 // Would call plugin's shutdown handler
+                Ok(())
+            }
+            LifecycleStage::StateTransfer => {
+                // State transfer rollback - discard serialized state
+                // The new epoch plugin continues without state restoration
                 Ok(())
             }
             LifecycleStage::Unloading => {
@@ -1186,10 +1213,11 @@ mod tests {
             LifecycleStage::SymbolResolution,
             LifecycleStage::AbiCompatibility,
             LifecycleStage::Initialization,
+            LifecycleStage::StateTransfer,
             LifecycleStage::Unloading,
         ];
 
-        assert_eq!(stages.len(), 5);
+        assert_eq!(stages.len(), 6);
         for stage in stages {
             let s = format!("{}", stage);
             assert!(!s.is_empty());
@@ -1206,10 +1234,14 @@ mod tests {
             LifecycleErrorType::InitializationFailed,
             LifecycleErrorType::AlreadyLoaded,
             LifecycleErrorType::NotLoaded,
+            LifecycleErrorType::StateSerializationFailed,
+            LifecycleErrorType::StateDeserializationFailed,
+            LifecycleErrorType::StateVersionMismatch,
+            LifecycleErrorType::StateChecksumFailed,
             LifecycleErrorType::Internal,
         ];
 
-        assert_eq!(error_types.len(), 8);
+        assert_eq!(error_types.len(), 12);
         for et in error_types {
             let s = format!("{}", et);
             assert!(!s.is_empty());
@@ -1535,6 +1567,7 @@ mod tests {
             LifecycleStage::SymbolResolution,
             LifecycleStage::AbiCompatibility,
             LifecycleStage::Initialization,
+            LifecycleStage::StateTransfer,
             LifecycleStage::Unloading,
         ];
 
@@ -1548,6 +1581,7 @@ mod tests {
                     assert_eq!(stage, LifecycleStage::AbiCompatibility)
                 }
                 LifecycleStage::Initialization => assert_eq!(stage, LifecycleStage::Initialization),
+                LifecycleStage::StateTransfer => assert_eq!(stage, LifecycleStage::StateTransfer),
                 LifecycleStage::Unloading => assert_eq!(stage, LifecycleStage::Unloading),
             }
         }
@@ -3432,7 +3466,9 @@ mod tests {
 
         // Use registry to get the in-memory backend
         let registry = crate::audit::DefaultAuditRegistry::with_defaults().unwrap();
-        let backend = registry.get("memory").expect("memory backend should be registered");
+        let backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
 
         let event = AuditEvent::new(
             AuditEventType::LoadStarted,
@@ -3461,7 +3497,9 @@ mod tests {
             .and_then(|r| r.with_file_backend(&log_path, 1000))
             .unwrap();
 
-        let backend = registry.get("file").expect("file backend should be registered");
+        let backend = registry
+            .get("file")
+            .expect("file backend should be registered");
 
         let event = AuditEvent::new(
             AuditEventType::LoadSucceeded,
@@ -3486,7 +3524,9 @@ mod tests {
 
         // Use registry to get the in-memory backend
         let registry = crate::audit::DefaultAuditRegistry::with_defaults().unwrap();
-        let backend = registry.get("memory").expect("memory backend should be registered");
+        let backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
 
         let info_event = AuditEvent::new(
             AuditEventType::LoadStarted,
@@ -3526,8 +3566,12 @@ mod tests {
             .and_then(|r| r.with_file_backend(&log_path, 1000))
             .unwrap();
 
-        let mem_backend = registry.get("memory").expect("memory backend should be registered");
-        let file_backend = registry.get("file").expect("file backend should be registered");
+        let mem_backend = registry
+            .get("memory")
+            .expect("memory backend should be registered");
+        let file_backend = registry
+            .get("file")
+            .expect("file backend should be registered");
 
         // Write to both
         let event = AuditEvent::new(
@@ -3541,12 +3585,12 @@ mod tests {
         file_backend.write(&event).await.unwrap();
 
         // Verify both have the event
-         let filter = crate::audit::AuditLogFilter::new();
-         assert_eq!(mem_backend.read(&filter).await.unwrap().len(), 1);
-         assert_eq!(file_backend.read(&filter).await.unwrap().len(), 1);
+        let filter = crate::audit::AuditLogFilter::new();
+        assert_eq!(mem_backend.read(&filter).await.unwrap().len(), 1);
+        assert_eq!(file_backend.read(&filter).await.unwrap().len(), 1);
 
-         let _ = std::fs::remove_file(&log_path);
-     }
+        let _ = std::fs::remove_file(&log_path);
+    }
 
     #[tokio::test]
     async fn test_audit_log_plugin_backend_provider_integration() {
@@ -3626,7 +3670,9 @@ mod tests {
         // Verify event sequence
         assert_eq!(logged_events[0].event_type, AuditEventType::LoadStarted);
         assert_eq!(logged_events[1].event_type, AuditEventType::LoadSucceeded);
-        assert_eq!(logged_events[2].event_type, AuditEventType::RecoverySucceeded);
+        assert_eq!(
+            logged_events[2].event_type,
+            AuditEventType::RecoverySucceeded
+        );
     }
 }
-

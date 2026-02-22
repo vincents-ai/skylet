@@ -58,13 +58,13 @@ pub use span::{Span, SpanBuilder, SpanContext, SpanId, SpanManager, TraceId};
 /// Standard span attributes for Skylet plugins
 #[allow(dead_code)]
 pub mod attributes {
-    pub const PLUGIN_NAME: &str = "skynet.plugin.name";
-    pub const PLUGIN_VERSION: &str = "skynet.plugin.version";
-    pub const SERVICE_NAME: &str = "skynet.service.name";
-    pub const SERVICE_METHOD: &str = "skynet.service.method";
-    pub const EVENT_NAME: &str = "skynet.event.name";
-    pub const CORRELATION_ID: &str = "skynet.correlation_id";
-    pub const USER_ID: &str = "skynet.user.id";
+    pub const PLUGIN_NAME: &str = "skylet.plugin.name";
+    pub const PLUGIN_VERSION: &str = "skylet.plugin.version";
+    pub const SERVICE_NAME: &str = "skylet.service.name";
+    pub const SERVICE_METHOD: &str = "skylet.service.method";
+    pub const EVENT_NAME: &str = "skylet.event.name";
+    pub const CORRELATION_ID: &str = "skylet.correlation_id";
+    pub const USER_ID: &str = "skylet.user.id";
 }
 
 /// Initialize the global tracing provider

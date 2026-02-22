@@ -107,7 +107,10 @@ pub enum DependencyValidationError {
     /// Version range is not valid semver syntax
     InvalidVersionRange { range: String, reason: String },
     /// Service type is invalid
-    InvalidServiceType { service_type: String, reason: String },
+    InvalidServiceType {
+        service_type: String,
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for DependencyValidationError {
@@ -119,7 +122,10 @@ impl std::fmt::Display for DependencyValidationError {
             DependencyValidationError::InvalidVersionRange { range, reason } => {
                 write!(f, "Invalid version range '{}': {}", range, reason)
             }
-            DependencyValidationError::InvalidServiceType { service_type, reason } => {
+            DependencyValidationError::InvalidServiceType {
+                service_type,
+                reason,
+            } => {
                 write!(f, "Invalid service type '{}': {}", service_type, reason)
             }
         }
@@ -156,9 +162,7 @@ impl DependencyInfo {
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
             {
                 return Err(DependencyValidationError::InvalidName {
-                    reason: format!(
-                        "name contains invalid characters (only alphanumeric, hyphens, underscores allowed)"
-                    ),
+                    reason: "name contains invalid characters (only alphanumeric, hyphens, underscores allowed)".to_string(),
                 });
             }
             name_str.into_owned()
@@ -221,8 +225,9 @@ impl DependencyInfo {
                         {
                             return Err(DependencyValidationError::InvalidServiceType {
                                 service_type: type_str.to_string(),
-                                reason: "service_type must be lowercase with hyphens or underscores"
-                                    .to_string(),
+                                reason:
+                                    "service_type must be lowercase with hyphens or underscores"
+                                        .to_string(),
                             });
                         }
                     }
@@ -252,11 +257,11 @@ pub struct DependencyInfoValidated {
 impl DependencyInfoValidated {
     /// Check if a given version satisfies this dependency's version range
     pub fn version_satisfies(&self, version: &str) -> bool {
-        let version_req = match crate::dependencies::constraints::VersionReq::parse(&self.version_range)
-        {
-            Ok(req) => req,
-            Err(_) => return false,
-        };
+        let version_req =
+            match crate::dependencies::constraints::VersionReq::parse(&self.version_range) {
+                Ok(req) => req,
+                Err(_) => return false,
+            };
         let ver = match crate::dependencies::version::Version::parse(version) {
             Ok(v) => v,
             Err(_) => return false,
@@ -592,8 +597,8 @@ pub struct PluginInfoV2 {
     pub homepage: *const c_char,
 
     // Version compatibility
-    pub skynet_version_min: *const c_char,
-    pub skynet_version_max: *const c_char,
+    pub skylet_version_min: *const c_char,
+    pub skylet_version_max: *const c_char,
     pub abi_version: *const c_char, // MUST be "2.0"
 
     // Dependencies and service discovery
@@ -774,11 +779,196 @@ pub struct PluginApiV2 {
     /// Per RFC-ARCH Section 10.3, plugins declare billing metrics
     /// through this function for marketplace integration.
     pub get_billing_metrics: Option<PluginGetBillingMetricsFnV2>,
+
+    // ========================================================================
+    // State Transfer for Epoch-Based Hot Reload
+    // ========================================================================
+
+    /// Serialize plugin state for hot-reload - Optional
+    ///
+    /// If implemented, the engine will call this before unloading the plugin
+    /// during a hot-reload to capture state that should persist.
+    ///
+    /// The plugin should serialize all in-memory state to a portable format
+    /// (JSON recommended for debugging, msgpack/bincode for performance).
+    ///
+    /// # Epoch Transition Flow
+    ///
+    /// 1. Engine calls serialize_state() on Epoch N plugin
+    /// 2. Engine receives StateSerializeResult with PluginStateV2
+    /// 3. Engine loads new plugin binary (Epoch N+1)
+    /// 4. Engine calls deserialize_state() on Epoch N+1 plugin
+    /// 5. Engine calls free_state() on Epoch N plugin
+    /// 6. Engine unloads Epoch N plugin
+    pub serialize_state: Option<PluginSerializeStateFnV2>,
+
+    /// Deserialize plugin state after hot-reload - Optional
+    ///
+    /// If implemented, the engine will call this after loading the new plugin
+    /// version during a hot-reload to restore state from the previous version.
+    ///
+    /// The plugin should:
+    /// - Validate the checksum before deserializing
+    /// - Handle schema_version mismatches gracefully
+    /// - Report partial success via entries_restored count
+    pub deserialize_state: Option<PluginDeserializeStateFnV2>,
+
+    /// Free serialized state memory - Optional (required if serialize_state is implemented)
+    ///
+    /// Called by the engine after state transfer is complete to free memory
+    /// allocated by serialize_state.
+    ///
+    /// If serialize_state is implemented, this MUST also be implemented.
+    pub free_state: Option<PluginFreeStateFnV2>,
 }
 
 /// ABI v2 entry point - plugins MUST export this function
 /// Returns a pointer to a statically allocated PluginApiV2 struct
 pub type PluginCreateFnV2 = extern "C" fn() -> *const PluginApiV2;
+
+// ============================================================================
+// State Transfer for Epoch-Based Hot Reload
+// ============================================================================
+
+/// Serialized plugin state for hot-reload state transfer
+///
+/// During epoch transitions, the engine calls serialize_state() on Epoch N,
+/// passes this struct across the FFI boundary, and feeds it into
+/// deserialize_state() on Epoch N+1.
+///
+/// # Memory Layout
+///
+/// This struct is designed for safe FFI transfer:
+/// - All pointers are to memory owned by the plugin
+/// - The engine must not modify or free these pointers
+/// - Call `free_state` after transfer is complete
+#[repr(C)]
+pub struct PluginStateV2 {
+    /// Format identifier (e.g., "json", "msgpack", "bincode")
+    /// Must be a null-terminated C string
+    pub format: *const c_char,
+    /// Serialized state data
+    pub data: *const u8,
+    /// Length of serialized data in bytes
+    pub data_len: usize,
+    /// Schema version for forward/backward compatibility
+    /// Plugins should increment this when state format changes
+    pub schema_version: u32,
+    /// Checksum for data integrity validation (CRC32)
+    /// Calculated over the data bytes only
+    pub checksum: u32,
+}
+
+impl Default for PluginStateV2 {
+    fn default() -> Self {
+        Self {
+            format: std::ptr::null(),
+            data: std::ptr::null(),
+            data_len: 0,
+            schema_version: 0,
+            checksum: 0,
+        }
+    }
+}
+
+/// Result of state serialization
+#[repr(C)]
+pub struct StateSerializeResult {
+    /// The serialized state (NULL on error)
+    pub state: *mut PluginStateV2,
+    /// Error message if serialization failed (NULL on success)
+    /// Must be a null-terminated C string owned by the plugin
+    pub error: *const c_char,
+    /// Result status
+    pub status: PluginResultV2,
+}
+
+impl Default for StateSerializeResult {
+    fn default() -> Self {
+        Self {
+            state: std::ptr::null_mut(),
+            error: std::ptr::null(),
+            status: PluginResultV2::Success,
+        }
+    }
+}
+
+/// Result of state deserialization
+#[repr(C)]
+pub struct StateDeserializeResult {
+    /// Whether deserialization succeeded
+    pub status: PluginResultV2,
+    /// Error message if deserialization failed (NULL on success)
+    /// Must be a null-terminated C string owned by the plugin
+    pub error: *const c_char,
+    /// Number of state entries successfully restored
+    pub entries_restored: usize,
+}
+
+impl Default for StateDeserializeResult {
+    fn default() -> Self {
+        Self {
+            status: PluginResultV2::Success,
+            error: std::ptr::null(),
+            entries_restored: 0,
+        }
+    }
+}
+
+/// Function type for serializing plugin state
+///
+/// Called by the engine before unloading Epoch N to capture state.
+/// The plugin should serialize all state that needs to persist across hot-reload.
+///
+/// # Returns
+///
+/// StateSerializeResult containing the serialized state or an error.
+/// The returned PluginStateV2 must remain valid until plugin_free_state_v2 is called.
+///
+/// # Implementation Notes
+///
+/// - Use a stable serialization format (JSON recommended for debugging)
+/// - Include a schema_version for forward/backward compatibility
+/// - Calculate checksum using CRC32 over the data bytes
+/// - Return NotImplemented status if state transfer is not supported
+pub type PluginSerializeStateFnV2 =
+    extern "C" fn(context: *const PluginContextV2) -> StateSerializeResult;
+
+/// Function type for deserializing plugin state
+///
+/// Called by the engine after loading Epoch N+1 to restore state.
+/// The plugin should deserialize and restore the state from the previous epoch.
+///
+/// # Arguments
+///
+/// * `context` - The plugin context
+/// * `state` - The serialized state from the previous epoch
+///
+/// # Returns
+///
+/// StateDeserializeResult indicating success/failure and details.
+///
+/// # Implementation Notes
+///
+/// - Validate checksum before deserializing
+/// - Handle schema_version mismatches gracefully (migrate or reject)
+/// - Report partial success via entries_restored count
+/// - Return an error status with message if deserialization fails
+pub type PluginDeserializeStateFnV2 = extern "C" fn(
+    context: *const PluginContextV2,
+    state: *const PluginStateV2,
+) -> StateDeserializeResult;
+
+/// Function type for freeing serialized state
+///
+/// Called by the engine after state has been transferred to free the memory
+/// allocated by serialize_state.
+///
+/// # Safety
+///
+/// The pointer must have been returned by a previous serialize_state call.
+/// After this call, the PluginStateV2 pointer is invalid.
+pub type PluginFreeStateFnV2 = extern "C" fn(state: *mut PluginStateV2);
 
 // ============================================================================
 // GAP-001: V2 Service Host Implementations
@@ -1147,7 +1337,7 @@ impl PluginContextV2Builder {
     }
 
     /// Set the HTTP router service (RFC-0019)
-    /// 
+    ///
     /// Allows plugins to register their own REST API endpoints dynamically.
     pub fn http_router(mut self, router: *const crate::http::HttpRouterV2) -> Self {
         self.http_router = Some(router);
@@ -1256,7 +1446,8 @@ mod tests {
     fn test_config_schema_fn_signature() {
         // Define a mock function that returns a static schema string
         extern "C" fn mock_get_config_schema() -> *const c_char {
-            static SCHEMA: &str = r#"{"type":"object","properties":{"enabled":{"type":"boolean"}}}"#;
+            static SCHEMA: &str =
+                r#"{"type":"object","properties":{"enabled":{"type":"boolean"}}}"#;
             SCHEMA.as_ptr() as *const c_char
         }
 
@@ -1311,6 +1502,9 @@ mod tests {
             query_capability: None,
             get_config_schema: None,
             get_billing_metrics: None,
+            serialize_state: None,
+            deserialize_state: None,
+            free_state: None,
         };
 
         // Verify the field is accessible
@@ -1388,10 +1582,7 @@ mod tests {
         };
 
         let err = dep.validate().expect_err("should fail with null name");
-        assert!(matches!(
-            err,
-            DependencyValidationError::InvalidName { .. }
-        ));
+        assert!(matches!(err, DependencyValidationError::InvalidName { .. }));
     }
 
     #[test]
@@ -1406,7 +1597,9 @@ mod tests {
             service_type: std::ptr::null(),
         };
 
-        let err = dep.validate().expect_err("should fail with invalid version range");
+        let err = dep
+            .validate()
+            .expect_err("should fail with invalid version range");
         assert!(matches!(
             err,
             DependencyValidationError::InvalidVersionRange { .. }
@@ -1425,11 +1618,10 @@ mod tests {
             service_type: std::ptr::null(),
         };
 
-        let err = dep.validate().expect_err("should fail with invalid name chars");
-        assert!(matches!(
-            err,
-            DependencyValidationError::InvalidName { .. }
-        ));
+        let err = dep
+            .validate()
+            .expect_err("should fail with invalid name chars");
+        assert!(matches!(err, DependencyValidationError::InvalidName { .. }));
     }
 
     #[test]
@@ -1523,8 +1715,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_distributed_register() {
-        let cluster =
-            ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
 
         // Register service on local node
         let service = ClusterService::new(
@@ -1549,14 +1740,8 @@ mod tests {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
 
         // Register a service
-        let service = ClusterService::new(
-            "service-1",
-            "database",
-            "1.0",
-            "node-1",
-            "localhost",
-            5432,
-        );
+        let service =
+            ClusterService::new("service-1", "database", "1.0", "node-1", "localhost", 5432);
         let _ = cluster.register_service(service).await;
 
         // Lookup should succeed

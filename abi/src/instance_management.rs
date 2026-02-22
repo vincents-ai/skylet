@@ -23,7 +23,7 @@
 //! # Feature-Gated Proprietary Support
 //!
 //! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary instance management systems like Skynet's zone-based hierarchy and
+//! proprietary instance management systems like Skylet's zone-based hierarchy and
 //! multi-instance orchestration.
 //!
 //! # Example
@@ -46,8 +46,8 @@
 //! # }
 //! ```
 
-use std::collections::HashMap;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use thiserror::Error;
 
 /// Error type for instance management operations
@@ -260,7 +260,9 @@ impl InstanceManager for StandaloneInstanceManager {
     }
 
     async fn get_peer(&self, peer_id: &str) -> InstanceManagementResult<InstancePeerInfo> {
-        Err(InstanceManagementError::InstanceNotFound(peer_id.to_string()))
+        Err(InstanceManagementError::InstanceNotFound(
+            peer_id.to_string(),
+        ))
     }
 
     async fn peer_online(&self, _peer_info: InstancePeerInfo) -> InstanceManagementResult<()> {
@@ -339,16 +341,21 @@ mod tests {
     #[test]
     fn test_metadata_operations() {
         let manager = StandaloneInstanceManager::new("test-id");
-        
-        manager.set_metadata("key1".to_string(), "value1".to_string()).unwrap();
-        assert_eq!(manager.get_metadata().get("key1"), Some(&"value1".to_string()));
+
+        manager
+            .set_metadata("key1".to_string(), "value1".to_string())
+            .unwrap();
+        assert_eq!(
+            manager.get_metadata().get("key1"),
+            Some(&"value1".to_string())
+        );
     }
 
     #[test]
     fn test_capabilities() {
         let manager = StandaloneInstanceManager::new("test-id");
         let capabilities = manager.get_capabilities();
-        
+
         assert!(!capabilities.is_empty());
         assert!(capabilities.contains(&"plugin.load".to_string()));
     }

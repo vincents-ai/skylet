@@ -20,12 +20,12 @@ fn test_framework_default() {
 #[test]
 fn test_framework_mock_plugin() {
     use crate::framework::service::MockPlugin;
-    
-    let plugin = MockPlugin::new("test-plugin")
+
+    let plugin = MockPlugin::builder("test-plugin")
         .with_version("1.0.0")
         .with_capability("test.action")
         .build();
-    
+
     assert_eq!(plugin.name(), "test-plugin");
     assert_eq!(plugin.version(), "1.0.0");
     assert!(plugin.has_capability("test.action"));
@@ -36,17 +36,13 @@ fn test_framework_mock_plugin() {
 #[test]
 fn test_framework_mock_service_registry() {
     use crate::framework::service::MockServiceRegistry;
-    
+
     let mut registry = MockServiceRegistry::new();
     assert_eq!(registry.service_count(), 0);
-    
+
     // Register a mock service
-    registry.register_service(
-        "test.service",
-        "test.v1.Service",
-        std::ptr::null_mut(),
-    );
-    
+    registry.register_service("test.service", "test.v1.Service", std::ptr::null_mut());
+
     assert!(registry.has_service("test.service"));
     assert!(!registry.has_service("nonexistent.service"));
     assert_eq!(registry.service_count(), 1);
@@ -55,23 +51,23 @@ fn test_framework_mock_service_registry() {
 /// Test that framework can simulate plugin lifecycle events
 #[test]
 fn test_framework_lifecycle_simulator() {
-    use crate::framework::service::{LifecycleSimulator, LifecycleEvent};
-    
+    use crate::framework::service::{LifecycleEvent, LifecycleSimulator};
+
     let mut simulator = LifecycleSimulator::new();
-    
+
     // Simulate plugin load
-    simulator.emit_event(LifecycleEvent::PluginLoaded { 
-        name: "test-plugin".to_string() 
+    simulator.emit_event(LifecycleEvent::PluginLoaded {
+        name: "test-plugin".to_string(),
     });
-    
+
     // Simulate plugin init
-    simulator.emit_event(LifecycleEvent::PluginInitialized { 
-        name: "test-plugin".to_string() 
+    simulator.emit_event(LifecycleEvent::PluginInitialized {
+        name: "test-plugin".to_string(),
     });
-    
+
     let events = simulator.event_history();
     assert_eq!(events.len(), 2);
-    
+
     // Verify event order
     match &events[0] {
         LifecycleEvent::PluginLoaded { name } => assert_eq!(name, "test-plugin"),
@@ -88,11 +84,11 @@ fn test_framework_lifecycle_simulator() {
 fn test_framework_plugin_assertions() {
     use crate::framework::assertions::PluginAssertions;
     use crate::framework::service::MockPlugin;
-    
-    let plugin = MockPlugin::new("test-plugin")
+
+    let plugin = MockPlugin::builder("test-plugin")
         .with_capability("test.action")
         .build();
-    
+
     // These assertions should pass
     plugin.assert_state("Loaded");
     plugin.assert_has_capability("test.action");

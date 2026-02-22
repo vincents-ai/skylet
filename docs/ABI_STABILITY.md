@@ -158,11 +158,13 @@ unsafe {
 Engine provides version at initialization:
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         if context.is_null() {
-            return PluginResult::InvalidRequest;
+            return PluginResultV2::InvalidRequest;
         }
         
         let version = CStr::from_ptr((*context).engine_version);
@@ -172,7 +174,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
             _ => { /* unknown version, proceed cautiously */ }
         }
     }
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 

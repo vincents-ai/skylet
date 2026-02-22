@@ -32,6 +32,18 @@ pub struct ServiceRegistry {
     inner: RwLock<HashMap<String, (*mut c_void, String)>>,
 }
 
+// SAFETY: ServiceRegistry uses RwLock for interior mutability and raw pointers
+// are only accessed through safe methods. The registry is designed to be shared
+// across threads via Arc.
+unsafe impl Send for ServiceRegistry {}
+unsafe impl Sync for ServiceRegistry {}
+
+impl Default for ServiceRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServiceRegistry {
     pub fn new() -> Self {
         Self {
@@ -90,6 +102,7 @@ impl ServiceRegistryHandle {
 // defensive about null pointers.
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn core_service_register(
     context: *const PluginContext,
     name: *const c_char,
@@ -127,6 +140,7 @@ pub extern "C" fn core_service_register(
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn core_service_get(
     context: *const PluginContext,
     name: *const c_char,
@@ -176,6 +190,7 @@ pub extern "C" fn core_service_get(
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn core_service_unregister(
     context: *const PluginContext,
     name: *const c_char,

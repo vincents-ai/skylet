@@ -12,6 +12,7 @@ use std::os::raw::c_char;
 use std::sync::{Arc, Mutex, OnceLock};
 use tracing;
 use uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Maximum allowed length for input strings to prevent buffer overflow attacks
 const MAX_INPUT_LENGTH: usize = 65536;
@@ -23,31 +24,31 @@ fn get_max_plugins() -> usize {
 
     *MAX_PLUGINS_CACHE.get_or_init(|| {
         // Try to get from environment variable first (for testing/override)
-        if let Ok(val) = std::env::var("SKYNET_MAX_PLUGINS") {
+        if let Ok(val) = std::env::var("SKYLET_MAX_PLUGINS") {
             if let Ok(max) = val.parse::<usize>() {
-                tracing::error!("Security: Using SKYNET_MAX_PLUGINS={} from environment", max);
+                tracing::error!("Security: Using SKYLET_MAX_PLUGINS={} from environment", max);
                 return max;
             }
         }
-        
+
         // Calculate based on system resources
         let num_cpus = num_cpus::get();
         let available_memory = get_available_memory();
-        
+
         // Conservative estimate: allow up to 8 plugins per CPU core
         // and no more than 1 plugin per 512MB of available memory
         let plugins_per_cpu = num_cpus * 8;
         let plugins_per_memory = available_memory / (512 * 1024 * 1024);
         let calculated_max = std::cmp::min(plugins_per_cpu, plugins_per_memory);
-        
+
         // Cap at reasonable limits: minimum 16, maximum 4096
-        let final_max = std::cmp::max(16, std::cmp::min(4096, calculated_max));
-        
+        let final_max = calculated_max.clamp(16, 4096);
+
         tracing::error!(
             "Security: Calculated MAX_PLUGINS={} (CPUs: {}, Memory: {}MB, per_cpu: {}, per_memory: {})",
             final_max, num_cpus, available_memory / (1024 * 1024), plugins_per_cpu, plugins_per_memory
         );
-        
+
         final_max
     })
 }
@@ -244,7 +245,7 @@ pub unsafe fn validate_plugin_context(context: *const PluginContext) -> Result<(
     }
 
     // Pointer alignment check (should be aligned for the structure)
-    if context as usize % std::mem::align_of::<PluginContext>() != 0 {
+    if !(context as usize).is_multiple_of(std::mem::align_of::<PluginContext>()) {
         tracing::error!("Security: Misaligned plugin context pointer");
         return Err(SecurityError::PointerValidationFailed);
     }
@@ -253,17 +254,17 @@ pub unsafe fn validate_plugin_context(context: *const PluginContext) -> Result<(
     let ctx = &*context;
 
     // These can be null, but if not null, they should be properly aligned
-    if !ctx.logger.is_null() && ctx.logger as usize % 8 != 0 {
+    if !ctx.logger.is_null() && !(ctx.logger as usize).is_multiple_of(8) {
         tracing::error!("Security: Misaligned logger pointer");
         return Err(SecurityError::PointerValidationFailed);
     }
 
-    if !ctx.config.is_null() && ctx.config as usize % 8 != 0 {
+    if !ctx.config.is_null() && !(ctx.config as usize).is_multiple_of(8) {
         tracing::error!("Security: Misaligned config pointer");
         return Err(SecurityError::PointerValidationFailed);
     }
 
-    if !ctx.service_registry.is_null() && ctx.service_registry as usize % 8 != 0 {
+    if !ctx.service_registry.is_null() && !(ctx.service_registry as usize).is_multiple_of(8) {
         tracing::error!("Security: Misaligned service registry pointer");
         return Err(SecurityError::PointerValidationFailed);
     }
@@ -339,6 +340,12 @@ pub struct PluginCapacityTracker {
     remote_hosts: Vec<String>, // URLs of remote Skylet instances
 }
 
+impl Default for PluginCapacityTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PluginCapacityTracker {
     /// Create a new capacity tracker with resource-based limits
     pub fn new() -> Self {
@@ -409,13 +416,25 @@ impl PluginCapacityTracker {
 /// Encrypted secret storage with AES-256-GCM
 ///
 /// Provides secure in-memory storage for secrets with automatic encryption/decryption
+///
+/// Type alias for encrypted secrets storage: name -> (ciphertext, nonce)
+type EncryptedSecretsMap =
+    std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>;
+
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct EncryptedSecretStore {
     /// Master key for encryption (32 bytes for AES-256)
     master_key: [u8; 32],
 
     /// Encrypted secrets: (name -> (ciphertext, nonce))
-    secrets:
-        std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Vec<u8>, [u8; 12])>>>,
+    #[zeroize(skip)]
+    secrets: EncryptedSecretsMap,
+}
+
+impl Default for EncryptedSecretStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EncryptedSecretStore {
@@ -475,9 +494,7 @@ impl EncryptedSecretStore {
 
         let secrets = self.secrets.lock().unwrap();
 
-        let (ciphertext, nonce_bytes) = secrets
-            .get(name)
-            .ok_or_else(|| SecurityError::NullPointer)?;
+        let (ciphertext, nonce_bytes) = secrets.get(name).ok_or(SecurityError::NullPointer)?;
 
         let key = Key::<Aes256Gcm>::from(self.master_key);
         let nonce = Nonce::from(*nonce_bytes);
@@ -560,16 +577,6 @@ impl EncryptedSecretStore {
             decrypted.len()
         );
         Ok(())
-    }
-}
-
-impl Drop for EncryptedSecretStore {
-    fn drop(&mut self) {
-        use zeroize::Zeroize;
-
-        // Securely clear the master key on drop
-        let mut key = self.master_key;
-        key.zeroize();
     }
 }
 
@@ -808,7 +815,7 @@ fn load_remote_hosts() -> Vec<String> {
     let mut hosts = Vec::new();
 
     // Try environment variable first
-    if let Ok(hosts_str) = std::env::var("SKYNET_REMOTE_HOSTS") {
+    if let Ok(hosts_str) = std::env::var("SKYLET_REMOTE_HOSTS") {
         for host in hosts_str.split(',') {
             let host = host.trim();
             if !host.is_empty() {
@@ -820,7 +827,7 @@ fn load_remote_hosts() -> Vec<String> {
 
     // Try to load from config file if available
     if hosts.is_empty() {
-        if let Ok(config_str) = std::env::var("SKYNET_CONFIG_DIR") {
+        if let Ok(config_str) = std::env::var("SKYLET_CONFIG_DIR") {
             let config_path = std::path::Path::new(&config_str).join("remote_hosts.conf");
             if config_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&config_path) {
@@ -849,31 +856,34 @@ fn load_remote_hosts() -> Vec<String> {
 /// Generate HMAC signature for PluginContext to prevent tampering
 ///
 /// Uses HMAC-SHA256 to sign the context structure
-pub fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> String {
+///
+/// # Safety
+///
+/// The caller must ensure the context pointer is valid and properly initialized,
+/// or null (which is handled safely).
+pub unsafe fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> String {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
     type HmacSha256 = Hmac<Sha256>;
 
     // Create a deterministic serialization of the context pointer values
-    let context_bytes = unsafe {
-        if context.is_null() {
-            vec![]
-        } else {
-            let ctx = &*context;
-            let mut bytes = Vec::new();
+    let context_bytes = if context.is_null() {
+        vec![]
+    } else {
+        let ctx = &*context;
+        let mut bytes = Vec::new();
 
-            // Include pointer values (not dereferencing them)
-            bytes.extend_from_slice(&(ctx.logger as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.config as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.service_registry as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.tracer as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.user_data as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.user_context_json as usize).to_le_bytes());
-            bytes.extend_from_slice(&(ctx.secrets as usize).to_le_bytes());
+        // Include pointer values (not dereferencing them)
+        bytes.extend_from_slice(&(ctx.logger as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.config as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.service_registry as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.tracer as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.user_data as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.user_context_json as usize).to_le_bytes());
+        bytes.extend_from_slice(&(ctx.secrets as usize).to_le_bytes());
 
-            bytes
-        }
+        bytes
     };
 
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC can take key of any size");
@@ -886,7 +896,12 @@ pub fn generate_context_signature(context: *const PluginContext, key: &[u8]) -> 
 /// Verify HMAC signature of PluginContext
 ///
 /// Returns Ok(()) if signature is valid, Err otherwise
-pub fn verify_context_signature(
+///
+/// # Safety
+///
+/// The caller must ensure the context pointer is valid and properly initialized,
+/// or null (which is handled safely).
+pub unsafe fn verify_context_signature(
     context: *const PluginContext,
     key: &[u8],
     expected_sig: &str,
@@ -981,7 +996,7 @@ impl PluginSandboxPolicy {
     pub fn restrictive(plugin_id: &str) -> Self {
         Self {
             plugin_id: plugin_id.to_string(),
-            allowed_capabilities: PluginCapabilities::READ_CONFIG as u64,
+            allowed_capabilities: PluginCapabilities::READ_CONFIG,
             max_memory: 128 * 1024 * 1024, // 128MB
             max_cpu_time: 5_000,           // 5 seconds
             max_bandwidth: 1024 * 1024,    // 1 MB/s
@@ -1039,6 +1054,12 @@ pub struct SandboxEnforcer {
         std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, PluginSandboxPolicy>>>,
 }
 
+impl Default for SandboxEnforcer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SandboxEnforcer {
     /// Create a new sandbox enforcer
     pub fn new() -> Self {
@@ -1065,9 +1086,9 @@ impl SandboxEnforcer {
 
         if let Some(policy) = policies.get(plugin_id) {
             let required_cap = if write {
-                PluginCapabilities::FILE_WRITE as u64
+                PluginCapabilities::FILE_WRITE
             } else {
-                PluginCapabilities::FILE_READ as u64
+                PluginCapabilities::FILE_READ
             };
 
             if !policy.has_capability(required_cap) {
@@ -1105,7 +1126,7 @@ impl SandboxEnforcer {
         let policies = self.policies.lock().unwrap();
 
         if let Some(policy) = policies.get(plugin_id) {
-            if !policy.has_capability(PluginCapabilities::NETWORK_OUTBOUND as u64) {
+            if !policy.has_capability(PluginCapabilities::NETWORK_OUTBOUND) {
                 tracing::error!(
                     "Sandbox: Plugin {} denied network access (missing capability)",
                     plugin_id
@@ -2292,9 +2313,7 @@ impl CredentialRotationManager {
             .as_secs();
 
         let mut rotations = self.rotations.lock().unwrap();
-        let history = rotations
-            .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new);
+        let history = rotations.entry(plugin_id.to_string()).or_default();
 
         history.push(RotationHistory {
             plugin_id: plugin_id.to_string(),
@@ -2606,9 +2625,7 @@ impl PluginAuthenticator {
         // Get current version number and create new version
         let new_version = {
             let mut versions = self.credential_versions.lock().unwrap();
-            let current_versions = versions
-                .entry(plugin_id.to_string())
-                .or_insert_with(Vec::new);
+            let current_versions = versions.entry(plugin_id.to_string()).or_default();
 
             let version_num = if current_versions.is_empty() {
                 1
@@ -2620,7 +2637,7 @@ impl PluginAuthenticator {
             let new_cred_version = CredentialVersion::new(version_num, new_credential.clone());
 
             // Mark old version as in grace period
-            if !current_versions.is_empty() && current_versions.len() > 0 {
+            if !current_versions.is_empty() {
                 if let Some(old_v) = current_versions.last_mut() {
                     old_v.status = CredentialStatus::Grace;
                     use std::time::{SystemTime, UNIX_EPOCH};
@@ -3303,6 +3320,12 @@ pub struct MFAManager {
     backup_codes: Arc<BackupCodeProvider>,
 }
 
+impl Default for MFAManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MFAManager {
     /// Create a new MFA manager
     pub fn new() -> Self {
@@ -3340,7 +3363,7 @@ impl MFAManager {
         let mut factors = self.factors.lock().unwrap();
         factors
             .entry(plugin_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(factor.clone());
 
         // Register with TOTP provider if applicable
@@ -3500,7 +3523,7 @@ impl KeyAlgorithm {
     }
 
     /// Parse algorithm from string representation
-    pub fn from_str(s: &str) -> Result<KeyAlgorithm, SecurityError> {
+    pub fn parse(s: &str) -> Result<KeyAlgorithm, SecurityError> {
         match s.to_uppercase().as_str() {
             "HS256" => Ok(KeyAlgorithm::HS256),
             "RS256" => Ok(KeyAlgorithm::RS256),
@@ -3541,7 +3564,7 @@ impl std::fmt::Display for KeyUsage {
 
 impl KeyUsage {
     /// Parse usage from string representation
-    pub fn from_str(s: &str) -> Result<KeyUsage, SecurityError> {
+    pub fn parse(s: &str) -> Result<KeyUsage, SecurityError> {
         match s.to_lowercase().as_str() {
             "encryption" => Ok(KeyUsage::Encryption),
             "signing" => Ok(KeyUsage::Signing),
@@ -3694,14 +3717,14 @@ mod tests {
         let key = [0u8; 32];
         // We can't easily create a PluginContext without FFI,
         // so we'll test the verify function returns an error for null
-        let result = verify_context_signature(std::ptr::null(), &key, "test_sig");
+        let result = unsafe { verify_context_signature(std::ptr::null(), &key, "test_sig") };
         assert!(result.is_err());
     }
 
     #[test]
     fn test_context_signature_verification_invalid() {
         let key = [0u8; 32];
-        let result = verify_context_signature(std::ptr::null(), &key, "invalid_sig");
+        let result = unsafe { verify_context_signature(std::ptr::null(), &key, "invalid_sig") };
         assert_eq!(result, Err(SecurityError::InvalidContextSignature));
     }
 
@@ -4556,7 +4579,7 @@ mod tests {
                 .unwrap();
 
             let versions = auth.get_credential_versions(&plugin_id).unwrap();
-            assert!(versions.len() > 0);
+            assert!(!versions.is_empty());
         }
     }
 
@@ -4919,7 +4942,7 @@ mod tests {
         auth.register_mfa_totp("plugin1").unwrap();
 
         let factors = auth.list_mfa_factors("plugin1").unwrap();
-        assert!(factors.len() > 0);
+        assert!(!factors.is_empty());
         assert_eq!(factors[0].method, MFAMethod::TOTP);
     }
 

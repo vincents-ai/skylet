@@ -28,7 +28,7 @@ pub struct TracerConfig {
 impl Default for TracerConfig {
     fn default() -> Self {
         Self {
-            service_name: "skynet".to_string(),
+            service_name: "skylet".to_string(),
             sampler: SamplerConfig::AlwaysOn,
             exporter: ExporterConfig::disabled(),
         }

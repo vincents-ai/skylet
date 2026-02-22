@@ -277,7 +277,7 @@ MIT
 See Also
 --------
 
-- skynet/CORE_REFACTORING.md - Overview of core refactoring and plugin structure
-- skynet/SECRET_INJECTION_SUMMARY.md - Secret injection system details
-- skynet/docs/SECRET_INJECTION.md - User guide for secret injection
-- skynet/src/secret_injection.rs - Original secret injection implementation
+- skylet/CORE_REFACTORING.md - Overview of core refactoring and plugin structure
+- skylet/SECRET_INJECTION_SUMMARY.md - Secret injection system details
+- skylet/docs/SECRET_INJECTION.md - User guide for secret injection
+- skylet/src/secret_injection.rs - Original secret injection implementation

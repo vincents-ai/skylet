@@ -92,15 +92,18 @@ impl SkyletPluginTracer {
 
     /// End a span
     pub fn end_span(&self, span_id: u64) {
-        let mut spans = self.spans.lock().unwrap();
-        if let Some(span) = spans.get_mut(&span_id) {
-            span.end_time = Some(current_time_nanos());
-        }
+        // Get the parent_id first, then release spans lock before acquiring active_span lock
+        // This prevents deadlock with set_attribute which acquires locks in opposite order
+        let parent_id = {
+            let mut spans = self.spans.lock().unwrap();
+            if let Some(span) = spans.get_mut(&span_id) {
+                span.end_time = Some(current_time_nanos());
+            }
+            spans.get(&span_id).and_then(|s| s.parent_id)
+        };
 
-        // Restore parent as active span
-        if let Some(span) = spans.get(&span_id) {
-            *self.active_span.lock().unwrap() = span.parent_id;
-        }
+        // Now safely update active_span without holding spans lock
+        *self.active_span.lock().unwrap() = parent_id;
     }
 
     /// Add an event to the active span

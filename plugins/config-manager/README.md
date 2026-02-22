@@ -48,14 +48,14 @@ Building the Plugin
 Build with default features:
 
 ```bash
-cd skynet
+cd skylet
 cargo build -p config-manager
 ```
 
 Build release binary (UPX compressed):
 
 ```bash
-cd skynet
+cd skylet
 nix build .#packages.default
 ```
 
@@ -435,7 +435,7 @@ Configuration can be overridden via environment variables with the AUTONOMOUS_ p
 export AUTONOMOUS_DATABASE_NODE_ID=2
 export AUTONOMOUS_TOR_SOCKS_PORT=9999
 export AUTONOMOUS_MONERO_NETWORK=mainnet
-./skynet
+./skylet
 ```
 
 Testing

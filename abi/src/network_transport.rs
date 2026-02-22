@@ -19,10 +19,11 @@ use std::ffi::{c_char, c_void};
 // ============================================================================
 
 /// Supported overlay network transport types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[repr(C)]
 pub enum OverlayTransportType {
     /// libp2p-based P2P mesh network
+    #[default]
     Libp2p,
     /// Tor hidden services
     Tor,
@@ -34,12 +35,6 @@ pub enum OverlayTransportType {
     Veilid,
     /// Custom/proprietary overlay
     Custom,
-}
-
-impl Default for OverlayTransportType {
-    fn default() -> Self {
-        Self::Libp2p
-    }
 }
 
 /// Tunnel configuration for creating encrypted tunnels
@@ -316,34 +311,59 @@ pub trait OverlayNetwork: Send + Sync {
     fn transport_type(&self) -> OverlayTransportType;
 
     /// Create a new tunnel with the given configuration
-    fn create_tunnel(&self, config: TunnelConfig) -> impl std::future::Future<Output = OverlayResult<TunnelInfo>> + Send;
+    fn create_tunnel(
+        &self,
+        config: TunnelConfig,
+    ) -> impl std::future::Future<Output = OverlayResult<TunnelInfo>> + Send;
 
     /// Delete an existing tunnel
-    fn delete_tunnel(&self, tunnel_id: &str) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
+    fn delete_tunnel(
+        &self,
+        tunnel_id: &str,
+    ) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
 
     /// Get information about a specific tunnel
-    fn get_tunnel(&self, tunnel_id: &str) -> impl std::future::Future<Output = OverlayResult<TunnelInfo>> + Send;
+    fn get_tunnel(
+        &self,
+        tunnel_id: &str,
+    ) -> impl std::future::Future<Output = OverlayResult<TunnelInfo>> + Send;
 
     /// List all active tunnels
-    fn list_tunnels(&self) -> impl std::future::Future<Output = OverlayResult<Vec<TunnelInfo>>> + Send;
+    fn list_tunnels(
+        &self,
+    ) -> impl std::future::Future<Output = OverlayResult<Vec<TunnelInfo>>> + Send;
 
     /// List known peers in the network
     fn list_peers(&self) -> impl std::future::Future<Output = OverlayResult<Vec<PeerInfo>>> + Send;
 
     /// Connect to a specific peer
-    fn connect_peer(&self, peer_id: &str) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
+    fn connect_peer(
+        &self,
+        peer_id: &str,
+    ) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
 
     /// Disconnect from a specific peer
-    fn disconnect_peer(&self, peer_id: &str) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
+    fn disconnect_peer(
+        &self,
+        peer_id: &str,
+    ) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
 
     /// Advertise a service on the overlay network
-    fn advertise_service(&self, service: ServiceAdvertisement) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
+    fn advertise_service(
+        &self,
+        service: ServiceAdvertisement,
+    ) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
 
     /// Remove a service advertisement
-    fn unadvertise_service(&self, service_name: &str) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
+    fn unadvertise_service(
+        &self,
+        service_name: &str,
+    ) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
 
     /// Get metrics for this overlay network
-    fn get_metrics(&self) -> impl std::future::Future<Output = OverlayResult<OverlayMetrics>> + Send;
+    fn get_metrics(
+        &self,
+    ) -> impl std::future::Future<Output = OverlayResult<OverlayMetrics>> + Send;
 
     /// Start the overlay network service
     fn start(&self) -> impl std::future::Future<Output = OverlayResult<()>> + Send;
@@ -377,16 +397,10 @@ pub struct OverlayNetworkV2 {
     ),
 
     /// List all tunnels
-    pub list_tunnels: extern "C" fn(
-        user_data: *mut c_void,
-        result: *mut OverlayTunnelListResult,
-    ),
+    pub list_tunnels: extern "C" fn(user_data: *mut c_void, result: *mut OverlayTunnelListResult),
 
     /// List all peers
-    pub list_peers: extern "C" fn(
-        user_data: *mut c_void,
-        result: *mut OverlayPeerListResult,
-    ),
+    pub list_peers: extern "C" fn(user_data: *mut c_void, result: *mut OverlayPeerListResult),
 
     /// Connect to a peer
     pub connect_peer: extern "C" fn(
@@ -410,10 +424,7 @@ pub struct OverlayNetworkV2 {
     ),
 
     /// Get overlay metrics
-    pub get_metrics: extern "C" fn(
-        user_data: *mut c_void,
-        result: *mut OverlayMetricsFFI,
-    ),
+    pub get_metrics: extern "C" fn(user_data: *mut c_void, result: *mut OverlayMetricsFFI),
 
     /// Free a string returned by the overlay
     pub free_string: extern "C" fn(user_data: *mut c_void, ptr: *mut c_char),
@@ -443,7 +454,7 @@ impl OverlayTransportType {
     }
 
     /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "libp2p" => Some(Self::Libp2p),
             "tor" => Some(Self::Tor),
@@ -512,7 +523,7 @@ mod tests {
 
         for t in types {
             let s = t.as_str();
-            let parsed = OverlayTransportType::from_str(s);
+            let parsed = OverlayTransportType::parse(s);
             assert_eq!(parsed, Some(t));
         }
     }

@@ -142,10 +142,11 @@ impl SecurityPolicyEngine {
         // Check pending limit
         {
             let pending = self.pending_approvals.read().unwrap();
-            let plugin_pending = pending.values()
+            let plugin_pending = pending
+                .values()
                 .filter(|a| a.plugin_id == plugin_id)
                 .count();
-            
+
             if plugin_pending >= self.policy.max_pending_per_plugin {
                 return Err(PolicyError::TooManyPendingRequests {
                     plugin_id: plugin_id.to_string(),
@@ -156,11 +157,11 @@ impl SecurityPolicyEngine {
 
         // Assess risk level
         let risk_level = self.assess_risk(capability);
-        
+
         // Determine if auto-approval applies
-        let status = if risk_level == RiskLevel::Minimal && self.policy.auto_approve_minimal {
-            ApprovalStatus::AutoApproved
-        } else if risk_level == RiskLevel::Low && self.policy.auto_approve_low {
+        let status = if (risk_level == RiskLevel::Minimal && self.policy.auto_approve_minimal)
+            || (risk_level == RiskLevel::Low && self.policy.auto_approve_low)
+        {
             ApprovalStatus::AutoApproved
         } else {
             ApprovalStatus::Pending
@@ -203,9 +204,11 @@ impl SecurityPolicyEngine {
     pub fn approve(&self, approval_id: &str, approver: &str) -> Result<(), PolicyError> {
         let approval = {
             let mut pending = self.pending_approvals.write().unwrap();
-            pending.remove(approval_id).ok_or_else(|| PolicyError::ApprovalNotFound {
-                id: approval_id.to_string(),
-            })?
+            pending
+                .remove(approval_id)
+                .ok_or_else(|| PolicyError::ApprovalNotFound {
+                    id: approval_id.to_string(),
+                })?
         };
 
         let mut approval = approval;
@@ -213,12 +216,13 @@ impl SecurityPolicyEngine {
         approval.approver = Some(approver.to_string());
 
         self.apply_approved_capability(&approval)?;
-        
+
         // Store in approved list
         {
             let mut approved = self.approved_capabilities.write().unwrap();
-            approved.entry(approval.plugin_id.clone())
-                .or_insert_with(Vec::new)
+            approved
+                .entry(approval.plugin_id.clone())
+                .or_default()
                 .push(approval);
         }
 
@@ -228,9 +232,13 @@ impl SecurityPolicyEngine {
     /// Deny a pending request
     pub fn deny(&self, approval_id: &str, reason: &str) -> Result<(), PolicyError> {
         let mut pending = self.pending_approvals.write().unwrap();
-        let approval = pending.get_mut(approval_id)
-            .ok_or_else(|| PolicyError::ApprovalNotFound { id: approval_id.to_string() })?;
-        
+        let approval =
+            pending
+                .get_mut(approval_id)
+                .ok_or_else(|| PolicyError::ApprovalNotFound {
+                    id: approval_id.to_string(),
+                })?;
+
         approval.status = ApprovalStatus::Denied;
         approval.denial_reason = Some(reason.to_string());
 
@@ -246,7 +254,8 @@ impl SecurityPolicyEngine {
     /// Get pending approvals for a plugin
     pub fn get_pending_for_plugin(&self, plugin_id: &str) -> Vec<CapabilityApproval> {
         let pending = self.pending_approvals.read().unwrap();
-        pending.values()
+        pending
+            .values()
             .filter(|a| a.plugin_id == plugin_id)
             .cloned()
             .collect()
@@ -261,15 +270,20 @@ impl SecurityPolicyEngine {
     /// Check if a capability is approved
     pub fn is_capability_approved(&self, plugin_id: &str, capability_type: CapabilityType) -> bool {
         let approved = self.approved_capabilities.read().unwrap();
-        approved.get(plugin_id)
-            .map(|caps| caps.iter().any(|c| c.capability_type == capability_type && c.status == ApprovalStatus::Approved))
+        approved
+            .get(plugin_id)
+            .map(|caps| {
+                caps.iter().any(|c| {
+                    c.capability_type == capability_type && c.status == ApprovalStatus::Approved
+                })
+            })
             .unwrap_or(false)
     }
 
     /// Revoke an approved capability
     pub fn revoke(&self, plugin_id: &str, approval_id: &str) -> Result<(), PolicyError> {
         let mut approved = self.approved_capabilities.write().unwrap();
-        
+
         if let Some(capabilities) = approved.get_mut(plugin_id) {
             if let Some(cap) = capabilities.iter_mut().find(|c| c.id == approval_id) {
                 cap.status = ApprovalStatus::Expired;
@@ -277,7 +291,9 @@ impl SecurityPolicyEngine {
             }
         }
 
-        Err(PolicyError::ApprovalNotFound { id: approval_id.to_string() })
+        Err(PolicyError::ApprovalNotFound {
+            id: approval_id.to_string(),
+        })
     }
 
     /// Assess risk level for a capability
@@ -324,8 +340,12 @@ impl SecurityPolicyEngine {
     fn apply_approval(&self, approval_id: &str) -> Result<(), PolicyError> {
         let approval = {
             let pending = self.pending_approvals.read().unwrap();
-            pending.get(approval_id).cloned()
-                .ok_or_else(|| PolicyError::ApprovalNotFound { id: approval_id.to_string() })?
+            pending
+                .get(approval_id)
+                .cloned()
+                .ok_or_else(|| PolicyError::ApprovalNotFound {
+                    id: approval_id.to_string(),
+                })?
         };
 
         self.apply_approved_capability(&approval)?;
@@ -335,11 +355,12 @@ impl SecurityPolicyEngine {
             let mut pending = self.pending_approvals.write().unwrap();
             pending.remove(approval_id);
         }
-        
+
         {
             let mut approved = self.approved_capabilities.write().unwrap();
-            approved.entry(approval.plugin_id.clone())
-                .or_insert_with(Vec::new)
+            approved
+                .entry(approval.plugin_id.clone())
+                .or_default()
                 .push(approval);
         }
 
@@ -365,13 +386,11 @@ impl SecurityPolicyEngine {
     /// Clean up expired approvals
     pub fn cleanup_expired(&self) {
         let now = Instant::now();
-        
+
         // Clean pending
         {
             let mut pending = self.pending_approvals.write().unwrap();
-            pending.retain(|_, approval| {
-                approval.expires_at.map(|exp| exp > now).unwrap_or(true)
-            });
+            pending.retain(|_, approval| approval.expires_at.map(|exp| exp > now).unwrap_or(true));
         }
 
         // Clean approved
@@ -412,7 +431,11 @@ impl std::fmt::Display for PolicyError {
         match self {
             PolicyError::ApprovalNotFound { id } => write!(f, "Approval not found: {}", id),
             PolicyError::TooManyPendingRequests { plugin_id, max } => {
-                write!(f, "Too many pending requests for plugin {} (max: {})", plugin_id, max)
+                write!(
+                    f,
+                    "Too many pending requests for plugin {} (max: {})",
+                    plugin_id, max
+                )
             }
             PolicyError::CapabilityDenied { reason } => write!(f, "Capability denied: {}", reason),
             PolicyError::MfaRequired => write!(f, "MFA required for this operation"),
@@ -426,13 +449,13 @@ impl std::error::Error for PolicyError {}
 fn uuid_v4_short() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    
+
     let count = COUNTER.fetch_add(1, Ordering::SeqCst);
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0);
-    
+
     format!("{:08x}{:08x}", timestamp & 0xFFFFFFFF, count & 0xFFFFFFFF)
 }
 
@@ -449,16 +472,16 @@ mod tests {
     #[test]
     fn test_request_approval_auto() {
         let engine = SecurityPolicyEngine::new();
-        
+
         let cap = CapabilityInfo {
             type_: CapabilityType::Filesystem,
             data: std::ptr::null(),
             description: std::ptr::null(),
         };
-        
+
         let result = engine.request_approval("test-plugin", &cap, "Test capability");
         assert!(result.is_ok());
-        
+
         let approval_id = result.unwrap();
         // Should be auto-approved (medium risk with auto_approve_minimal=true)
         // Actually filesystem is medium risk, so needs manual approval
@@ -468,14 +491,14 @@ mod tests {
     #[test]
     fn test_assess_risk() {
         let engine = SecurityPolicyEngine::new();
-        
+
         let cap = CapabilityInfo {
             type_: CapabilityType::Command,
             data: std::ptr::null(),
             description: std::ptr::null(),
         };
         assert_eq!(engine.assess_risk(&cap), RiskLevel::High);
-        
+
         let cap = CapabilityInfo {
             type_: CapabilityType::Secrets,
             data: std::ptr::null(),
@@ -487,18 +510,20 @@ mod tests {
     #[test]
     fn test_approve_deny() {
         let engine = SecurityPolicyEngine::new();
-        
+
         let cap = CapabilityInfo {
             type_: CapabilityType::Network,
             data: std::ptr::null(),
             description: std::ptr::null(),
         };
-        
-        let approval_id = engine.request_approval("test-plugin", &cap, "Network access").unwrap();
-        
+
+        let approval_id = engine
+            .request_approval("test-plugin", &cap, "Network access")
+            .unwrap();
+
         // Deny it
         engine.deny(&approval_id, "Not allowed").unwrap();
-        
+
         let pending = engine.get_pending_for_plugin("test-plugin");
         let denied = pending.iter().find(|a| a.id == approval_id);
         // After denial, it's still in pending with Denied status

@@ -381,8 +381,8 @@ This project is licensed under the **Apache License 2.0**.
 
 ### Getting Help
 - **Documentation**: Start with [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/vincents-ai/skynet/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/vincents-ai/skynet/discussions)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/vincents-ai/skylet/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/vincents-ai/skylet/discussions)
 - **Security**: Report vulnerabilities to `shift+security@someone.section.me` (not public issues)
 
 ### Community
@@ -434,6 +434,6 @@ Special thanks to:
 
 **Made with ❤️ by Vincents AI**
 
-[Repository](https://github.com/vincents-ai/skynet) | 
-[Issues](https://github.com/vincents-ai/skynet/issues) | 
-[Discussions](https://github.com/vincents-ai/skynet/discussions)
+[Repository](https://github.com/vincents-ai/skylet) | 
+[Issues](https://github.com/vincents-ai/skylet/issues) | 
+[Discussions](https://github.com/vincents-ai/skylet/discussions)

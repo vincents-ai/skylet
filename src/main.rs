@@ -2,37 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-mod logging;
 mod bootstrap;
-mod plugin_manager;
 mod config;
+mod logging;
+mod plugin_manager;
 
-use anyhow::Result;
 use crate::config::AppConfig;
-use axum::{
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-    extract::State,
-};
-use serde_json::json;
+use anyhow::Result;
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
+use bootstrap::{load_bootstrap_plugins, shutdown_bootstrap_plugins, BootstrapContext};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{info, warn, error};
-use bootstrap::{load_bootstrap_plugins, shutdown_bootstrap_plugins, BootstrapContext};
+use tracing::{error, info, warn};
 
 // GAP-003: Import auth HTTP handlers from permissions crate
 use permissions::http::{auth_router, AuthState};
 
 // CQ-003: Import dynamic plugin discovery
-use plugin_manager::discovery::{PluginDiscovery, DiscoveryConfig};
+use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
 
 #[derive(Parser)]
 #[command(name = "skylet")]
@@ -71,7 +65,7 @@ impl AppState {
             started_at: chrono::Utc::now(),
         }
     }
-    
+
     pub async fn add_plugin(&self, name: &str, status: &str, abi_version: &str) {
         let mut plugins = self.plugins.write().await;
         plugins.push(PluginHealth {
@@ -83,11 +77,13 @@ impl AppState {
     }
 }
 
-async fn health_handler(State(state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn health_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let plugins = state.plugins.read().await;
     let healthy_count = plugins.iter().filter(|p| p.status == "healthy").count();
     let total_count = plugins.len();
-    
+
     let status = if healthy_count == total_count && total_count > 0 {
         "healthy"
     } else if healthy_count > 0 {
@@ -95,7 +91,7 @@ async fn health_handler(State(state): State<Arc<AppState>>) -> Result<Json<serde
     } else {
         "unhealthy"
     };
-    
+
     Ok(Json(json!({
         "status": status,
         "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -123,15 +119,16 @@ async fn main() -> Result<()> {
         use std::sync::Mutex;
         let buf = Arc::new(Mutex::new(Vec::new()));
         let subscriber = crate::logging::subscriber_with_buffer(buf);
-        tracing::subscriber::set_global_default(subscriber).expect("Failed to set global subscriber");
+        tracing::subscriber::set_global_default(subscriber)
+            .expect("Failed to set global subscriber");
     }
     let cli = Cli::parse();
     let config = AppConfig::load()?;
-    
+
     // Create data directory if it doesn't exist
     std::fs::create_dir_all(&config.data.directory)?;
     std::fs::create_dir_all(&config.plugins.directory)?;
-    
+
     match cli.command {
         Commands::Server => run_server(config).await,
         Commands::MigrateSource => run_migrate_source(config),
@@ -142,18 +139,22 @@ async fn main() -> Result<()> {
 
 async fn run_server(config: AppConfig) -> Result<()> {
     info!("Starting autonomous marketplace server...");
-    
+
     let app_state = Arc::new(AppState::new());
-    
+
     // Load bootstrap plugins
     info!("Loading bootstrap plugins...");
     let bootstrap_context = match load_bootstrap_plugins(None) {
         Ok(ctx) => {
             info!("Bootstrap plugins loaded successfully");
-            app_state.add_plugin("config-manager", "healthy", "v2").await;
+            app_state
+                .add_plugin("config-manager", "healthy", "v2")
+                .await;
             app_state.add_plugin("logging", "healthy", "v2").await;
             app_state.add_plugin("registry", "healthy", "v2").await;
-            app_state.add_plugin("secrets-manager", "healthy", "v2").await;
+            app_state
+                .add_plugin("secrets-manager", "healthy", "v2")
+                .await;
             ctx
         }
         Err(e) => {
@@ -161,10 +162,10 @@ async fn run_server(config: AppConfig) -> Result<()> {
             BootstrapContext::new()
         }
     };
-    
+
     // CQ-003: Dynamic plugin discovery - discover plugins from filesystem
     info!("Discovering application plugins...");
-    
+
     // Create discovery config from AppConfig.plugins settings
     let discovery_config = DiscoveryConfig {
         search_paths: vec![config.plugins.directory.clone()],
@@ -173,7 +174,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
         probe_abi_version: config.plugins.probe_abi_version,
         include_debug_builds: config.plugins.include_debug_builds,
     };
-    
+
     let discovery = PluginDiscovery::new(discovery_config);
     let app_plugins = match discovery.discover_for_loading() {
         Ok(plugins) => {
@@ -185,49 +186,58 @@ async fn run_server(config: AppConfig) -> Result<()> {
             vec![]
         }
     };
-    
+
     let loader = bootstrap::DynamicPluginLoader::new();
     for (plugin_name, abi_version) in app_plugins {
         match loader.load_plugin(&plugin_name) {
             Ok(_) => {
                 info!("Loaded application plugin: {}", plugin_name);
-                app_state.add_plugin(&plugin_name, "healthy", &abi_version).await;
+                app_state
+                    .add_plugin(&plugin_name, "healthy", &abi_version)
+                    .await;
             }
             Err(e) => {
                 warn!("Failed to load application plugin '{}': {}", plugin_name, e);
-                app_state.add_plugin(&plugin_name, "failed", &abi_version).await;
+                app_state
+                    .add_plugin(&plugin_name, "failed", &abi_version)
+                    .await;
             }
         }
     }
-    
+
     // Simplified server startup, relying on plugins for networking
     let app = Router::new()
         .route("/health", get(health_handler))
         .with_state(app_state.clone())
-        .layer(ServiceBuilder::new()
-            .layer(TraceLayer::new_for_http())
-            .layer(CorsLayer::permissive())
-            .into_inner());
-    
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(CorsLayer::permissive())
+                .into_inner(),
+        );
+
     // GAP-003: Create separate auth server on internal port
     let auth_state = Arc::new(AuthState::new());
     let auth_app = auth_router(auth_state);
-    
+
     // Use config server settings
     let port = config.server.port;
-    let host: std::net::IpAddr = config.server.host.parse()
+    let host: std::net::IpAddr = config
+        .server
+        .host
+        .parse()
         .unwrap_or_else(|_| "0.0.0.0".parse().unwrap());
     let addr = SocketAddr::from((host, port));
     info!("Server listening on {}", addr);
-    
+
     // Auth server on port + 1 (internal API)
     let auth_port = port + 1;
     let auth_addr = SocketAddr::from((host, auth_port));
     info!("Auth server listening on {}", auth_addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let auth_listener = tokio::net::TcpListener::bind(auth_addr).await?;
-    
+
     // Set up graceful shutdown signal handler
     let shutdown_signal = async {
         match tokio::signal::ctrl_c().await {
@@ -239,7 +249,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
             }
         }
     };
-    
+
     // GAP-003: Run both servers concurrently with shared shutdown
     tokio::select! {
         result = axum::serve(listener, app) => {
@@ -256,13 +266,13 @@ async fn run_server(config: AppConfig) -> Result<()> {
             info!("Shutdown signal received");
         }
     }
-    
+
     // Shutdown bootstrap plugins before exiting
     info!("Shutting down bootstrap plugins...");
     if let Err(e) = shutdown_bootstrap_plugins(bootstrap_context) {
         error!("Error during bootstrap plugin shutdown: {}", e);
     }
-    
+
     info!("Server shutdown complete");
     Ok(())
 }
@@ -281,4 +291,3 @@ async fn run_maintenance(_config: AppConfig) -> Result<()> {
     tracing::info!("Maintenance: not implemented");
     Ok(())
 }
-

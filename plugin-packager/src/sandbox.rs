@@ -42,7 +42,7 @@ impl Permission {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s {
             "filesystem" => Some(Permission::FileSystem),
             "network" => Some(Permission::Network),
@@ -148,7 +148,7 @@ impl SandboxSeverity {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "info" => Some(SandboxSeverity::Info),
             "warning" => Some(SandboxSeverity::Warning),
@@ -480,7 +480,7 @@ impl PluginSandboxVerifier {
             ),
             details: Some(format!("Description: {}", capability.description)),
             remediation: if dangerous_perms > 0 {
-                Some(format!("Reduce high-risk permissions for this capability"))
+                Some("Reduce high-risk permissions for this capability".to_string())
             } else {
                 None
             },
@@ -527,13 +527,13 @@ mod tests {
     }
 
     #[test]
-    fn test_permission_from_str() {
+    fn test_permission_try_parse() {
         assert_eq!(
-            Permission::from_str("filesystem"),
+            Permission::try_parse("filesystem"),
             Some(Permission::FileSystem)
         );
-        assert_eq!(Permission::from_str("network"), Some(Permission::Network));
-        assert_eq!(Permission::from_str("unknown"), None);
+        assert_eq!(Permission::try_parse("network"), Some(Permission::Network));
+        assert_eq!(Permission::try_parse("unknown"), None);
     }
 
     #[test]
@@ -564,12 +564,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sandbox_severity_from_str() {
+    fn test_sandbox_severity_try_parse() {
         assert_eq!(
-            SandboxSeverity::from_str("info"),
+            SandboxSeverity::try_parse("info"),
             Some(SandboxSeverity::Info)
         );
-        assert_eq!(SandboxSeverity::from_str("unknown"), None);
+        assert_eq!(SandboxSeverity::try_parse("unknown"), None);
     }
 
     #[test]

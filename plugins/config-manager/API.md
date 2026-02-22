@@ -142,7 +142,7 @@ Load configuration from a file (TOML, JSON, or YAML format).
   - Type: *const c_char
   - Description: Path to configuration file
   - Supported formats: `.toml`, `.json`, `.yaml`, `.yml`
-  - Examples: `/etc/skynet/config.toml`, `./config.json`, `$HOME/.config/app.yaml`
+  - Examples: `/etc/skylet/config.toml`, `./config.json`, `$HOME/.config/app.yaml`
   - Must be valid UTF-8 string
   - Can be absolute or relative path
 
@@ -159,7 +159,7 @@ Load configuration from a file (TOML, JSON, or YAML format).
 ```json
 {
   "success": true,
-  "message": "Configuration loaded from /etc/skynet/config.toml"
+  "message": "Configuration loaded from /etc/skylet/config.toml"
 }
 ```
 
@@ -175,7 +175,7 @@ Load configuration from a file (TOML, JSON, or YAML format).
 ```json
 {
   "success": false,
-  "error": "File not found: /etc/skynet/config.toml"
+  "error": "File not found: /etc/skylet/config.toml"
 }
 ```
 
@@ -258,7 +258,7 @@ tor:
 #!/bin/bash
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d '{"path": "/etc/skynet/config.toml"}'
+  -d '{"path": "/etc/skylet/config.toml"}'
 ```
 
 **Python - Load JSON configuration:**
@@ -274,7 +274,7 @@ lib.config_load.argtypes = [ctypes.c_char_p]
 lib.config_load.restype = ctypes.c_char_p
 
 # Call function
-path = b'/etc/skynet/config.json'
+path = b'/etc/skylet/config.json'
 result = lib.config_load(path)
 response = json.loads(result.decode('utf-8'))
 
@@ -296,7 +296,7 @@ unsafe {
     let config_load: libloading::Symbol<unsafe extern "C" fn(*const std::ffi::c_char) -> *const std::ffi::c_char>
         = lib.get(b"config_load")?;
 
-    let path = CString::new("/etc/skynet/config.yaml")?;
+    let path = CString::new("/etc/skylet/config.yaml")?;
     let result_ptr = config_load(path.as_ptr());
     let result_str = CStr::from_ptr(result_ptr).to_string_lossy();
     

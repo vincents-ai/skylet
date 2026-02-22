@@ -1,0 +1,23 @@
+[package]
+name = "marketplace"
+version = "0.1.0"
+edition = "2021"
+description = "Marketplace plugin for listings and transactions management"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+repository = "https://github.com/vincents-ai/skylet"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+skylet-plugin-common = { path = "../skylet-plugin-common" }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync"] }
+chrono = { workspace = true }
+rusqlite = { workspace = true }

@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-pub mod service;
 pub mod assertions;
 pub mod database;
+pub mod service;
 
 pub struct TestEnvironment {
     name: String,

@@ -24,7 +24,7 @@ impl AbiVersion {
         Self { major, minor }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() == 2 {
             if let (Ok(major), Ok(minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
@@ -102,7 +102,7 @@ impl CompatibilityLevel {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s {
             "Incompatible" => Some(CompatibilityLevel::Incompatible),
             "Deprecated" => Some(CompatibilityLevel::Deprecated),
@@ -373,8 +373,8 @@ mod tests {
     }
 
     #[test]
-    fn test_abi_version_from_str() {
-        let v = AbiVersion::from_str("2.1").unwrap();
+    fn test_abi_version_try_parse() {
+        let v = AbiVersion::try_parse("2.1").unwrap();
         assert_eq!(v.major, 2);
         assert_eq!(v.minor, 1);
     }
@@ -444,11 +444,11 @@ mod tests {
     #[test]
     fn test_compatibility_level_from_str() {
         assert_eq!(
-            CompatibilityLevel::from_str("Compatible"),
+            CompatibilityLevel::try_parse("Compatible"),
             Some(CompatibilityLevel::Compatible)
         );
         assert_eq!(
-            CompatibilityLevel::from_str("Incompatible"),
+            CompatibilityLevel::try_parse("Incompatible"),
             Some(CompatibilityLevel::Incompatible)
         );
     }

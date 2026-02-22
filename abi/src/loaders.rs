@@ -125,7 +125,7 @@ fn extract_capabilities(info: &PluginInfoV2) -> PluginCapabilities {
         supports_hot_reload: info.supports_hot_reload,
         supports_async: info.supports_async,
         supports_streaming: info.supports_streaming,
-        max_concurrency: info.max_concurrency as usize,
+        max_concurrency: info.max_concurrency,
         requires_services: Vec::new(), // TODO: Extract from requires_services
         provides_services: Vec::new(), // TODO: Extract from provides_services
         declared_capabilities: Vec::new(), // TODO: Extract from capabilities

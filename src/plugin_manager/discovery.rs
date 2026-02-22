@@ -58,8 +58,7 @@ impl DiscoveredPlugin {
 
     /// Check if this plugin matches a given name
     pub fn matches_name(&self, pattern: &str) -> bool {
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             self.name.starts_with(prefix)
         } else {
             self.name == pattern
@@ -105,7 +104,7 @@ impl Default for DiscoveryConfig {
                 "*_test".to_string(),
                 "*_template".to_string(),
                 // Proc macros and build-time dependencies (not plugins)
-                "skynet_sdk_macros".to_string(),
+                "skylet_sdk_macros".to_string(),
             ],
             include_patterns: vec![],
             probe_abi_version: true,
@@ -120,8 +119,8 @@ impl DiscoveryConfig {
         vec![
             PathBuf::from("./target/release"),
             PathBuf::from("./target/debug"),
-            PathBuf::from("/usr/local/lib/skynet/plugins"),
-            PathBuf::from("/usr/lib/skynet/plugins"),
+            PathBuf::from("/usr/local/lib/skylet/plugins"),
+            PathBuf::from("/usr/lib/skylet/plugins"),
         ]
     }
 

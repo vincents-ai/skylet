@@ -144,10 +144,10 @@ pub struct ABICompatibleInfo {
     pub abi_version: ABIVersion,
 
     /// Minimum Skylet version required
-    pub skynet_version_min: Option<String>,
+    pub skylet_version_min: Option<String>,
 
     /// Maximum Skylet version supported
-    pub skynet_version_max: Option<String>,
+    pub skylet_version_max: Option<String>,
 
     /// Plugin maturity level
     pub maturity_level: MaturityLevel,
@@ -519,8 +519,8 @@ mod tests {
             name: "test-plugin".to_string(),
             version: "1.0.0".to_string(),
             abi_version: ABIVersion::V2,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level: MaturityLevel::Stable,
             category: PluginCategory::Utility,
             author: Some("Test Author".to_string()),
@@ -553,8 +553,8 @@ mod tests {
             name: "test-plugin".to_string(),
             version: "1.0.0".to_string(),
             abi_version: ABIVersion::V2,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level: MaturityLevel::Stable,
             category: PluginCategory::Utility,
             author: None,
@@ -577,8 +577,8 @@ mod tests {
             name: "test-plugin".to_string(),
             version: "1.0.0".to_string(),
             abi_version: ABIVersion::V2,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level: MaturityLevel::Deprecated,
             category: PluginCategory::Utility,
             author: None,

@@ -1,6 +1,6 @@
 # Example Plugins
 
-This directory contains example plugins demonstrating the Skynet Execution Engine plugin system.
+This directory contains example plugins demonstrating the Skylet Execution Engine plugin system.
 
 ## Getting Started
 

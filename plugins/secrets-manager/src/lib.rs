@@ -7,22 +7,21 @@
 mod v2_ffi;
 
 use anyhow::{anyhow, Result};
-use chrono;
+use serde::{Deserialize, Serialize};
 use skylet_abi::audit::{
-    AuditEvent, AuditEventType, AuditPluginRegistry, AuditSeverity,
-    DefaultAuditRegistry,
+    AuditEvent, AuditEventType, AuditPluginRegistry, AuditSeverity, DefaultAuditRegistry,
 };
 use skylet_abi::security::EncryptedSecretStore;
 use skylet_abi::*;
-use serde::{Deserialize, Serialize};
+use skylet_plugin_common::config_paths;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::path::Path;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::{Arc, Mutex};
 use std::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use std::sync::{Arc, Mutex};
+use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
 
 // ============================================================================
@@ -89,15 +88,17 @@ impl SecretValue {
     pub fn as_str(&self) -> &str {
         &self.value
     }
-
-    pub fn to_string(&self) -> String {
-        self.value.clone()
-    }
 }
 
 impl Drop for SecretValue {
     fn drop(&mut self) {
         self.value.zeroize();
+    }
+}
+
+impl std::fmt::Display for SecretValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -409,11 +410,11 @@ impl RotationPolicyConfig {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
 
-        Self::from_str(&content)
+        Self::parse(&content)
     }
 
     /// Parse configuration from TOML string
-    pub fn from_str(content: &str) -> Result<Self> {
+    pub fn parse(content: &str) -> Result<Self> {
         let config: RotationPolicyConfig =
             toml::from_str(content).map_err(|e| anyhow!("Failed to parse configuration: {}", e))?;
 
@@ -422,19 +423,29 @@ impl RotationPolicyConfig {
     }
 
     /// Load configuration from environment variable or file
-    /// Looks for SKYNET_ROTATION_POLICY_CONFIG env var pointing to a file,
-    /// or uses the default configuration
+    /// Looks for SKYLET_ROTATION_POLICY_CONFIG env var pointing to a file,
+    /// or uses RFC-0006 compliant config paths, or falls back to defaults
     pub fn load_from_env_or_default() -> Result<Self> {
-        if let Ok(config_path) = std::env::var("SKYNET_ROTATION_POLICY_CONFIG") {
+        // First check environment variable
+        if let Ok(config_path) = std::env::var("SKYLET_ROTATION_POLICY_CONFIG") {
             debug!(
-                "Loading rotation policy configuration from: {}",
+                "Loading rotation policy configuration from env: {}",
                 config_path
             );
-            Self::from_file(Path::new(&config_path))
-        } else {
-            debug!("Using default rotation policy configuration");
-            Ok(Self::default())
+            return Self::from_file(Path::new(&config_path));
         }
+        
+        // Then check RFC-0006 compliant config paths
+        if let Some(path) = config_paths::find_config("secrets-manager") {
+            debug!(
+                "Loading rotation policy configuration from: {:?}",
+                path
+            );
+            return Self::from_file(&path);
+        }
+        
+        debug!("Using default rotation policy configuration");
+        Ok(Self::default())
     }
 
     /// Export configuration to TOML format
@@ -512,7 +523,7 @@ impl SecretVersion {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         Self {
             version_id: uuid::Uuid::new_v4().to_string(),
             secret_key,
@@ -527,7 +538,10 @@ impl SecretVersion {
 
     /// Check if this version is accessible (Active or Deprecated)
     pub fn is_accessible(&self) -> bool {
-        matches!(self.status, SecretVersionStatus::Active | SecretVersionStatus::Deprecated)
+        matches!(
+            self.status,
+            SecretVersionStatus::Active | SecretVersionStatus::Deprecated
+        )
     }
 
     /// Check if this version is the active one
@@ -570,41 +584,47 @@ pub struct SecretMetadata {
 pub trait VersionedSecretBackend: Send + Sync {
     /// Get the active version of a secret
     fn get(&self, key: &str) -> Result<SecretValue>;
-    
+
     /// Get a specific version by ID
     fn get_version(&self, key: &str, version_id: &str) -> Result<SecretVersion>;
-    
+
     /// Get the active version metadata
     fn get_active_version(&self, key: &str) -> Result<SecretVersion>;
-    
+
     /// Get all accessible versions (Active and Deprecated) for a secret
     fn get_all_versions(&self, key: &str) -> Result<Vec<SecretVersion>>;
-    
+
     /// Set/create a new secret (creates first version)
     fn set(&self, key: &str, value: SecretValue) -> Result<SecretVersion>;
-    
+
     /// Rotate a secret - create new version, deprecate old
-    fn rotate(&self, key: &str, new_value: SecretValue, reason: Option<&str>, rotated_by: Option<&str>) -> Result<SecretVersion>;
-    
+    fn rotate(
+        &self,
+        key: &str,
+        new_value: SecretValue,
+        reason: Option<&str>,
+        rotated_by: Option<&str>,
+    ) -> Result<SecretVersion>;
+
     /// Delete all versions of a secret
     fn delete(&self, key: &str) -> Result<()>;
-    
+
     /// Delete a specific version
     fn delete_version(&self, key: &str, version_id: &str) -> Result<()>;
-    
+
     /// List all secret keys
     fn list(&self, prefix: &str) -> Result<Vec<String>>;
-    
+
     /// Get metadata for a secret
     fn get_metadata(&self, key: &str) -> Result<SecretMetadata>;
-    
+
     /// Update rotation policy for a secret
     fn update_rotation_policy(&self, key: &str, policy: RotationPolicyConfig) -> Result<()>;
-    
+
     /// Clean up expired versions (mark PendingDeletion)
     /// Returns count of versions marked for deletion
     fn cleanup_expired_versions(&self) -> Result<u32>;
-    
+
     /// Permanently delete versions marked for deletion
     /// Returns count of versions permanently deleted
     fn purge_deleted_versions(&self) -> Result<u32>;
@@ -655,82 +675,97 @@ impl Default for VersionedInMemoryBackend {
 
 impl VersionedSecretBackend for VersionedInMemoryBackend {
     fn get(&self, key: &str) -> Result<SecretValue> {
-        let versions = self.versions.read()
+        let versions = self
+            .versions
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let key_versions = versions.get(key)
+
+        let key_versions = versions
+            .get(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
+
         // Find the active version
-        let active = key_versions.iter()
+        let active = key_versions
+            .iter()
             .find(|v| v.status == SecretVersionStatus::Active)
             .ok_or_else(|| anyhow!("No active version found for secret: {}", key))?;
-        
+
         Ok(active.value.clone())
     }
 
     fn get_version(&self, key: &str, version_id: &str) -> Result<SecretVersion> {
-        let versions = self.versions.read()
+        let versions = self
+            .versions
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let key_versions = versions.get(key)
+
+        let key_versions = versions
+            .get(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
-        key_versions.iter()
+
+        key_versions
+            .iter()
             .find(|v| v.version_id == version_id && v.is_accessible())
             .cloned()
             .ok_or_else(|| anyhow!("Version {} not found for secret: {}", version_id, key))
     }
 
     fn get_active_version(&self, key: &str) -> Result<SecretVersion> {
-        let versions = self.versions.read()
+        let versions = self
+            .versions
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let key_versions = versions.get(key)
+
+        let key_versions = versions
+            .get(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
-        key_versions.iter()
+
+        key_versions
+            .iter()
             .find(|v| v.status == SecretVersionStatus::Active)
             .cloned()
             .ok_or_else(|| anyhow!("No active version found for secret: {}", key))
     }
 
     fn get_all_versions(&self, key: &str) -> Result<Vec<SecretVersion>> {
-        let versions = self.versions.read()
+        let versions = self
+            .versions
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let key_versions = versions.get(key)
+
+        let key_versions = versions
+            .get(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
-        Ok(key_versions.iter()
+
+        Ok(key_versions
+            .iter()
             .filter(|v| v.is_accessible())
             .cloned()
             .collect())
     }
 
     fn set(&self, key: &str, value: SecretValue) -> Result<SecretVersion> {
-        let mut versions = self.versions.write()
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        let mut metadata = self.metadata.write()
+        let mut metadata = self
+            .metadata
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         // Create new version
-        let version = SecretVersion::new(
-            key.to_string(),
-            value,
-            None,
-            None,
-        );
-        
+        let version = SecretVersion::new(key.to_string(), value, None, None);
+
         // Store version
         let key_versions = versions.entry(key.to_string()).or_default();
         key_versions.push(version.clone());
-        
+
         // Create/update metadata
         let meta = SecretMetadata {
             key: key.to_string(),
@@ -741,26 +776,37 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
             rotation_policy: self.default_policy.clone(),
         };
         metadata.insert(key.to_string(), meta);
-        
+
         Ok(version)
     }
 
-    fn rotate(&self, key: &str, new_value: SecretValue, reason: Option<&str>, rotated_by: Option<&str>) -> Result<SecretVersion> {
-        let mut versions = self.versions.write()
+    fn rotate(
+        &self,
+        key: &str,
+        new_value: SecretValue,
+        reason: Option<&str>,
+        rotated_by: Option<&str>,
+    ) -> Result<SecretVersion> {
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        let mut metadata = self.metadata.write()
+        let mut metadata = self
+            .metadata
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         // Get the policy for overlap calculation
-        let policy = metadata.get(key)
+        let policy = metadata
+            .get(key)
             .map(|m| m.rotation_policy.clone())
             .unwrap_or_else(|| self.default_policy.clone());
-        
+
         // Deprecate existing active version
         if let Some(key_versions) = versions.get_mut(key) {
             for version in key_versions.iter_mut() {
@@ -770,7 +816,7 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
                 }
             }
         }
-        
+
         // Create new active version
         let new_version = SecretVersion::new(
             key.to_string(),
@@ -778,11 +824,11 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
             reason.map(|s| s.to_string()),
             rotated_by.map(|s| s.to_string()),
         );
-        
+
         // Store new version
         let key_versions = versions.entry(key.to_string()).or_default();
         key_versions.push(new_version.clone());
-        
+
         // Update metadata
         let meta = metadata.entry(key.to_string()).or_insert(SecretMetadata {
             key: key.to_string(),
@@ -792,54 +838,64 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
             rotation_count: 0,
             rotation_policy: policy,
         });
-        
+
         meta.current_version_id = new_version.version_id.clone();
         meta.last_rotated_at = Some(now);
         meta.rotation_count += 1;
-        
+
         Ok(new_version)
     }
 
     fn delete(&self, key: &str) -> Result<()> {
-        let mut versions = self.versions.write()
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        let mut metadata = self.metadata.write()
+        let mut metadata = self
+            .metadata
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         // Check if secret exists
         if !versions.contains_key(key) {
             return Err(anyhow!("Secret not found: {}", key));
         }
-        
+
         // Remove all versions for this key
         versions.remove(key);
-        
+
         // Remove metadata
         metadata.remove(key);
-        
+
         Ok(())
     }
 
     fn delete_version(&self, key: &str, version_id: &str) -> Result<()> {
-        let mut versions = self.versions.write()
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let key_versions = versions.get_mut(key)
+
+        let key_versions = versions
+            .get_mut(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
-        let version = key_versions.iter_mut()
+
+        let version = key_versions
+            .iter_mut()
             .find(|v| v.version_id == version_id)
             .ok_or_else(|| anyhow!("Version {} not found for secret: {}", version_id, key))?;
-        
+
         version.status = SecretVersionStatus::Deleted;
-        
+
         Ok(())
     }
 
     fn list(&self, prefix: &str) -> Result<Vec<String>> {
-        let metadata = self.metadata.read()
+        let metadata = self
+            .metadata
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         let mut results: Vec<String> = metadata
             .keys()
             .filter(|k| k.starts_with(prefix))
@@ -850,38 +906,46 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
     }
 
     fn get_metadata(&self, key: &str) -> Result<SecretMetadata> {
-        let metadata = self.metadata.read()
+        let metadata = self
+            .metadata
+            .read()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        metadata.get(key)
+
+        metadata
+            .get(key)
             .cloned()
             .ok_or_else(|| anyhow!("Secret metadata not found: {}", key))
     }
 
     fn update_rotation_policy(&self, key: &str, policy: RotationPolicyConfig) -> Result<()> {
-        let mut metadata = self.metadata.write()
+        let mut metadata = self
+            .metadata
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
-        let meta = metadata.get_mut(key)
+
+        let meta = metadata
+            .get_mut(key)
             .ok_or_else(|| anyhow!("Secret not found: {}", key))?;
-        
+
         policy.validate()?;
         meta.rotation_policy = policy;
-        
+
         Ok(())
     }
 
     fn cleanup_expired_versions(&self) -> Result<u32> {
-        let mut versions = self.versions.write()
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         let mut count = 0u32;
-        
+
         for key_versions in versions.values_mut() {
             for version in key_versions.iter_mut() {
                 if version.status == SecretVersionStatus::Deprecated {
@@ -894,85 +958,124 @@ impl VersionedSecretBackend for VersionedInMemoryBackend {
                 }
             }
         }
-        
+
         Ok(count)
     }
 
     fn purge_deleted_versions(&self) -> Result<u32> {
-        let mut versions = self.versions.write()
+        let mut versions = self
+            .versions
+            .write()
             .map_err(|e| anyhow!("Lock error: {}", e))?;
-        
+
         let mut count = 0u32;
-        
+
         for key_versions in versions.values_mut() {
             let before_len = key_versions.len();
             // Remove both PendingDeletion and Deleted versions
             key_versions.retain(|v| {
-                v.status != SecretVersionStatus::PendingDeletion 
+                v.status != SecretVersionStatus::PendingDeletion
                     && v.status != SecretVersionStatus::Deleted
             });
             count += (before_len - key_versions.len()) as u32;
         }
-        
+
         // Remove empty version lists
         versions.retain(|_, v| !v.is_empty());
-        
+
         Ok(count)
     }
 }
 
 // ============================================================================
 
-
 /// Manager for rotation policies across secrets
 pub struct RotationManager {
     backend: Arc<dyn VersionedSecretBackend>,
-    default_policy: RotationPolicyConfig,
+    default_policy: std::sync::RwLock<RotationPolicyConfig>,
 }
 
 impl RotationManager {
-    pub fn new(backend: Arc<dyn VersionedSecretBackend>, default_policy: RotationPolicyConfig) -> Self {
-        Self { backend, default_policy }
+    pub fn new(
+        backend: Arc<dyn VersionedSecretBackend>,
+        default_policy: RotationPolicyConfig,
+    ) -> Self {
+        Self {
+            backend,
+            default_policy: std::sync::RwLock::new(default_policy),
+        }
     }
-    
+
+    /// Create a new RotationManager with the given backend and default rotation policy
+    pub fn with_backend(backend: Arc<dyn VersionedSecretBackend>) -> Self {
+        Self::new(backend, RotationPolicyConfig::default())
+    }
+
     pub fn get_policy(&self, key: &str) -> Result<RotationPolicyConfig> {
         let metadata = self.backend.get_metadata(key)?;
         Ok(metadata.rotation_policy.clone())
     }
-    
+
     pub fn set_policy(&self, key: &str, policy: RotationPolicyConfig) -> Result<()> {
         policy.validate()?;
         self.backend.update_rotation_policy(key, policy)
     }
-    
+
     pub fn remove_policy(&self, key: &str) -> Result<()> {
-        self.backend.update_rotation_policy(key, self.default_policy.clone())
+        let default = self
+            .default_policy
+            .read()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
+        self.backend.update_rotation_policy(key, default.clone())
     }
-    
-    pub fn get_default_policy(&self) -> &RotationPolicyConfig {
-        &self.default_policy
+
+    pub fn get_default_policy(&self) -> RotationPolicyConfig {
+        self.default_policy
+            .read()
+            .map(|p| p.clone())
+            .unwrap_or_default()
     }
-    
+
+    /// Set the default rotation policy for new secrets
+    pub fn set_default_policy(&mut self, policy: RotationPolicyConfig) -> Result<()> {
+        policy.validate()?;
+        let mut default = self
+            .default_policy
+            .write()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
+        *default = policy;
+        Ok(())
+    }
+
     pub fn list_custom_policies(&self) -> Result<Vec<String>> {
         let all_keys = self.backend.list("")?;
         let mut custom_keys = Vec::new();
-        
+        let default = self
+            .default_policy
+            .read()
+            .map_err(|e| anyhow!("Lock error: {}", e))?;
+
         for key in all_keys {
             if let Ok(meta) = self.backend.get_metadata(&key) {
-                if meta.rotation_policy != self.default_policy {
+                if meta.rotation_policy != *default {
                     custom_keys.push(key);
                 }
             }
         }
-        
+
         Ok(custom_keys)
     }
-    
-    pub fn rotate_secret(&self, key: &str, reason: Option<&str>, rotated_by: Option<&str>) -> Result<SecretVersion> {
+
+    pub fn rotate_secret(
+        &self,
+        key: &str,
+        reason: Option<&str>,
+        rotated_by: Option<&str>,
+    ) -> Result<SecretVersion> {
         let new_value = generate_new_secret_value();
         self.backend.rotate(key, new_value, reason, rotated_by)
     }
-    
+
     pub fn check_rotation_eligibility(&self, key: &str) -> Result<Option<RotationEligibility>> {
         let metadata = self.backend.get_metadata(key)?;
         let now = std::time::SystemTime::now()
@@ -980,6 +1083,44 @@ impl RotationManager {
             .unwrap_or_default()
             .as_secs();
         Ok(check_rotation_eligibility(&metadata, now))
+    }
+
+    /// Get all secrets that need rotation based on their policies
+    pub fn get_secrets_needing_rotation(&self) -> Result<Vec<String>> {
+        let all_keys = self.backend.list("")?;
+        let mut needing_rotation = Vec::new();
+
+        for key in all_keys {
+            if let Ok(Some(eligibility)) = self.check_rotation_eligibility(&key) {
+                match eligibility {
+                    RotationEligibility::Forced { .. } | RotationEligibility::Scheduled { .. } => {
+                        needing_rotation.push(key);
+                    }
+                    RotationEligibility::Warning { .. } => {
+                        // Warnings don't trigger automatic rotation
+                    }
+                }
+            }
+        }
+
+        Ok(needing_rotation)
+    }
+
+    /// Rotate all secrets that need rotation and return the count of rotated secrets
+    pub fn rotate_needing_secrets(&self) -> Result<u32> {
+        let needing = self.get_secrets_needing_rotation()?;
+        let mut count = 0u32;
+
+        for key in needing {
+            if self
+                .rotate_secret(&key, Some("auto-rotation"), Some("rotation_manager"))
+                .is_ok()
+            {
+                count += 1;
+            }
+        }
+
+        Ok(count)
     }
 }
 // Rotation Scheduler
@@ -1005,7 +1146,7 @@ pub struct RotationSchedulerConfig {
 impl Default for RotationSchedulerConfig {
     fn default() -> Self {
         Self {
-            check_interval_secs: 3600, // Check every hour
+            check_interval_secs: 3600,    // Check every hour
             cleanup_interval_secs: 86400, // Cleanup daily
             auto_rotate_enabled: true,
             cleanup_enabled: true,
@@ -1018,23 +1159,23 @@ impl RotationSchedulerConfig {
     pub fn from_env() -> Self {
         let mut config = Self::default();
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CHECK_INTERVAL") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CHECK_INTERVAL") {
             if let Ok(secs) = val.parse() {
                 config.check_interval_secs = secs;
             }
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CLEANUP_INTERVAL") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CLEANUP_INTERVAL") {
             if let Ok(secs) = val.parse() {
                 config.cleanup_interval_secs = secs;
             }
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_AUTO_ENABLED") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_AUTO_ENABLED") {
             config.auto_rotate_enabled = val.to_lowercase() == "true" || val == "1";
         }
 
-        if let Ok(val) = std::env::var("SKYNET_ROTATION_CLEANUP_ENABLED") {
+        if let Ok(val) = std::env::var("SKYLET_ROTATION_CLEANUP_ENABLED") {
             config.cleanup_enabled = val.to_lowercase() == "true" || val == "1";
         }
 
@@ -1043,10 +1184,7 @@ impl RotationSchedulerConfig {
 }
 
 /// Check if a secret needs rotation based on its policy
-fn check_rotation_eligibility(
-    metadata: &SecretMetadata,
-    now: u64,
-) -> Option<RotationEligibility> {
+fn check_rotation_eligibility(metadata: &SecretMetadata, now: u64) -> Option<RotationEligibility> {
     let policy = &metadata.rotation_policy;
 
     // Determine baseline timestamp
@@ -1072,7 +1210,9 @@ fn check_rotation_eligibility(
     }
 
     // Check if approaching auto_rotate (warning window)
-    let warning_days = policy.auto_rotate_days.saturating_sub(policy.notification_lead_days);
+    let warning_days = policy
+        .auto_rotate_days
+        .saturating_sub(policy.notification_lead_days);
     if days_elapsed >= warning_days as u64 {
         return Some(RotationEligibility::Warning {
             days_elapsed,
@@ -1100,10 +1240,7 @@ pub enum RotationEligibility {
         auto_rotate_days: u32,
     },
     /// Past max age (forced)
-    Forced {
-        days_elapsed: u64,
-        max_age: u32,
-    },
+    Forced { days_elapsed: u64, max_age: u32 },
 }
 
 impl RotationEligibility {
@@ -1111,9 +1248,15 @@ impl RotationEligibility {
     fn reason(&self) -> String {
         match self {
             RotationEligibility::Warning { days_remaining, .. } => {
-                format!("approaching rotation deadline ({} days remaining)", days_remaining)
+                format!(
+                    "approaching rotation deadline ({} days remaining)",
+                    days_remaining
+                )
             }
-            RotationEligibility::Scheduled { days_elapsed, auto_rotate_days } => {
+            RotationEligibility::Scheduled {
+                days_elapsed,
+                auto_rotate_days,
+            } => {
                 let _ = days_elapsed; // Acknowledge field usage
                 let _ = auto_rotate_days; // Acknowledge field usage
                 format!(
@@ -1121,7 +1264,10 @@ impl RotationEligibility {
                     days_elapsed, auto_rotate_days
                 )
             }
-            RotationEligibility::Forced { days_elapsed, max_age } => {
+            RotationEligibility::Forced {
+                days_elapsed,
+                max_age,
+            } => {
                 format!(
                     "forced rotation - exceeded max age ({} days elapsed, max: {} days)",
                     days_elapsed, max_age
@@ -1132,7 +1278,10 @@ impl RotationEligibility {
 
     /// Check if this eligibility requires rotation action
     fn requires_rotation(&self) -> bool {
-        matches!(self, RotationEligibility::Scheduled { .. } | RotationEligibility::Forced { .. })
+        matches!(
+            self,
+            RotationEligibility::Scheduled { .. } | RotationEligibility::Forced { .. }
+        )
     }
 }
 
@@ -1141,12 +1290,19 @@ impl RotationEligibility {
 fn generate_new_secret_value() -> SecretValue {
     // Generate a random secret value
     // Using uuid for demonstration - in production this would use proper cryptographic generation
-    let value = format!("rotated-{}-{}", uuid::Uuid::new_v4(), chrono::Utc::now().timestamp());
+    let value = format!(
+        "rotated-{}-{}",
+        uuid::Uuid::new_v4(),
+        chrono::Utc::now().timestamp()
+    );
     SecretValue::new(value)
 }
 
 /// Background task that periodically checks and executes rotation policies
-async fn rotation_scheduler_task(backend: Arc<dyn VersionedSecretBackend>, config: RotationSchedulerConfig) {
+async fn rotation_scheduler_task(
+    backend: Arc<dyn VersionedSecretBackend>,
+    config: RotationSchedulerConfig,
+) {
     use tokio::time::{interval, Duration};
 
     let mut check_interval = interval(Duration::from_secs(config.check_interval_secs));
@@ -1202,7 +1358,10 @@ async fn check_and_execute_rotations(backend: &dyn VersionedSecretBackend) -> Re
         let metadata = match backend.get_metadata(&key) {
             Ok(meta) => meta,
             Err(e) => {
-                warn!("RotationScheduler: Failed to get metadata for '{}': {}", key, e);
+                warn!(
+                    "RotationScheduler: Failed to get metadata for '{}': {}",
+                    key, e
+                );
                 continue;
             }
         };
@@ -1224,7 +1383,10 @@ async fn check_and_execute_rotations(backend: &dyn VersionedSecretBackend) -> Re
                             true,
                             Some(&format!("New version: {}", version.version_id)),
                         );
-                        info!("RotationScheduler: Successfully rotated '{}' to version {}", key, version.version_id);
+                        info!(
+                            "RotationScheduler: Successfully rotated '{}' to version {}",
+                            key, version.version_id
+                        );
                     }
                     Err(e) => {
                         log_secret_operation("rotate", &key, false, Some(&e.to_string()));
@@ -1233,7 +1395,10 @@ async fn check_and_execute_rotations(backend: &dyn VersionedSecretBackend) -> Re
                 }
             } else {
                 warned += 1;
-                warn!("RotationScheduler: Warning for secret '{}' - {}", key, reason);
+                warn!(
+                    "RotationScheduler: Warning for secret '{}' - {}",
+                    key, reason
+                );
             }
         }
     }
@@ -1254,11 +1419,17 @@ async fn perform_cleanup(backend: &dyn VersionedSecretBackend) -> Result<()> {
     match backend.cleanup_expired_versions() {
         Ok(count) => {
             if count > 0 {
-                info!("RotationScheduler: Marked {} expired versions for deletion", count);
+                info!(
+                    "RotationScheduler: Marked {} expired versions for deletion",
+                    count
+                );
             }
         }
         Err(e) => {
-            error!("RotationScheduler: Error cleaning up expired versions: {}", e);
+            error!(
+                "RotationScheduler: Error cleaning up expired versions: {}",
+                e
+            );
         }
     }
 
@@ -1366,13 +1537,35 @@ impl ComplianceTracker {
 
         let policy = &metadata.rotation_policy;
         let (status, reason) = if days_since_rotation >= policy.max_age_days as u64 {
-            (ComplianceStatus::NonCompliant, Some(format!("Exceeded maximum age of {} days", policy.max_age_days)))
+            (
+                ComplianceStatus::NonCompliant,
+                Some(format!(
+                    "Exceeded maximum age of {} days",
+                    policy.max_age_days
+                )),
+            )
         } else if days_since_rotation >= policy.auto_rotate_days as u64 {
-            (ComplianceStatus::NeedsRotation, Some(format!("Past auto-rotate threshold of {} days", policy.auto_rotate_days)))
+            (
+                ComplianceStatus::NeedsRotation,
+                Some(format!(
+                    "Past auto-rotate threshold of {} days",
+                    policy.auto_rotate_days
+                )),
+            )
         } else {
-            let warning_days = policy.auto_rotate_days.saturating_sub(policy.notification_lead_days);
+            let warning_days = policy
+                .auto_rotate_days
+                .saturating_sub(policy.notification_lead_days);
             if days_since_rotation >= warning_days as u64 {
-                (ComplianceStatus::Warning, Some(format!("Approaching rotation deadline ({} days remaining)", policy.auto_rotate_days.saturating_sub(days_since_rotation as u32))))
+                (
+                    ComplianceStatus::Warning,
+                    Some(format!(
+                        "Approaching rotation deadline ({} days remaining)",
+                        policy
+                            .auto_rotate_days
+                            .saturating_sub(days_since_rotation as u32)
+                    )),
+                )
             } else {
                 (ComplianceStatus::Compliant, None)
             }
@@ -1425,10 +1618,22 @@ impl ComplianceTracker {
         let records = self.records.read().unwrap();
 
         let total = records.len();
-        let compliant = records.values().filter(|r| r.status == ComplianceStatus::Compliant).count();
-        let needs_rotation = records.values().filter(|r| r.status == ComplianceStatus::NeedsRotation).count();
-        let non_compliant = records.values().filter(|r| r.status == ComplianceStatus::NonCompliant).count();
-        let warning = records.values().filter(|r| r.status == ComplianceStatus::Warning).count();
+        let compliant = records
+            .values()
+            .filter(|r| r.status == ComplianceStatus::Compliant)
+            .count();
+        let needs_rotation = records
+            .values()
+            .filter(|r| r.status == ComplianceStatus::NeedsRotation)
+            .count();
+        let non_compliant = records
+            .values()
+            .filter(|r| r.status == ComplianceStatus::NonCompliant)
+            .count();
+        let warning = records
+            .values()
+            .filter(|r| r.status == ComplianceStatus::Warning)
+            .count();
 
         Ok(ComplianceSummary {
             total_secrets: total,
@@ -1557,7 +1762,7 @@ impl NotificationHookManager {
     /// Send notification to all registered plugins
     pub async fn notify_all(&self, notification: &SecretNotification) {
         let hooks = self.hooks.read().unwrap();
-        
+
         // Log notification event
         log_secret_operation(
             "notification",
@@ -1569,15 +1774,17 @@ impl NotificationHookManager {
         for plugin_name in hooks.iter() {
             debug!(
                 "NotificationHook: Sending notification to plugin '{}': key={}, type={:?}",
-                plugin_name,
-                notification.secret_key,
-                notification.notification_type
+                plugin_name, notification.secret_key, notification.notification_type
             );
         }
     }
 }
 
-/// Global notification hook manager
+impl Default for NotificationHookManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Start audit flush background task
 fn start_audit_flush_task() {
@@ -1623,6 +1830,41 @@ static mut DEPENDENCIES: [DependencyInfo; 1] = [DependencyInfo {
     required: true,
     service_type: std::ptr::null(),
 }];
+
+// ============================================================================
+// Plugin Lifecycle Functions
+// ============================================================================
+
+/// Cleanup plugin state - called by plugin_shutdown_v2
+///
+/// This function handles:
+/// - Stopping the audit flush task
+/// - Stopping the rotation scheduler
+/// - Cleaning up plugin info
+/// - Cleaning up manager, config, service, versioned backend, and audit registry
+#[allow(static_mut_refs)]
+pub(crate) fn cleanup_plugin() {
+    unsafe {
+        // Signal the audit flush task to stop
+        AUDIT_FLUSH_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // Signal the rotation scheduler to stop
+        stop_rotation_scheduler();
+
+        // Clean up v2 plugin info
+        let ptr = PLUGIN_INFO_V2.swap(ptr::null_mut(), Ordering::SeqCst);
+        if !ptr.is_null() {
+            let _ = Box::from_raw(ptr);
+        }
+
+        // Clean up manager, config, service, versioned backend, and audit registry
+        SECRETS_MANAGER = None;
+        ROTATION_POLICY_CONFIG = None;
+        SECRETS_SERVICE = None;
+        VERSIONED_BACKEND = None;
+        AUDIT_REGISTRY = None;
+    }
+}
 
 // ============================================================================
 // Audit Logging Helpers
@@ -2126,6 +2368,7 @@ extern "C" fn secrets_free_list(ptr: *mut SecretListResult) {
 
 #[no_mangle]
 #[allow(static_mut_refs)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
     if context.is_null() {
         return PluginResult::Error;
@@ -2156,8 +2399,8 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
             let license_str = CString::new("MIT OR Apache-2.0").unwrap();
             let homepage_str = CString::new("https://github.com/vincents-ai/skylet").unwrap();
             let abi_version_str = CString::new("2.0").unwrap();
-            let skynet_min_str = CString::new("0.1.0").unwrap();
-            let skynet_max_str = CString::new("1.0.0").unwrap();
+            let skylet_min_str = CString::new("0.1.0").unwrap();
+            let skylet_max_str = CString::new("1.0.0").unwrap();
 
             // Create tags for categorization
             static TAG1: &[u8] = b"security\0";
@@ -2182,8 +2425,8 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 homepage: homepage_str.into_raw(),
 
                 // Version compatibility
-                skynet_version_min: skynet_min_str.into_raw(),
-                skynet_version_max: skynet_max_str.into_raw(),
+                skylet_version_min: skylet_min_str.into_raw(),
+                skylet_version_max: skylet_max_str.into_raw(),
                 abi_version: abi_version_str.into_raw(),
 
                 // Dependencies (skylet-abi >= 0.2.0)
@@ -2203,7 +2446,7 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 max_resources: ptr::null(),
 
                 // Tags and categorization
-                tags: tags_ptrs.as_ptr() as *const *const c_char,
+                tags: tags_ptrs.as_ptr(),
                 num_tags: 3,
                 category: PluginCategory::Security, // Security category for secrets
 
@@ -2240,12 +2483,12 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
         // SECURITY: Initialize with AES-256-GCM encrypted storage (CVSS 8.2)
         // =================================================================
         // Check environment variable for backend selection
-        let use_encrypted = std::env::var("SKYNET_SECRETS_ENCRYPTED")
+        let use_encrypted = std::env::var("SKYLET_SECRETS_ENCRYPTED")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true); // Default to encrypted for security
 
         // Check if versioned storage should be used
-        let use_versioned = std::env::var("SKYNET_SECRETS_VERSIONED")
+        let use_versioned = std::env::var("SKYLET_SECRETS_VERSIONED")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true); // Default to versioned storage
 
@@ -2264,17 +2507,17 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
         // =================================================================
         if use_versioned {
             debug!("SecretsManager: Initializing versioned secret storage with rotation support");
-            
+
             // Create versioned backend with rotation policy from config
             let versioned_backend = Arc::new(VersionedInMemoryBackend::new());
             VERSIONED_BACKEND = Some(versioned_backend.clone());
-            
+
             // Start the rotation scheduler background task
             start_rotation_scheduler(versioned_backend);
-            
+
             info!("SecretsManager: Rotation scheduler started");
         } else {
-            debug!("SecretsManager: Versioned storage disabled (SKYNET_SECRETS_VERSIONED=false)");
+            debug!("SecretsManager: Versioned storage disabled (SKYLET_SECRETS_VERSIONED=false)");
         }
 
         // =================================================================
@@ -2289,10 +2532,7 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 ROTATION_POLICY_CONFIG = Some(Arc::new(config));
             }
             Err(e) => {
-                warn!(
-                    "SecretsManager: Failed to load rotation policy: {}",
-                    e
-                );
+                warn!("SecretsManager: Failed to load rotation policy: {}", e);
                 debug!("SecretsManager: Using default rotation policy");
                 ROTATION_POLICY_CONFIG = Some(Arc::new(RotationPolicyConfig::default()));
             }
@@ -2300,19 +2540,14 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
 
         match DefaultAuditRegistry::with_defaults() {
             Ok(registry) => {
-                debug!(
-                    "SecretsManager: Audit logging initialized with memory backend (RFC-0004)"
-                );
+                debug!("SecretsManager: Audit logging initialized with memory backend (RFC-0004)");
                 AUDIT_REGISTRY = Some(registry);
 
                 start_audit_flush_task();
                 debug!("SecretsManager: Audit flush task started");
             }
             Err(e) => {
-                warn!(
-                    "SecretsManager: Failed to initialize audit logging: {}",
-                    e
-                );
+                warn!("SecretsManager: Failed to initialize audit logging: {}", e);
                 warn!("SecretsManager: Continuing without audit logging");
             }
         }
@@ -2359,31 +2594,6 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
 }
 
 #[no_mangle]
-pub extern "C" fn plugin_shutdown(_context: *const PluginContext) -> PluginResult {
-    unsafe {
-        // Signal the audit flush task to stop
-        AUDIT_FLUSH_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
-        
-        // Signal the rotation scheduler to stop
-        stop_rotation_scheduler();
-
-        // Clean up v2 plugin info
-        let ptr = PLUGIN_INFO_V2.swap(ptr::null_mut(), Ordering::SeqCst);
-        if !ptr.is_null() {
-            let _ = Box::from_raw(ptr);
-        }
-
-        // Clean up manager, config, service, versioned backend, and audit registry
-        SECRETS_MANAGER = None;
-        ROTATION_POLICY_CONFIG = None;
-        SECRETS_SERVICE = None;
-        VERSIONED_BACKEND = None;
-        AUDIT_REGISTRY = None;
-    }
-    PluginResult::Success
-}
-
-#[no_mangle]
 pub extern "C" fn plugin_get_info() -> *const PluginInfoV2 {
     PLUGIN_INFO_V2.load(Ordering::SeqCst)
 }
@@ -2402,192 +2612,221 @@ fn log_info(message: &str) {
 // Tests
 // ============================================================================
 
-    // ============================================================================
-    // Rotation Manager Tests
-    // ============================================================================
+// ============================================================================
+// Rotation Manager Tests
+// ============================================================================
 
-    #[test]
-    fn test_rotation_manager_new() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let default_policy = RotationPolicyConfig::default();
-        let manager = RotationManager::new(backend.clone(), default_policy.clone());
-        
-        assert_eq!(manager.get_default_policy(), &default_policy);
-    }
+#[test]
+fn test_rotation_manager_new() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let default_policy = RotationPolicyConfig::default();
+    let manager = RotationManager::new(backend.clone(), default_policy.clone());
 
-    #[test]
-    fn test_rotation_manager_with_backend() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::with_backend(backend.clone());
-        
-        assert_eq!(manager.get_default_policy(), &RotationPolicyConfig::default());
-    }
+    assert_eq!(manager.get_default_policy(), default_policy);
+}
 
-    #[test]
-    fn test_rotation_manager_get_policy() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        // Set a secret
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        
-        // Get its policy
-        let policy = manager.get_policy("test_key").unwrap();
-        assert_eq!(policy, RotationPolicyConfig::default());
-    }
+#[test]
+fn test_rotation_manager_with_backend() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::with_backend(backend.clone());
 
-    #[test]
-    fn test_rotation_manager_set_policy() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        // Set a secret
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        
-        // Set custom policy
-        let custom_policy = RotationPolicyConfig {
-            interval_days: 60,
-            ..RotationPolicyConfig::default()
-        };
-        manager.set_policy("test_key", custom_policy.clone()).unwrap();
-        
-        // Verify policy was set
-        let retrieved = manager.get_policy("test_key").unwrap();
-        assert_eq!(retrieved, custom_policy);
-    }
+    assert_eq!(
+        manager.get_default_policy(),
+        RotationPolicyConfig::default()
+    );
+}
 
-    #[test]
-    fn test_rotation_manager_remove_policy() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        // Set a secret with custom policy
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        let custom_policy = RotationPolicyConfig {
-            interval_days: 60,
-            ..RotationPolicyConfig::default()
-        };
-        manager.set_policy("test_key", custom_policy.clone()).unwrap();
-        
-        // Remove custom policy (revert to default)
-        manager.remove_policy("test_key").unwrap();
-        
-        // Verify reverted to default
-        let retrieved = manager.get_policy("test_key").unwrap();
-        assert_eq!(retrieved, RotationPolicyConfig::default());
-    }
+#[test]
+fn test_rotation_manager_get_policy() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
 
-    #[test]
-    fn test_rotation_manager_set_default_policy() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let mut manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        let new_default = RotationPolicyConfig {
-            interval_days: 120,
-            ..RotationPolicyConfig::default()
-        };
-        manager.set_default_policy(new_default.clone()).unwrap();
-        
-        assert_eq!(manager.get_default_policy(), &new_default);
-    }
+    // Set a secret
+    backend
+        .set("test_key", SecretValue::new("value".to_string()))
+        .unwrap();
 
-    #[test]
-    fn test_rotation_manager_list_custom_policies() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        // Create secrets with different policies
-        backend.set("default_policy_key", SecretValue::new("value1".to_string())).unwrap();
-        backend.set("custom_policy_key", SecretValue::new("value2".to_string())).unwrap();
-        
-        // Set custom policy on one secret
-        let custom_policy = RotationPolicyConfig {
-            interval_days: 45,
-            ..RotationPolicyConfig::default()
-        };
-        manager.set_policy("custom_policy_key", custom_policy.clone()).unwrap();
-        
-        // List custom policies
-        let custom = manager.list_custom_policies().unwrap();
-        
-        assert_eq!(custom.len(), 1);
-        assert!(custom.contains(&"custom_policy_key".to_string()));
-    }
+    // Get its policy
+    let policy = manager.get_policy("test_key").unwrap();
+    assert_eq!(policy, RotationPolicyConfig::default());
+}
 
-    #[test]
-    fn test_rotation_manager_rotate_secret() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
-        
-        // Set a secret
-        backend.set("test_key", SecretValue::new("value1".to_string())).unwrap();
-        
-        // Rotate secret
-        let version = manager.rotate_secret("test_key", Some("test rotation"), Some("test_agent")).unwrap();
-        
-        assert_eq!(version.secret_key, "test_key");
-        assert!(version.value.as_str().starts_with("rotated-"));
-    }
+#[test]
+fn test_rotation_manager_set_policy() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
 
-    #[test]
-    fn test_rotation_manager_check_rotation_eligibility() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let default_policy = RotationPolicyConfig::default();
-        let manager = RotationManager::new(backend.clone(), default_policy.clone());
-        
-        // Create a secret
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        
-        // Check eligibility - should be None for new secret
-        let eligibility = manager.check_rotation_eligibility("test_key").unwrap();
-        assert!(eligibility.is_none());
-    }
+    // Set a secret
+    backend
+        .set("test_key", SecretValue::new("value".to_string()))
+        .unwrap();
 
-    #[test]
-    fn test_rotation_manager_get_secrets_needing_rotation() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let default_policy = RotationPolicyConfig::default();
-        let manager = RotationManager::new(backend.clone(), default_policy.clone());
-        
-        // Create secrets - one that needs rotation
-        backend.set("fresh_key", SecretValue::new("value1".to_string())).unwrap();
-        
-        let old_metadata = SecretMetadata {
-            key: "old_key".to_string(),
-            current_version_id: "v1".to_string(),
-            created_at: 0,
-            last_rotated_at: Some(1000000000), // 11574 days ago
-            rotation_count: 1,
-            rotation_policy: default_policy.clone(),
-        };
-        
-        // Manually insert old metadata
-        let mut metadata_lock = backend.metadata.write().unwrap();
-        metadata_lock.insert("old_key".to_string(), old_metadata);
-        drop(metadata_lock);
-        
-        backend.set("old_key", SecretValue::new("value2".to_string())).unwrap();
-        
-        // Check needing rotation
-        let needing = manager.get_secrets_needing_rotation().unwrap();
-        assert!(needing.len() >= 1);
-    }
+    // Set custom policy
+    let custom_policy = RotationPolicyConfig {
+        interval_days: 60,
+        ..RotationPolicyConfig::default()
+    };
+    manager
+        .set_policy("test_key", custom_policy.clone())
+        .unwrap();
 
-    #[test]
-    fn test_rotation_manager_rotate_needing_secrets() {
-        let backend = Arc::new(VersionedInMemoryBackend::new());
-        let default_policy = RotationPolicyConfig::default();
-        let manager = RotationManager::new(backend.clone(), default_policy.clone());
-        
-        // Set a secret
-        backend.set("test_key", SecretValue::new("value1".to_string())).unwrap();
-        
-        // Rotate all needing secrets (should work even if none meet criteria)
-        let count = manager.rotate_needing_secrets().unwrap();
-        
-        // Count should be 0 or more
-        assert!(count == 0 || count >= 0);
-    }
+    // Verify policy was set
+    let retrieved = manager.get_policy("test_key").unwrap();
+    assert_eq!(retrieved, custom_policy);
+}
+
+#[test]
+fn test_rotation_manager_remove_policy() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
+
+    // Set a secret with custom policy
+    backend
+        .set("test_key", SecretValue::new("value".to_string()))
+        .unwrap();
+    let custom_policy = RotationPolicyConfig {
+        interval_days: 60,
+        ..RotationPolicyConfig::default()
+    };
+    manager
+        .set_policy("test_key", custom_policy.clone())
+        .unwrap();
+
+    // Remove custom policy (revert to default)
+    manager.remove_policy("test_key").unwrap();
+
+    // Verify reverted to default
+    let retrieved = manager.get_policy("test_key").unwrap();
+    assert_eq!(retrieved, RotationPolicyConfig::default());
+}
+
+#[test]
+fn test_rotation_manager_set_default_policy() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let mut manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
+
+    let new_default = RotationPolicyConfig {
+        interval_days: 120,
+        ..RotationPolicyConfig::default()
+    };
+    manager.set_default_policy(new_default.clone()).unwrap();
+
+    assert_eq!(manager.get_default_policy(), new_default);
+}
+
+#[test]
+fn test_rotation_manager_list_custom_policies() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
+
+    // Create secrets with different policies
+    backend
+        .set("default_policy_key", SecretValue::new("value1".to_string()))
+        .unwrap();
+    backend
+        .set("custom_policy_key", SecretValue::new("value2".to_string()))
+        .unwrap();
+
+    // Set custom policy on one secret
+    let custom_policy = RotationPolicyConfig {
+        interval_days: 45,
+        ..RotationPolicyConfig::default()
+    };
+    manager
+        .set_policy("custom_policy_key", custom_policy.clone())
+        .unwrap();
+
+    // List custom policies
+    let custom = manager.list_custom_policies().unwrap();
+
+    assert_eq!(custom.len(), 1);
+    assert!(custom.contains(&"custom_policy_key".to_string()));
+}
+
+#[test]
+fn test_rotation_manager_rotate_secret() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let manager = RotationManager::new(backend.clone(), RotationPolicyConfig::default());
+
+    // Set a secret
+    backend
+        .set("test_key", SecretValue::new("value1".to_string()))
+        .unwrap();
+
+    // Rotate secret
+    let version = manager
+        .rotate_secret("test_key", Some("test rotation"), Some("test_agent"))
+        .unwrap();
+
+    assert_eq!(version.secret_key, "test_key");
+    assert!(version.value.as_str().starts_with("rotated-"));
+}
+
+#[test]
+fn test_rotation_manager_check_rotation_eligibility() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let default_policy = RotationPolicyConfig::default();
+    let manager = RotationManager::new(backend.clone(), default_policy.clone());
+
+    // Create a secret
+    backend
+        .set("test_key", SecretValue::new("value".to_string()))
+        .unwrap();
+
+    // Check eligibility - should be None for new secret
+    let eligibility = manager.check_rotation_eligibility("test_key").unwrap();
+    assert!(eligibility.is_none());
+}
+
+#[test]
+fn test_rotation_manager_get_secrets_needing_rotation() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let default_policy = RotationPolicyConfig::default();
+    let manager = RotationManager::new(backend.clone(), default_policy.clone());
+
+    // Create secrets - one that needs rotation
+    backend
+        .set("fresh_key", SecretValue::new("value1".to_string()))
+        .unwrap();
+
+    let old_metadata = SecretMetadata {
+        key: "old_key".to_string(),
+        current_version_id: "v1".to_string(),
+        created_at: 0,
+        last_rotated_at: Some(1000000000), // 11574 days ago
+        rotation_count: 1,
+        rotation_policy: default_policy.clone(),
+    };
+
+    // Manually insert old metadata
+    let mut metadata_lock = backend.metadata.write().unwrap();
+    metadata_lock.insert("old_key".to_string(), old_metadata);
+    drop(metadata_lock);
+
+    backend
+        .set("old_key", SecretValue::new("value2".to_string()))
+        .unwrap();
+
+    // Check needing rotation
+    let needing = manager.get_secrets_needing_rotation().unwrap();
+    assert!(needing.len() >= 1);
+}
+
+#[test]
+fn test_rotation_manager_rotate_needing_secrets() {
+    let backend = Arc::new(VersionedInMemoryBackend::new());
+    let default_policy = RotationPolicyConfig::default();
+    let manager = RotationManager::new(backend.clone(), default_policy.clone());
+
+    // Set a secret
+    backend
+        .set("test_key", SecretValue::new("value1".to_string()))
+        .unwrap();
+
+    // Rotate all needing secrets (should work even if none meet criteria)
+    // The unwrap() validates the call succeeded; count is a u32 so always >= 0
+    let _count = manager.rotate_needing_secrets().unwrap();
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2698,7 +2937,7 @@ max_age_days = 180
 key_overlap_days = 14
         "#;
 
-        let config = RotationPolicyConfig::from_str(toml_str).unwrap();
+        let config = RotationPolicyConfig::parse(toml_str).unwrap();
         assert_eq!(config.interval_days, 55);
         assert_eq!(config.auto_rotate_days, 60);
         assert_eq!(config.rotation_window_hours, 6);
@@ -2735,7 +2974,7 @@ key_overlap_days = 14
         };
 
         let toml_str = original.to_toml_string().unwrap();
-        let restored = RotationPolicyConfig::from_str(&toml_str).unwrap();
+        let restored = RotationPolicyConfig::parse(&toml_str).unwrap();
 
         assert_eq!(original.interval_days, restored.interval_days);
         assert_eq!(original.auto_rotate_days, restored.auto_rotate_days);
@@ -2941,29 +3180,41 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_rotate_creates_new_version() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set initial version
-        backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+
         // Rotate to create new version
-        let v2 = backend.rotate("test_key", SecretValue::new("value_v2".to_string()), Some("scheduled_rotation"), Some("admin")).unwrap();
-        
+        let v2 = backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                Some("scheduled_rotation"),
+                Some("admin"),
+            )
+            .unwrap();
+
         // Verify v2 is active
         assert!(v2.is_active());
         assert_eq!(v2.rotation_reason, Some("scheduled_rotation".to_string()));
         assert_eq!(v2.rotated_by, Some("admin".to_string()));
-        
+
         // Get should return v2 (active)
         let retrieved = backend.get("test_key").unwrap();
         assert_eq!(retrieved.as_str(), "value_v2");
-        
+
         // Get all versions - should have 2
         let all_versions = backend.get_all_versions("test_key").unwrap();
         assert_eq!(all_versions.len(), 2);
-        
+
         // One should be active, one deprecated
         let active_count = all_versions.iter().filter(|v| v.is_active()).count();
-        let deprecated_count = all_versions.iter().filter(|v| v.status == SecretVersionStatus::Deprecated).count();
+        let deprecated_count = all_versions
+            .iter()
+            .filter(|v| v.status == SecretVersionStatus::Deprecated)
+            .count();
         assert_eq!(active_count, 1);
         assert_eq!(deprecated_count, 1);
     }
@@ -2971,18 +3222,27 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_get_version_by_id() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set initial version
-        let v1 = backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        
+        let v1 = backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+
         // Rotate to create v2
-        let v2 = backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        
+        let v2 = backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Get v1 by ID
         let retrieved_v1 = backend.get_version("test_key", &v1.version_id).unwrap();
         assert_eq!(retrieved_v1.value.as_str(), "value_v1");
         assert_eq!(retrieved_v1.status, SecretVersionStatus::Deprecated);
-        
+
         // Get v2 by ID
         let retrieved_v2 = backend.get_version("test_key", &v2.version_id).unwrap();
         assert_eq!(retrieved_v2.value.as_str(), "value_v2");
@@ -2992,11 +3252,17 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_list_secrets() {
         let backend = VersionedInMemoryBackend::new();
-        
-        backend.set("prefix/secret1", SecretValue::new("value1".to_string())).unwrap();
-        backend.set("prefix/secret2", SecretValue::new("value2".to_string())).unwrap();
-        backend.set("other/secret3", SecretValue::new("value3".to_string())).unwrap();
-        
+
+        backend
+            .set("prefix/secret1", SecretValue::new("value1".to_string()))
+            .unwrap();
+        backend
+            .set("prefix/secret2", SecretValue::new("value2".to_string()))
+            .unwrap();
+        backend
+            .set("other/secret3", SecretValue::new("value3".to_string()))
+            .unwrap();
+
         let secrets = backend.list("prefix/").unwrap();
         assert_eq!(secrets.len(), 2);
         assert!(secrets.iter().all(|s| s.starts_with("prefix/")));
@@ -3005,14 +3271,23 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_delete_secret() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set and rotate to have multiple versions
-        backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Delete all versions
         backend.delete("test_key").unwrap();
-        
+
         // Should no longer be accessible
         assert!(backend.get("test_key").is_err());
         assert!(backend.get_all_versions("test_key").is_err());
@@ -3021,17 +3296,26 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_delete_specific_version() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set and rotate
-        let v1 = backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        
+        let v1 = backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Delete v1 specifically
         backend.delete_version("test_key", &v1.version_id).unwrap();
-        
+
         // v1 should no longer be accessible
         assert!(backend.get_version("test_key", &v1.version_id).is_err());
-        
+
         // But v2 should still work
         assert!(backend.get("test_key").is_ok());
     }
@@ -3039,20 +3323,36 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_metadata_tracking() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set initial secret
-        backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+
         // Get metadata
         let meta1 = backend.get_metadata("test_key").unwrap();
         assert_eq!(meta1.key, "test_key");
         assert_eq!(meta1.rotation_count, 0);
         assert!(meta1.last_rotated_at.is_none());
-        
+
         // Rotate multiple times
-        backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v3".to_string()), None, None).unwrap();
-        
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v3".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Check metadata updated
         let meta2 = backend.get_metadata("test_key").unwrap();
         assert_eq!(meta2.rotation_count, 2);
@@ -3062,10 +3362,12 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_rotation_policy_update() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set initial secret
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value".to_string()))
+            .unwrap();
+
         // Update policy (must satisfy: max_age >= auto_rotate >= interval)
         let new_policy = RotationPolicyConfig {
             interval_days: 55,
@@ -3075,9 +3377,11 @@ key_overlap_days = 14
             max_age_days: 180,
             key_overlap_days: 14,
         };
-        
-        backend.update_rotation_policy("test_key", new_policy).unwrap();
-        
+
+        backend
+            .update_rotation_policy("test_key", new_policy)
+            .unwrap();
+
         // Verify policy was updated
         let meta = backend.get_metadata("test_key").unwrap();
         assert_eq!(meta.rotation_policy.interval_days, 55);
@@ -3094,12 +3398,14 @@ key_overlap_days = 14
             max_age_days: 90,
             key_overlap_days: 3,
         };
-        
+
         let backend = VersionedInMemoryBackend::with_policy(custom_policy);
-        
+
         // Set secret - should use custom policy
-        backend.set("test_key", SecretValue::new("value".to_string())).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value".to_string()))
+            .unwrap();
+
         let meta = backend.get_metadata("test_key").unwrap();
         assert_eq!(meta.rotation_policy.interval_days, 25);
         assert_eq!(meta.rotation_policy.key_overlap_days, 3);
@@ -3108,19 +3414,28 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_cleanup_expired_versions() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set and rotate to create deprecated version
-        backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Verify we have 2 accessible versions
         let all_versions = backend.get_all_versions("test_key").unwrap();
         assert_eq!(all_versions.len(), 2);
-        
+
         // Cleanup expired versions (none should be expired yet since we just created them)
         let cleaned = backend.cleanup_expired_versions().unwrap();
         assert_eq!(cleaned, 0);
-        
+
         // All versions should still be accessible
         let all_versions_after = backend.get_all_versions("test_key").unwrap();
         assert_eq!(all_versions_after.len(), 2);
@@ -3129,24 +3444,44 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_purge_deleted_versions() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Set and rotate multiple times
-        backend.set("test_key", SecretValue::new("value_v1".to_string())).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v2".to_string()), None, None).unwrap();
-        backend.rotate("test_key", SecretValue::new("value_v3".to_string()), None, None).unwrap();
-        
+        backend
+            .set("test_key", SecretValue::new("value_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v2".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+        backend
+            .rotate(
+                "test_key",
+                SecretValue::new("value_v3".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+
         // Should have 3 versions
         let all_versions = backend.get_all_versions("test_key").unwrap();
         assert_eq!(all_versions.len(), 3);
-        
+
         // Delete one specific version (marks as deleted)
-        let v1_id = &all_versions.iter().find(|v| v.value.as_str() == "value_v1").unwrap().version_id;
+        let v1_id = &all_versions
+            .iter()
+            .find(|v| v.value.as_str() == "value_v1")
+            .unwrap()
+            .version_id;
         backend.delete_version("test_key", v1_id).unwrap();
-        
+
         // Now purge deleted versions
         let purged = backend.purge_deleted_versions().unwrap();
         assert_eq!(purged, 1);
-        
+
         // Should now have 2 accessible versions
         let remaining = backend.get_all_versions("test_key").unwrap();
         assert_eq!(remaining.len(), 2);
@@ -3156,7 +3491,10 @@ key_overlap_days = 14
     fn test_secret_version_status_display() {
         assert_eq!(SecretVersionStatus::Active.to_string(), "active");
         assert_eq!(SecretVersionStatus::Deprecated.to_string(), "deprecated");
-        assert_eq!(SecretVersionStatus::PendingDeletion.to_string(), "pending_deletion");
+        assert_eq!(
+            SecretVersionStatus::PendingDeletion.to_string(),
+            "pending_deletion"
+        );
         assert_eq!(SecretVersionStatus::Deleted.to_string(), "deleted");
     }
 
@@ -3168,18 +3506,18 @@ key_overlap_days = 14
             None,
             None,
         );
-        
+
         // Active version is accessible
         assert!(version.is_accessible());
-        
+
         // Deprecated version is accessible
         version.status = SecretVersionStatus::Deprecated;
         assert!(version.is_accessible());
-        
+
         // PendingDeletion is not accessible
         version.status = SecretVersionStatus::PendingDeletion;
         assert!(!version.is_accessible());
-        
+
         // Deleted is not accessible
         version.status = SecretVersionStatus::Deleted;
         assert!(!version.is_accessible());
@@ -3193,7 +3531,7 @@ key_overlap_days = 14
             None,
             None,
         );
-        
+
         // Version with no expiration has not expired
         assert!(!version.has_expired());
     }
@@ -3201,19 +3539,29 @@ key_overlap_days = 14
     #[test]
     fn test_versioned_backend_multiple_secrets() {
         let backend = VersionedInMemoryBackend::new();
-        
+
         // Create multiple secrets with rotations
-        backend.set("secret1", SecretValue::new("s1_v1".to_string())).unwrap();
-        backend.rotate("secret1", SecretValue::new("s1_v2".to_string()), None, None).unwrap();
-        
-        backend.set("secret2", SecretValue::new("s2_v1".to_string())).unwrap();
-        backend.rotate("secret2", SecretValue::new("s2_v2".to_string()), None, None).unwrap();
-        backend.rotate("secret2", SecretValue::new("s2_v3".to_string()), None, None).unwrap();
-        
+        backend
+            .set("secret1", SecretValue::new("s1_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate("secret1", SecretValue::new("s1_v2".to_string()), None, None)
+            .unwrap();
+
+        backend
+            .set("secret2", SecretValue::new("s2_v1".to_string()))
+            .unwrap();
+        backend
+            .rotate("secret2", SecretValue::new("s2_v2".to_string()), None, None)
+            .unwrap();
+        backend
+            .rotate("secret2", SecretValue::new("s2_v3".to_string()), None, None)
+            .unwrap();
+
         // Verify counts
         assert_eq!(backend.get_all_versions("secret1").unwrap().len(), 2);
         assert_eq!(backend.get_all_versions("secret2").unwrap().len(), 3);
-        
+
         // Verify isolation
         assert_eq!(backend.get("secret1").unwrap().as_str(), "s1_v2");
         assert_eq!(backend.get("secret2").unwrap().as_str(), "s2_v3");
@@ -3256,10 +3604,12 @@ key_overlap_days = 14
 
         let eligibility = check_rotation_eligibility(&metadata, now);
         assert!(eligibility.is_some());
-        
+
         let eligibility = eligibility.unwrap();
         assert!(!eligibility.requires_rotation());
-        assert!(eligibility.reason().contains("approaching rotation deadline"));
+        assert!(eligibility
+            .reason()
+            .contains("approaching rotation deadline"));
     }
 
     #[test]
@@ -3286,7 +3636,7 @@ key_overlap_days = 14
 
         let eligibility = check_rotation_eligibility(&metadata, now);
         assert!(eligibility.is_some());
-        
+
         let eligibility = eligibility.unwrap();
         assert!(eligibility.requires_rotation());
         assert!(eligibility.reason().contains("scheduled rotation"));
@@ -3316,7 +3666,7 @@ key_overlap_days = 14
 
         let eligibility = check_rotation_eligibility(&metadata, now);
         assert!(eligibility.is_some());
-        
+
         let eligibility = eligibility.unwrap();
         assert!(eligibility.requires_rotation());
         assert!(eligibility.reason().contains("forced rotation"));
@@ -3351,22 +3701,22 @@ key_overlap_days = 14
     #[test]
     fn test_rotation_scheduler_config_from_env() {
         // Set environment variables
-        std::env::set_var("SKYNET_ROTATION_CHECK_INTERVAL", "1800");
-        std::env::set_var("SKYNET_ROTATION_CLEANUP_INTERVAL", "43200");
-        std::env::set_var("SKYNET_ROTATION_AUTO_ENABLED", "false");
-        std::env::set_var("SKYNET_ROTATION_CLEANUP_ENABLED", "false");
+        std::env::set_var("SKYLET_ROTATION_CHECK_INTERVAL", "1800");
+        std::env::set_var("SKYLET_ROTATION_CLEANUP_INTERVAL", "43200");
+        std::env::set_var("SKYLET_ROTATION_AUTO_ENABLED", "false");
+        std::env::set_var("SKYLET_ROTATION_CLEANUP_ENABLED", "false");
 
         let config = RotationSchedulerConfig::from_env();
-        
+
         assert_eq!(config.check_interval_secs, 1800);
         assert_eq!(config.cleanup_interval_secs, 43200);
         assert!(!config.auto_rotate_enabled);
         assert!(!config.cleanup_enabled);
 
         // Clean up
-        std::env::remove_var("SKYNET_ROTATION_CHECK_INTERVAL");
-        std::env::remove_var("SKYNET_ROTATION_CLEANUP_INTERVAL");
-        std::env::remove_var("SKYNET_ROTATION_AUTO_ENABLED");
-        std::env::remove_var("SKYNET_ROTATION_CLEANUP_ENABLED");
+        std::env::remove_var("SKYLET_ROTATION_CHECK_INTERVAL");
+        std::env::remove_var("SKYLET_ROTATION_CLEANUP_INTERVAL");
+        std::env::remove_var("SKYLET_ROTATION_AUTO_ENABLED");
+        std::env::remove_var("SKYLET_ROTATION_CLEANUP_ENABLED");
     }
 }

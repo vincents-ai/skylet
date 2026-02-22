@@ -22,6 +22,7 @@
 //! - ConfigService uses thread-safe Arc<RwLock> pattern
 //! - PluginInfoV2 structure with 40+ metadata fields
 //! - SafePluginContext for type-safe service access
+//! - Uses skylet-plugin-common for RFC-0006 compliant config paths
 
 // Export v2 ABI implementation
 mod v2_ffi;
@@ -29,6 +30,7 @@ pub use v2_ffi::*;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use skylet_plugin_common::config_paths;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tracing::{info, warn};
@@ -325,7 +327,7 @@ impl Default for PaymentsConfig {
 }
 
 /// Application configuration (main config struct)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub tor: TorConfig,
@@ -334,20 +336,6 @@ pub struct AppConfig {
     pub discovery: DiscoveryConfig,
     pub escrow: EscrowConfig,
     pub payments: PaymentsConfig,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            database: DatabaseConfig::default(),
-            tor: TorConfig::default(),
-            monero: MoneroConfig::default(),
-            agents: AgentsConfig::default(),
-            discovery: DiscoveryConfig::default(),
-            escrow: EscrowConfig::default(),
-            payments: PaymentsConfig::default(),
-        }
-    }
 }
 
 // ============================================================================
@@ -372,6 +360,23 @@ impl ConfigService {
     pub fn load_defaults() -> Result<Self> {
         info!("Loading default configuration");
         Ok(Self::new())
+    }
+
+    /// Load configuration using RFC-0006 compliant config paths
+    /// Searches in order: local -> user -> system
+    pub fn load_auto() -> Result<Self> {
+        if let Some(path) = config_paths::find_config("config-manager") {
+            info!("Found configuration at: {:?}", path);
+            let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("toml");
+            match extension {
+                "json" => Self::load_from_json(path.to_str().unwrap_or("")),
+                "yaml" | "yml" => Self::load_from_yaml(path.to_str().unwrap_or("")),
+                _ => Self::load_from_toml(path.to_str().unwrap_or("")),
+            }
+        } else {
+            info!("No configuration file found, using defaults");
+            Self::load_defaults()
+        }
     }
 
     /// Load configuration from TOML file

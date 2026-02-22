@@ -40,7 +40,7 @@ nix --version
 which nix develop
 
 # Verify plugin directory exists
-ls -la /home/shift/code/vincents-ai/skynet/plugins/config-manager/
+ls -la /home/shift/code/vincents-ai/skylet/plugins/config-manager/
 ```
 
 ### Step 2: Enter Development Environment
@@ -61,7 +61,7 @@ which cargo
 
 ```bash
 # Navigate to plugin directory
-cd /home/shift/code/vincents-ai/skynet/plugins/config-manager
+cd /home/shift/code/vincents-ai/skylet/plugins/config-manager
 
 # Build release binary
 cargo build --release
@@ -77,10 +77,10 @@ ls -lh target/release/libconfig_manager.so
 ```bash
 #!/bin/bash
 # Create configuration directory
-mkdir -p /etc/skynet
+mkdir -p /etc/skylet
 
 # Create TOML configuration
-cat > /etc/skynet/config.toml << 'EOF'
+cat > /etc/skylet/config.toml << 'EOF'
 [database]
 path = "./data/marketplace.db"
 node_id = 1
@@ -125,7 +125,7 @@ api_version = "2023-10-16"
 EOF
 
 # Create JSON configuration as alternative
-cat > /etc/skynet/config.json << 'EOF'
+cat > /etc/skylet/config.json << 'EOF'
 {
   "database": {
     "path": "./data/marketplace.db",
@@ -174,7 +174,7 @@ EOF
 
 # Verify configuration files
 echo "Configuration files created:"
-ls -la /etc/skynet/config.*
+ls -la /etc/skylet/config.*
 ```
 
 ### Step 5: Test Plugin Initialization
@@ -246,12 +246,12 @@ Load configuration from a TOML, JSON, or YAML file:
 # Load configuration from TOML
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d '{"path": "/etc/skynet/config.toml"}' | jq .
+  -d '{"path": "/etc/skylet/config.toml"}' | jq .
 
 # Response:
 # {
 #   "success": true,
-#   "message": "Configuration loaded from /etc/skynet/config.toml"
+#   "message": "Configuration loaded from /etc/skylet/config.toml"
 # }
 ```
 
@@ -360,7 +360,7 @@ Manage different configurations for development, staging, and production:
 #!/bin/bash
 # Configuration management script for multiple environments
 
-CONFIG_HOME="/etc/skynet"
+CONFIG_HOME="/etc/skylet"
 ENVIRONMENTS=("dev" "staging" "production")
 
 # Function to load environment configuration
@@ -420,7 +420,7 @@ Load base configuration and override specific values per environment:
 echo "Step 1: Loading base configuration..."
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d '{"path": "/etc/skynet/config.base.toml"}' | jq .
+  -d '{"path": "/etc/skylet/config.base.toml"}' | jq .
 
 # Step 2: Apply development overrides
 echo "Step 2: Applying development overrides..."
@@ -460,7 +460,7 @@ Track configuration changes with Git integration:
 #!/bin/bash
 # Configuration versioning with Git
 
-CONFIG_DIR="/etc/skynet/versions"
+CONFIG_DIR="/etc/skylet/versions"
 CONFIG_REPO="/opt/config-repo"
 
 # Create configuration repository
@@ -502,7 +502,7 @@ Synchronize configuration across multiple Skylet nodes:
 # Configuration synchronization across cluster
 
 NODES=("node1.example.com" "node2.example.com" "node3.example.com")
-CONFIG_FILE="/etc/skynet/config.production.toml"
+CONFIG_FILE="/etc/skylet/config.production.toml"
 
 echo "Starting configuration synchronization across cluster..."
 
@@ -523,9 +523,9 @@ echo "Step 3: Syncing to cluster nodes..."
 for node in "${NODES[@]}"; do
     echo "Syncing to $node..."
     
-    scp /tmp/config_sync.toml "skynet@$node:/tmp/config_sync.toml"
+    scp /tmp/config_sync.toml "skylet@$node:/tmp/config_sync.toml"
     
-    ssh "skynet@$node" << EOSSH
+    ssh "skylet@$node" << EOSSH
         # Load configuration on remote node
         curl -X POST http://localhost:8080/plugin/config-manager/config_load \
           -H "Content-Type: application/json" \
@@ -545,7 +545,7 @@ echo "Configuration synchronization complete"
 echo "Step 4: Verifying configuration on all nodes..."
 for node in "${NODES[@]}"; do
     echo "Checking $node..."
-    ssh "skynet@$node" \
+    ssh "skylet@$node" \
         "curl -X GET http://localhost:8080/plugin/config-manager/config_validate | jq '.success'"
 done
 ```
@@ -606,7 +606,7 @@ reload_configuration() {
 
 # Main reload process
 NODES=("localhost:8080" "node2.example.com:8080")
-NEW_CONFIG="/etc/skynet/config.updated.toml"
+NEW_CONFIG="/etc/skylet/config.updated.toml"
 
 for node in "${NODES[@]}"; do
     echo "Processing node: $node"
@@ -715,7 +715,7 @@ done
 
 echo ""
 echo "Step 2: Load configuration in development..."
-DEV_CONFIG="/etc/skynet/config.development.toml"
+DEV_CONFIG="/etc/skylet/config.development.toml"
 if ! load_and_validate "development" "$DEV_CONFIG"; then
     echo "ERROR: Failed to load configuration in development"
     exit 1
@@ -794,7 +794,7 @@ Deploy services based on configuration state:
 #!/bin/bash
 # Configuration-driven deployment workflow
 
-CONFIG_FILE="/etc/skynet/config.deployment.toml"
+CONFIG_FILE="/etc/skylet/config.deployment.toml"
 DEPLOYMENT_TIMEOUT=600
 
 echo "Starting configuration-driven deployment..."
@@ -874,7 +874,7 @@ Monitor and correct configuration drift across nodes:
 # Configuration drift detection and correction
 
 NODES=("node1.example.com" "node2.example.com" "node3.example.com")
-EXPECTED_CONFIG="/etc/skynet/config.authoritative.toml"
+EXPECTED_CONFIG="/etc/skylet/config.authoritative.toml"
 DRIFT_LOG="/var/log/config-drift.log"
 CORRECTIONS_LOG="/var/log/config-corrections.log"
 
@@ -964,12 +964,12 @@ echo "Exporting configuration for Kubernetes deployment..."
 
 # Export as YAML
 curl -X GET http://localhost:8080/plugin/config-manager/config_export_yaml | \
-  jq -r '.data' > /tmp/skynet-config.yaml
+  jq -r '.data' > /tmp/skylet-config.yaml
 
 # Create Kubernetes ConfigMap
-kubectl create configmap skynet-config \
-  --from-file=/tmp/skynet-config.yaml \
-  -n skynet-system \
+kubectl create configmap skylet-config \
+  --from-file=/tmp/skylet-config.yaml \
+  -n skylet-system \
   --dry-run=client \
   -o yaml > /tmp/configmap.yaml
 
@@ -977,28 +977,28 @@ kubectl create configmap skynet-config \
 kubectl apply -f /tmp/configmap.yaml
 
 # Verify ConfigMap created
-kubectl get configmap skynet-config -n skynet-system
-kubectl describe configmap skynet-config -n skynet-system
+kubectl get configmap skylet-config -n skylet-system
+kubectl describe configmap skylet-config -n skylet-system
 
 # Mount in Deployment
 cat > /tmp/deployment.yaml << 'EOF'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: skynet-node
-  namespace: skynet-system
+  name: skylet-node
+  namespace: skylet-system
 spec:
   template:
     spec:
       volumes:
       - name: config
         configMap:
-          name: skynet-config
+          name: skylet-config
       containers:
-      - name: skynet
+      - name: skylet
         volumeMounts:
         - name: config
-          mountPath: /etc/skynet/
+          mountPath: /etc/skylet/
           readOnly: true
 EOF
 
@@ -1023,16 +1023,16 @@ curl -X GET http://localhost:8080/plugin/config-manager/config_export_json | \
 cat > docker-compose.yml << 'EOF'
 version: '3.8'
 services:
-  skynet-node:
-    image: skynet:latest
+  skylet-node:
+    image: skylet:latest
     volumes:
-      - /tmp/config.json:/etc/skynet/config.json:ro
+      - /tmp/config.json:/etc/skylet/config.json:ro
     environment:
-      CONFIG_FILE: /etc/skynet/config.json
+      CONFIG_FILE: /etc/skylet/config.json
     ports:
       - "8080:8080"
     networks:
-      - skynet
+      - skylet
   
   monero-daemon:
     image: monero:latest
@@ -1041,10 +1041,10 @@ services:
     volumes:
       - monero-data:/data
     networks:
-      - skynet
+      - skylet
 
 networks:
-  skynet:
+  skylet:
     driver: bridge
 
 volumes:
@@ -1055,7 +1055,7 @@ EOF
 docker-compose up -d
 
 # Verify configuration loaded
-docker-compose exec skynet-node curl -X GET http://localhost:8080/plugin/config-manager/config_get
+docker-compose exec skylet-node curl -X GET http://localhost:8080/plugin/config-manager/config_get
 ```
 
 ### Integration with Git and CI/CD
@@ -1069,7 +1069,7 @@ Automated configuration management in CI/CD pipeline:
 echo "Configuration management in CI/CD pipeline..."
 
 # Step 1: Clone configuration repository
-git clone https://github.com/myorg/skynet-config.git /tmp/config-repo
+git clone https://github.com/myorg/skylet-config.git /tmp/config-repo
 cd /tmp/config-repo
 
 # Step 2: Load configuration based on branch
@@ -1121,25 +1121,25 @@ echo "Git branch: $BRANCH"
 ```json
 {
   "success": false,
-  "error": "File not found: /etc/skynet/config.toml"
+  "error": "File not found: /etc/skylet/config.toml"
 }
 ```
 
 **Solution:**
 ```bash
 # Check file exists
-ls -la /etc/skynet/config.toml
+ls -la /etc/skylet/config.toml
 
 # Check file permissions
-stat /etc/skynet/config.toml
+stat /etc/skylet/config.toml
 
 # Check path is correct
 pwd
 find /etc -name "config.toml" 2>/dev/null
 
 # Create missing file
-mkdir -p /etc/skynet
-cat > /etc/skynet/config.toml << 'EOF'
+mkdir -p /etc/skylet
+cat > /etc/skylet/config.toml << 'EOF'
 [database]
 path = "./data/marketplace.db"
 node_id = 1
@@ -1184,14 +1184,14 @@ curl -X GET http://localhost:8080/plugin/config-manager/config_validate
 ```bash
 # Ensure plugin is initialized
 # Check plugin init logs
-journalctl -u skynet-plugin-config-manager -f
+journalctl -u skylet-plugin-config-manager -f
 
 # Manually reinitialize if needed
 # Restart the plugin or service
-systemctl restart skynet-plugin-config-manager
+systemctl restart skylet-plugin-config-manager
 
 # Check status
-systemctl status skynet-plugin-config-manager
+systemctl status skylet-plugin-config-manager
 ```
 
 ### Issue: Invalid JSON Format
@@ -1240,7 +1240,7 @@ Avoid frequent file loads; use in-memory updates instead:
 # GOOD: Load once, update multiple times
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d '{"path": "/etc/skynet/config.toml"}'
+  -d '{"path": "/etc/skylet/config.toml"}'
 
 # Update specific fields instead of reloading
 curl -X POST http://localhost:8080/plugin/config-manager/config_set \
@@ -1297,13 +1297,13 @@ Avoid loading wrong configuration by using explicit files:
 ```bash
 #!/bin/bash
 # Create environment-specific files
-ls -la /etc/skynet/config.*.toml
+ls -la /etc/skylet/config.*.toml
 
 # Load specific file
 ENV=${ENVIRONMENT:-production}
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d "{\"path\": \"/etc/skynet/config.$ENV.toml\"}"
+  -d "{\"path\": \"/etc/skylet/config.$ENV.toml\"}"
 ```
 
 ### Tip 5: Implement Configuration Change Tracking
@@ -1314,7 +1314,7 @@ Log configuration changes for auditing:
 #!/bin/bash
 # Simple configuration change logging
 
-CONFIG_LOG="/var/log/skynet-config-changes.log"
+CONFIG_LOG="/var/log/skylet-config-changes.log"
 
 log_config_change() {
     local action=$1
@@ -1325,12 +1325,12 @@ log_config_change() {
 }
 
 # Log configuration load
-log_config_change "LOAD" "Loaded from /etc/skynet/config.toml"
+log_config_change "LOAD" "Loaded from /etc/skylet/config.toml"
 
 # Load configuration
 curl -X POST http://localhost:8080/plugin/config-manager/config_load \
   -H "Content-Type: application/json" \
-  -d '{"path": "/etc/skynet/config.toml"}'
+  -d '{"path": "/etc/skylet/config.toml"}'
 
 # Log configuration update
 log_config_change "UPDATE" "Updated monero.network to mainnet"

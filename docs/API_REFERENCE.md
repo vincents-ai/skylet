@@ -43,7 +43,7 @@ The primary module for plugin development. Key components:
 **Main Types:**
 - `PluginContextV2` - Execution context passed to plugins
 - `PluginInfoV2` - Plugin metadata
-- `PluginResult` - Result codes (Success, Error, InvalidRequest, etc.)
+- `PluginResultV2` - Result codes (Success, Error, InvalidRequest, etc.)
 - `ServiceRegistry` - Access to available services
 
 **Entry Points:**
@@ -167,10 +167,10 @@ Fine-grained permission system.
 ### Accessing Services in Plugins
 
 ```rust
-use skylet_abi::PluginContextV2;
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
 
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         let ctx = (*context);
         
@@ -184,7 +184,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
             let my_config = config.get("my-plugin")?;
         }
     }
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -221,22 +221,23 @@ fn setup_config() {
 
 ```rust
 use std::ffi::CStr;
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
 
 #[no_mangle]
 pub extern "C" fn plugin_process_request(
     context: *const PluginContextV2,
     request: *const c_char,
     request_len: usize,
-) -> PluginResult {
+) -> PluginResultV2 {
     // Validate inputs
     if context.is_null() {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     if request.is_null() || request_len == 0 {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     if request_len > MAX_REQUEST_SIZE {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     
     unsafe {
@@ -245,16 +246,16 @@ pub extern "C" fn plugin_process_request(
         // Process...
     }
     
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
 ## Type Reference
 
-### PluginResult Codes
+### PluginResultV2 Codes
 
 ```rust
-pub enum PluginResult {
+pub enum PluginResultV2 {
     Success = 0,           // Operation successful
     Error = 1,             // Generic error
     InvalidRequest = 2,    // Invalid input

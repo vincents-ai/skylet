@@ -31,7 +31,9 @@ pub enum AbiLoaderError {
     /// RFC-0006: Invalid schema format
     InvalidSchema(String),
     /// RFC-0006: Config validation failed against schema
-    ConfigValidationFailed { errors: Vec<String> },
+    ConfigValidationFailed {
+        errors: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for AbiLoaderError {
@@ -69,7 +71,7 @@ pub enum AbiVersion {
 
 impl AbiVersion {
     /// Parse ABI version from string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "1.0" | "1" => AbiVersion::V1,
             "2.0" | "2" => AbiVersion::V2,
@@ -151,7 +153,7 @@ impl AbiV2PluginLoader {
                 .map_err(|e| AbiLoaderError::ValidationFailed(e.to_string()))?
         };
 
-        let abi_version = AbiVersion::from_str(abi_version_str);
+        let abi_version = AbiVersion::parse(abi_version_str);
         if !abi_version.is_supported() {
             return Err(AbiLoaderError::UnsupportedAbiVersion(
                 abi_version_str.to_string(),
@@ -164,7 +166,7 @@ impl AbiV2PluginLoader {
                 .get::<Symbol<PluginInitFnV2>>(b"plugin_init_v2")
                 .map_err(|_| AbiLoaderError::MissingRequiredSymbol("plugin_init_v2".to_string()))?
         };
-let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
+        let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
 
         let shutdown_fn_sym = unsafe {
             library
@@ -173,8 +175,7 @@ let init_fn: PluginInitFnV2 = unsafe { *(addr_of!(*init_fn_sym) as *const _) };
                     AbiLoaderError::MissingRequiredSymbol("plugin_shutdown_v2".to_string())
                 })?
         };
-        let shutdown_fn: PluginShutdownFnV2 =
-            unsafe { *(addr_of!(*shutdown_fn_sym) as *const _) };
+        let shutdown_fn: PluginShutdownFnV2 = unsafe { *(addr_of!(*shutdown_fn_sym) as *const _) };
 
         let handle_request_fn_sym = unsafe {
             library
@@ -493,10 +494,10 @@ mod tests {
 
     #[test]
     fn test_abi_version_parsing() {
-        assert_eq!(AbiVersion::from_str("2.0"), AbiVersion::V2);
-        assert_eq!(AbiVersion::from_str("1.0"), AbiVersion::V1);
+        assert_eq!(AbiVersion::parse("2.0"), AbiVersion::V2);
+        assert_eq!(AbiVersion::parse("1.0"), AbiVersion::V1);
         assert_eq!(
-            AbiVersion::from_str("3.0"),
+            AbiVersion::parse("3.0"),
             AbiVersion::Unknown("3.0".to_string())
         );
     }
@@ -544,7 +545,10 @@ mod tests {
 
         // Test ConfigValidationFailed display
         let err = AbiLoaderError::ConfigValidationFailed {
-            errors: vec!["missing field 'api_key'".to_string(), "invalid type".to_string()],
+            errors: vec![
+                "missing field 'api_key'".to_string(),
+                "invalid type".to_string(),
+            ],
         };
         let display = err.to_string();
         assert!(display.contains("Config validation failed"));

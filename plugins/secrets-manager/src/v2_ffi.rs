@@ -7,6 +7,7 @@
 //! Secrets Manager is Bootstrap Plugin #4 and provides encrypted secret storage.
 
 use skylet_abi::v2_spec::*;
+use skylet_plugin_common::{CapabilityBuilder, TagsBuilder};
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 
@@ -21,11 +22,8 @@ const AUTHOR: &str = "Skylet Team";
 const LICENSE: &str = "MIT OR Apache-2.0";
 const HOMEPAGE: &str = "https://github.com/vincents-ai/skylet";
 const ABI_VERSION: &str = "2.0";
-const SKYNET_VERSION_MIN: &str = "0.1.0";
-const SKYNET_VERSION_MAX: &str = "2.0.0";
-
-// Tags
-const TAGS: &[&str] = &["security", "encryption", "secrets", "bootstrap"];
+const SKYLET_VERSION_MIN: &str = "0.1.0";
+const SKYLET_VERSION_MAX: &str = "2.0.0";
 
 // ============================================================================
 // V2 ABI Functions
@@ -38,57 +36,43 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 
     unsafe {
         if INFO.is_none() {
-            // Prepare tags - leak CStrings to create static pointers
-            let tags_vec: Vec<CString> = TAGS.iter().map(|s| CString::new(*s).unwrap()).collect();
+            // Build tags using TagsBuilder
+            let (tags_ptr, num_tags) = TagsBuilder::new()
+                .add("security")
+                .add("encryption")
+                .add("secrets")
+                .add("bootstrap")
+                .build();
 
-            // Create pointer array and leak it
-            let tag_ptrs: Vec<*const c_char> = tags_vec.iter().map(|cs| cs.as_ptr()).collect();
-
-            // Leak tag_ptrs Vec to create static pointer
-            let tags_leaked = Box::leak(tag_ptrs.into_boxed_slice()) as *const [*const c_char]
-                as *const *const c_char;
-
-            // Prepare capabilities - leak each CapabilityInfo struct
-            let capabilities = vec![
-                CapabilityInfo {
-                    name: CString::new("secrets.get").unwrap().into_raw(),
-                    description: CString::new("Get secret value by key").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.read").unwrap().into_raw(),
-                },
-                CapabilityInfo {
-                    name: CString::new("secrets.set").unwrap().into_raw(),
-                    description: CString::new("Set secret value by key").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.write").unwrap().into_raw(),
-                },
-                CapabilityInfo {
-                    name: CString::new("secrets.delete").unwrap().into_raw(),
-                    description: CString::new("Delete secret by key").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.delete").unwrap().into_raw(),
-                },
-                CapabilityInfo {
-                    name: CString::new("secrets.list").unwrap().into_raw(),
-                    description: CString::new("List all secrets").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.list").unwrap().into_raw(),
-                },
-                CapabilityInfo {
-                    name: CString::new("secrets.rotate").unwrap().into_raw(),
-                    description: CString::new("Rotate secret value").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.rotate").unwrap().into_raw(),
-                },
-                CapabilityInfo {
-                    name: CString::new("secrets.versioned").unwrap().into_raw(),
-                    description: CString::new("Versioned secret access").unwrap().into_raw(),
-                    required_permission: CString::new("secrets.versioned").unwrap().into_raw(),
-                },
-            ];
-
-            // Convert to raw pointer and leak the Vec itself
-            let capabilities_ptr = Box::leak(capabilities.into_boxed_slice())
-                as *const [CapabilityInfo]
-                as *const CapabilityInfo;
-
-            // No dependencies for bootstrap plugin
-            let dependencies_ptr = ptr::null();
+            // Build capabilities using CapabilityBuilder
+            let (capabilities_ptr, num_capabilities) = CapabilityBuilder::new()
+                .add(
+                    "secrets.get",
+                    "Get secret value by key",
+                    Some("secrets.read"),
+                )
+                .add(
+                    "secrets.set",
+                    "Set secret value by key",
+                    Some("secrets.write"),
+                )
+                .add(
+                    "secrets.delete",
+                    "Delete secret by key",
+                    Some("secrets.delete"),
+                )
+                .add("secrets.list", "List all secrets", Some("secrets.list"))
+                .add(
+                    "secrets.rotate",
+                    "Rotate secret value",
+                    Some("secrets.rotate"),
+                )
+                .add(
+                    "secrets.versioned",
+                    "Versioned secret access",
+                    Some("secrets.versioned"),
+                )
+                .build();
 
             INFO = Some(PluginInfoV2 {
                 // Basic metadata
@@ -100,12 +84,12 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
                 homepage: CString::new(HOMEPAGE).unwrap().into_raw(),
 
                 // Version compatibility
-                skynet_version_min: CString::new(SKYNET_VERSION_MIN).unwrap().into_raw(),
-                skynet_version_max: CString::new(SKYNET_VERSION_MAX).unwrap().into_raw(),
+                skylet_version_min: CString::new(SKYLET_VERSION_MIN).unwrap().into_raw(),
+                skylet_version_max: CString::new(SKYLET_VERSION_MAX).unwrap().into_raw(),
                 abi_version: CString::new(ABI_VERSION).unwrap().into_raw(),
 
                 // Dependencies and services
-                dependencies: dependencies_ptr,
+                dependencies: ptr::null(),
                 num_dependencies: 0,
                 provides_services: ptr::null(),
                 num_provides_services: 0,
@@ -114,19 +98,15 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 
                 // Capabilities
                 capabilities: capabilities_ptr,
-                num_capabilities: 6,
+                num_capabilities,
 
                 // Resources
                 min_resources: ptr::null(),
                 max_resources: ptr::null(),
 
                 // Tags
-                tags: if TAGS.is_empty() {
-                    ptr::null()
-                } else {
-                    tags_leaked
-                },
-                num_tags: TAGS.len(),
+                tags: tags_ptr,
+                num_tags,
                 category: PluginCategory::Security,
 
                 // Runtime capabilities
@@ -176,6 +156,9 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
     }
+
+    // Call the cleanup function from lib.rs
+    crate::cleanup_plugin();
 
     PluginResultV2::Success
 }
@@ -298,6 +281,9 @@ pub extern "C" fn plugin_create_v2() -> *const PluginApiV2 {
         query_capability: Some(plugin_query_capability_v2),
         get_config_schema: Some(plugin_get_config_schema_json),
         get_billing_metrics: None,
+        serialize_state: None,
+        deserialize_state: None,
+        free_state: None,
     };
 
     &API

@@ -16,31 +16,6 @@ on:
     branches: [main, develop]
 
 jobs:
-  test:
-    name: Test Suite
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-      
-      - name: Run tests (standalone)
-        run: cargo test --lib --verbose --features standalone
-      
-      - name: Run tests (all features)
-        run: cargo test --lib --verbose --all-features
-        continue-on-error: true
-
   check:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -65,8 +40,35 @@ jobs:
         run: cargo clippy --lib --all-features -- -D warnings
         continue-on-error: true
 
+  test:
+    name: Test Suite
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Run tests (standalone)
+        run: cargo test --lib --verbose --features standalone
+      
+      - name: Run tests (all features)
+        run: cargo test --lib --verbose --all-features
+        continue-on-error: true
+
   build:
     name: Build Binaries
+    needs: check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -101,6 +103,7 @@ jobs:
 
   coverage:
     name: Code Coverage
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +128,7 @@ jobs:
 
   docs:
     name: Documentation
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

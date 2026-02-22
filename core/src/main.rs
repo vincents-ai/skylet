@@ -1,20 +1,20 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::{Parser, Subcommand};
-use anyhow::Result;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::ffi::{c_char, c_void, CStr, CString};
-use lazy_static::lazy_static;
 use crate::config::AppConfig; // Use AppConfig only, ConfigArgs from crate::config will be used implicitly for Cli
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use lazy_static::lazy_static;
 use serde_json;
+use std::collections::HashMap;
+use std::ffi::{c_char, c_void, CStr, CString};
+use std::sync::{Arc, RwLock};
 use tracing;
 
 mod config;
 
 #[derive(Parser)]
-#[command(name = "skynet")]
+#[command(name = "skylet")]
 #[command(about = "Autonomous Marketplace")]
 struct Cli {
     #[command(flatten)]
@@ -45,7 +45,8 @@ unsafe impl Send for ServicePtr {}
 unsafe impl Sync for ServicePtr {}
 
 lazy_static! {
-    static ref SERVICES: Arc<RwLock<HashMap<String, ServicePtr>>> = Arc::new(RwLock::new(HashMap::new()));
+    static ref SERVICES: Arc<RwLock<HashMap<String, ServicePtr>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 }
 
 extern "C" fn host_log(
@@ -93,7 +94,9 @@ extern "C" fn host_get(
 ) -> *mut c_void {
     let name_str = unsafe { CStr::from_ptr(name).to_string_lossy().into_owned() };
     let map = SERVICES.read().unwrap();
-    map.get(&name_str).map(|s| s.0).unwrap_or(std::ptr::null_mut())
+    map.get(&name_str)
+        .map(|s| s.0)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 extern "C" fn host_unregister(
@@ -123,17 +126,16 @@ async fn main() -> Result<()> {
     let config_ptr = config_json_c_string.as_ptr();
     std::mem::forget(config_json_c_string); // Plugin will hold onto this pointer
 
-            let context = skylet_abi::PluginContext {
-                logger: &LOGGER,
-                config: std::ptr::null(), // No longer using this field for config
-                service_registry: &REGISTRY,
-                tracer: std::ptr::null(),
-                user_data: std::ptr::null_mut(),
-                user_context_json: config_ptr, // Pass the host's config to the plugin via user_context_json
-                secrets: std::ptr::null(),
-            rotation_notifications: std::ptr::null(),
-            };
-
+    let context = skylet_abi::PluginContext {
+        logger: &LOGGER,
+        config: std::ptr::null(), // No longer using this field for config
+        service_registry: &REGISTRY,
+        tracer: std::ptr::null(),
+        user_data: std::ptr::null_mut(),
+        user_context_json: config_ptr, // Pass the host's config to the plugin via user_context_json
+        secrets: std::ptr::null(),
+        rotation_notifications: std::ptr::null(),
+    };
 
     match cli.command {
         Commands::Server => {
@@ -154,7 +156,7 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
             tracing::info!("Loading plugins: {:?}", plugins);
-            
+
             let mut loaded_plugins = Vec::new();
 
             for path in plugins {
@@ -170,7 +172,7 @@ async fn main() -> Result<()> {
             tracing::info!("All plugins loaded. Press Ctrl+C to stop.");
             // Keep the main runtime alive to allow background plugin tasks to run
             tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
-            
+
             tokio::signal::ctrl_c().await?;
             tracing::info!("Shutting down...");
             for plugin in loaded_plugins {

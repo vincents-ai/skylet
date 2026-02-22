@@ -63,7 +63,7 @@ which cargo
 
 ```bash
 # Navigate to plugin directory
-cd /home/shift/code/vincents-ai/skynet/plugins/logging
+cd /home/shift/code/vincents-ai/skylet/plugins/logging
 
 # Build release binary
 cargo build --release
@@ -81,16 +81,16 @@ ls -lh target/release/liblogging.so
 # Start Skylet with logging plugin
 
 # Set up environment
-export SKYNET_PLUGINS_DIR="/home/shift/code/vincents-ai/skynet/plugins"
+export SKYLET_PLUGINS_DIR="/home/shift/code/vincents-ai/skylet/plugins"
 export LOG_LEVEL="INFO"
 
 # Start plugin system with logging plugin loaded
 # This depends on your Skylet configuration
 # Example:
-systemctl start skynet-plugin-logging
+systemctl start skylet-plugin-logging
 
 # Or manually load if using plugin loader
-skynet-loader --plugin-dir=$SKYNET_PLUGINS_DIR load-plugin logging
+skylet-loader --plugin-dir=$SKYLET_PLUGINS_DIR load-plugin logging
 
 # Verify plugin is loaded
 curl -X GET http://localhost:8080/plugin/logging/log/level/get
@@ -557,7 +557,7 @@ Maintain audit logs for compliance requirements:
 #!/bin/bash
 # Compliance and audit logging workflow
 
-AUDIT_LOG_DIR="/var/log/skynet-audit"
+AUDIT_LOG_DIR="/var/log/skylet-audit"
 mkdir -p "$AUDIT_LOG_DIR"
 
 echo "=== Compliance Audit Logging ==="
@@ -632,16 +632,16 @@ curl -s -X GET http://localhost:8080/plugin/logging/log/events | \
   jq '.events | map(fromjson)' > /tmp/logs.json
 
 # Create ConfigMap
-kubectl create configmap skynet-logs \
+kubectl create configmap skylet-logs \
   --from-file=/tmp/logs.json \
-  -n skynet-system \
+  -n skylet-system \
   --dry-run=client \
   -o yaml | kubectl apply -f -
 
 echo "Logs exported to Kubernetes ConfigMap"
 
 # View in cluster
-kubectl get configmap skynet-logs -n skynet-system
+kubectl get configmap skylet-logs -n skylet-system
 ```
 
 ### Integration with ELK Stack
@@ -653,7 +653,7 @@ Send logs to Elasticsearch for analysis:
 # ELK Stack integration
 
 ELASTIC_HOST="elasticsearch:9200"
-ELASTIC_INDEX="skynet-logs"
+ELASTIC_INDEX="skylet-logs"
 
 echo "=== ELK Stack Integration ==="
 
@@ -690,15 +690,15 @@ curl -s -X GET http://localhost:8080/plugin/logging/log/events | jq '{
 
 # Convert to Prometheus format
 cat > /tmp/metrics.txt << 'EOF'
-# HELP skynet_log_events_total Total number of logged events
-# TYPE skynet_log_events_total gauge
+# HELP skylet_log_events_total Total number of logged events
+# TYPE skylet_log_events_total gauge
 EOF
 
-jq '.events_by_level[] | "skynet_log_events{level=\"\(.level)\"} \(.count)"' /tmp/metrics.json | \
+jq '.events_by_level[] | "skylet_log_events{level=\"\(.level)\"} \(.count)"' /tmp/metrics.json | \
   tr -d '"' >> /tmp/metrics.txt
 
 # Push to Prometheus Pushgateway
-curl --data-binary @/tmp/metrics.txt "$PROMETHEUS_PUSHGATEWAY/metrics/job/skynet/instance/logger"
+curl --data-binary @/tmp/metrics.txt "$PROMETHEUS_PUSHGATEWAY/metrics/job/skylet/instance/logger"
 
 echo "Metrics pushed to Prometheus Pushgateway"
 ```
@@ -717,10 +717,10 @@ echo "Metrics pushed to Prometheus Pushgateway"
 curl -s http://localhost:8080/plugin/logging/log/level/get || echo "Plugin not responding"
 
 # Check system logs
-journalctl -u skynet-plugins -f
+journalctl -u skylet-plugins -f
 
 # Try restarting plugin
-systemctl restart skynet-plugin-logging
+systemctl restart skylet-plugin-logging
 
 # Verify health
 curl -X GET http://localhost:8080/plugin/logging/health
@@ -737,7 +737,7 @@ curl -X GET http://localhost:8080/plugin/logging/health
 curl -X GET http://localhost:8080/plugin/logging/health
 
 # If unhealthy, restart
-systemctl restart skynet-plugin-logging
+systemctl restart skylet-plugin-logging
 
 # Try again
 curl -X POST http://localhost:8080/plugin/logging/log/level/set \
@@ -782,7 +782,7 @@ while true; do
         
         # Export events
         curl -s -X GET http://localhost:8080/plugin/logging/log/events | \
-          jq '.events | map(fromjson)' >> /var/log/skynet-events-$(date +%Y%m%d).json
+          jq '.events | map(fromjson)' >> /var/log/skylet-events-$(date +%Y%m%d).json
     fi
     
     sleep 300  # Check every 5 minutes
@@ -827,7 +827,7 @@ Regularly archive and compress old log exports:
 #!/bin/bash
 # Log archival script
 
-LOG_DIR="/var/log/skynet"
+LOG_DIR="/var/log/skylet"
 ARCHIVE_DIR="$LOG_DIR/archive"
 RETENTION_DAYS=30
 

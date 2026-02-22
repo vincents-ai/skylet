@@ -9,11 +9,11 @@
 //! - Health checking and automatic recovery
 //! - Cross-node synchronization
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
 use tracing;
 
 /// Health status of a service node
@@ -350,11 +350,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cluster_initialization() {
-        let cluster = ServiceCluster::new(
-            "node-1",
-            ConsensusType::EventualConsistency,
-            2,
-        );
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         assert_eq!(cluster.local_node_id, "node-1");
         assert_eq!(cluster.quorum_size, 2);
     }
@@ -363,7 +359,7 @@ mod tests {
     async fn test_add_node() {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let node = ServiceNode::new("node-2", "192.168.1.2", 8080);
-        
+
         assert!(cluster.add_node(node).await.is_ok());
     }
 
@@ -378,7 +374,7 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         assert!(cluster.register_service(service).await.is_ok());
     }
 
@@ -393,9 +389,9 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         cluster.register_service(service).await.unwrap();
-        
+
         let found = cluster.discover_services("my-service").await.unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].service_id, "svc-1");
@@ -406,7 +402,7 @@ mod tests {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let mut node = ServiceNode::new("node-2", "192.168.1.2", 8080);
         node.health_status = HealthStatus::Healthy;
-        
+
         cluster.add_node(node).await.unwrap();
         assert!(cluster.health_check().await.is_ok());
     }
@@ -415,9 +411,9 @@ mod tests {
     async fn test_cluster_status() {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let node = ServiceNode::new("node-2", "192.168.1.2", 8080);
-        
+
         cluster.add_node(node).await.unwrap();
-        
+
         let status = cluster.get_cluster_status().await.unwrap();
         assert_eq!(status.total_nodes, 1);
         assert_eq!(status.total_services, 0);
@@ -434,10 +430,10 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         cluster.register_service(service).await.unwrap();
         cluster.deregister_service("svc-1").await.unwrap();
-        
+
         let services = cluster.list_services().await.unwrap();
         assert_eq!(services.len(), 0);
     }

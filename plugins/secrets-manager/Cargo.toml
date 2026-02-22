@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 skylet-abi = { path = "../../abi" }
+skylet-plugin-common = { path = "../skylet-plugin-common" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
