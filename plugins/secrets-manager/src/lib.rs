@@ -13,6 +13,7 @@ use skylet_abi::audit::{
 };
 use skylet_abi::security::EncryptedSecretStore;
 use skylet_abi::*;
+use skylet_plugin_common::config_paths;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::path::Path;
@@ -423,18 +424,28 @@ impl RotationPolicyConfig {
 
     /// Load configuration from environment variable or file
     /// Looks for SKYLET_ROTATION_POLICY_CONFIG env var pointing to a file,
-    /// or uses the default configuration
+    /// or uses RFC-0006 compliant config paths, or falls back to defaults
     pub fn load_from_env_or_default() -> Result<Self> {
+        // First check environment variable
         if let Ok(config_path) = std::env::var("SKYLET_ROTATION_POLICY_CONFIG") {
             debug!(
-                "Loading rotation policy configuration from: {}",
+                "Loading rotation policy configuration from env: {}",
                 config_path
             );
-            Self::from_file(Path::new(&config_path))
-        } else {
-            debug!("Using default rotation policy configuration");
-            Ok(Self::default())
+            return Self::from_file(Path::new(&config_path));
         }
+        
+        // Then check RFC-0006 compliant config paths
+        if let Some(path) = config_paths::find_config("secrets-manager") {
+            debug!(
+                "Loading rotation policy configuration from: {:?}",
+                path
+            );
+            return Self::from_file(&path);
+        }
+        
+        debug!("Using default rotation policy configuration");
+        Ok(Self::default())
     }
 
     /// Export configuration to TOML format

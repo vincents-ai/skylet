@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # Skylet dependencies
 skylet-abi = { path = "../../abi" }
+skylet-plugin-common = { path = "../skylet-plugin-common" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

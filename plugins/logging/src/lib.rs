@@ -5,6 +5,10 @@
 //!
 //! This plugin provides structured JSON logging with RFC-0018 compliance.
 //! Now migrated to RFC-0004 v2 ABI.
+//!
+//! Uses skylet-plugin-common for:
+//! - RFC-0006 compliant config paths
+//! - Common response helpers
 
 #![allow(dead_code, unused_imports, unused_variables)]
 
@@ -12,6 +16,7 @@ use skylet_abi::v2_spec::*;
 use skylet_abi::{
     DependencyInfo, MaturityLevel, MonetizationModel, PluginCategory, PluginLogLevel,
 };
+use skylet_plugin_common::config_paths;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};

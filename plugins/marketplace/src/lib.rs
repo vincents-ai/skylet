@@ -5,9 +5,16 @@
 //!
 //! This plugin provides marketplace operations for listings and transactions.
 //! It includes its own database migrations separate from the core engine.
+//!
+//! Uses skylet-plugin-common for:
+//! - RFC-0006 compliant config paths
+//! - Common database utilities
+
+#![allow(unused_imports)]
 
 use skylet_abi::v2_spec::*;
 use skylet_abi::DependencyInfo;
+use skylet_plugin_common::config_paths;
 use std::ffi::CString;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};

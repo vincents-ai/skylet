@@ -4,9 +4,16 @@
 //! Registry Plugin - V2 ABI Implementation
 //!
 //! This plugin provides federated plugin registry operations using RFC-0004 v2 ABI.
+//!
+//! Uses skylet-plugin-common for:
+//! - RFC-0006 compliant config paths
+//! - Common HTTP client utilities
+
+#![allow(unused_imports)]
 
 use skylet_abi::v2_spec::*;
 use skylet_abi::{DependencyInfo, MaturityLevel, MonetizationModel, PluginCategory};
+use skylet_plugin_common::config_paths;
 use std::ffi::CString;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
