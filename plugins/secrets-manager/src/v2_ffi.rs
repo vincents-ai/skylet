@@ -157,6 +157,9 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
         return PluginResultV2::InvalidRequest;
     }
 
+    // Call the cleanup function from lib.rs
+    crate::cleanup_plugin();
+
     PluginResultV2::Success
 }
 

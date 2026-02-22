@@ -70,14 +70,6 @@ pub extern "C" fn plugin_shutdown_v2(_context: *const PluginContextV2) -> Plugin
     PluginResultV2::Success
 }
 
-/// Plugin shutdown entry point (v1 ABI wrapper for bootstrap compatibility)
-#[no_mangle]
-pub extern "C" fn plugin_shutdown(
-    _context: *const skylet_abi::PluginContext,
-) -> skylet_abi::PluginResult {
-    skylet_abi::PluginResult::Success
-}
-
 /// Plugin information entry point (v2 ABI)
 #[no_mangle]
 pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {

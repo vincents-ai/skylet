@@ -1832,6 +1832,41 @@ static mut DEPENDENCIES: [DependencyInfo; 1] = [DependencyInfo {
 }];
 
 // ============================================================================
+// Plugin Lifecycle Functions
+// ============================================================================
+
+/// Cleanup plugin state - called by plugin_shutdown_v2
+///
+/// This function handles:
+/// - Stopping the audit flush task
+/// - Stopping the rotation scheduler
+/// - Cleaning up plugin info
+/// - Cleaning up manager, config, service, versioned backend, and audit registry
+#[allow(static_mut_refs)]
+pub(crate) fn cleanup_plugin() {
+    unsafe {
+        // Signal the audit flush task to stop
+        AUDIT_FLUSH_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // Signal the rotation scheduler to stop
+        stop_rotation_scheduler();
+
+        // Clean up v2 plugin info
+        let ptr = PLUGIN_INFO_V2.swap(ptr::null_mut(), Ordering::SeqCst);
+        if !ptr.is_null() {
+            let _ = Box::from_raw(ptr);
+        }
+
+        // Clean up manager, config, service, versioned backend, and audit registry
+        SECRETS_MANAGER = None;
+        ROTATION_POLICY_CONFIG = None;
+        SECRETS_SERVICE = None;
+        VERSIONED_BACKEND = None;
+        AUDIT_REGISTRY = None;
+    }
+}
+
+// ============================================================================
 // Audit Logging Helpers
 // ============================================================================
 
@@ -2556,31 +2591,6 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
 
         PluginResult::Success
     }
-}
-
-#[no_mangle]
-pub extern "C" fn plugin_shutdown(_context: *const PluginContext) -> PluginResult {
-    unsafe {
-        // Signal the audit flush task to stop
-        AUDIT_FLUSH_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
-
-        // Signal the rotation scheduler to stop
-        stop_rotation_scheduler();
-
-        // Clean up v2 plugin info
-        let ptr = PLUGIN_INFO_V2.swap(ptr::null_mut(), Ordering::SeqCst);
-        if !ptr.is_null() {
-            let _ = Box::from_raw(ptr);
-        }
-
-        // Clean up manager, config, service, versioned backend, and audit registry
-        SECRETS_MANAGER = None;
-        ROTATION_POLICY_CONFIG = None;
-        SECRETS_SERVICE = None;
-        VERSIONED_BACKEND = None;
-        AUDIT_REGISTRY = None;
-    }
-    PluginResult::Success
 }
 
 #[no_mangle]
