@@ -90,9 +90,11 @@ manager.resolve_secrets()?;
 ### 3. Access Configuration in Plugin
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 // In your plugin_init_v2 function:
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         let ctx = (*context);
         
@@ -106,7 +108,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
             // Use api_key...
         }
     }
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -633,11 +635,13 @@ When `reload_on_change: true`:
 Plugins should implement graceful reload:
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 #[no_mangle]
 pub extern "C" fn plugin_on_config_change(
     context: *const PluginContextV2,
     config_json: *const c_char,
-) -> PluginResult {
+) -> PluginResultV2 {
     unsafe {
         let config_str = CStr::from_ptr(config_json)
             .to_string_lossy()
@@ -645,12 +649,12 @@ pub extern "C" fn plugin_on_config_change(
         
         // Parse new configuration
         let new_config: MyConfig = serde_json::from_str(&config_str)
-            .map_err(|_| PluginResult::InvalidRequest)?;
+            .map_err(|_| PluginResultV2::InvalidRequest)?;
         
         // Update internal state
         update_plugin_config(new_config);
         
-        PluginResult::Success
+        PluginResultV2::Success
     }
 }
 ```

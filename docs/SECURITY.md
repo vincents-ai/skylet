@@ -21,23 +21,25 @@ This guide addresses:
 The FFI boundary between the Skylet engine and plugins is a critical security point. **Never trust data crossing this boundary.**
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 #[no_mangle]
 pub extern "C" fn plugin_process_request(
     context: *const PluginContextV2,
     request: *const c_char,
     request_len: usize,
-) -> PluginResult {
+) -> PluginResultV2 {
     unsafe {
         // VULNERABLE: No validation of pointers
         // let request_str = CStr::from_ptr(request).to_string_lossy();  // ❌
         
         // SECURE: Validate null pointers first
         if request.is_null() {
-            return PluginResult::InvalidRequest;  // ✅
+            return PluginResultV2::InvalidRequest;  // ✅
         }
         
         if request_len == 0 || request_len > MAX_REQUEST_SIZE {
-            return PluginResult::InvalidRequest;  // ✅
+            return PluginResultV2::InvalidRequest;  // ✅
         }
         
         // Create slice from raw pointer safely
@@ -49,7 +51,7 @@ pub extern "C" fn plugin_process_request(
                 // Process validated string
                 process_request(request_str)
             }
-            Err(_) => PluginResult::InvalidRequest,  // ✅
+            Err(_) => PluginResultV2::InvalidRequest,  // ✅
         }
     }
 }
@@ -663,7 +665,7 @@ mod security_tests {
     fn test_null_pointer_handling() {
         unsafe {
             let result = plugin_process_request(std::ptr::null(), std::ptr::null(), 0);
-            assert_eq!(result, PluginResult::InvalidRequest);
+            assert_eq!(result, PluginResultV2::InvalidRequest);
         }
     }
 
