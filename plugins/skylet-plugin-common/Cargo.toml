@@ -13,18 +13,18 @@ path = "src/lib.rs"
 crate-type = ["lib"]
 
 [dependencies]
-skylet-abi = { path = "../../abi" }
-serde = { workspace = true }
-serde_json = { workspace = true }
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-uuid = { workspace = true }
-tracing = { workspace = true }
-async-trait = { workspace = true }
-chrono = { workspace = true }
-dirs = { workspace = true }
-toml = { workspace = true }
+skylet-abi = { git = "https://github.com/vincents-ai/skylet.git", tag = "v0.2.0" }
+serde = "1.0"
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tokio = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+tracing = "0.1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
+toml = "0.8"
 
 # HTTP client
 ureq = "2.8"
