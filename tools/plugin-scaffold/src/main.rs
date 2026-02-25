@@ -69,7 +69,7 @@ description = "{description}"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-skylet-abi = {{ git = "https://github.com/vincents-ai/skylet.git", branch = "main" }}
+skylet-abi = {{ git = "https://github.com/vincents-ai/skylet-abi.git", branch = "main" }}
 serde = {{ workspace = true }}
 serde_json = {{ workspace = true }}
 anyhow = {{ workspace = true }}

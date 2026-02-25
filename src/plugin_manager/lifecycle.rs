@@ -1,8 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(dead_code)]
-#![allow(unused_imports)]
 //! Plugin Lifecycle Automation - RFC-0002
 //!
 //! This module implements the complete plugin management workflow with:
@@ -11,12 +9,8 @@
 //! - Deactivation (shutdown, unload)
 //! - Uninstallation (cleanup, unregister)
 //!
-//! Integration with:
-//! - RFC-0001: Registry for plugin discovery
-//! - RFC-0003: Package handling (artifact verification, extraction)
-//! - RFC-0004: ABI loading
-//! - RFC-0005: Dependency resolution
-//! - RFC-0006: Configuration management
+//! Note: Package handling (artifact verification, extraction) requires
+//! the proprietary plugin-packager crate for full functionality.
 
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
@@ -25,71 +19,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-// Integration with RFC-0003 (Package handling) - stub for open source
-// use plugin_packager::{
-//     extract_artifact, verify_artifact, DependencyResolver, LocalRegistry, PluginHealthChecker,
-//     PluginRegistryEntry, SignatureManager,
-// };
-
-// Stub types for plugin_packager
-mod stub_plugin_packager {
-    use anyhow::Result;
-    use std::path::{Path, PathBuf};
-
-    pub struct LocalRegistry;
-    impl LocalRegistry {
-        pub fn new() -> Self { Self }
-        pub fn register(&mut self, _entry: PluginRegistryEntry) -> Result<()> { Ok(()) }
-        pub fn remove(&mut self, _name: &str, _version: &str) -> Result<()> { Ok(()) }
-    }
-
-    pub struct DependencyResolver;
-    impl DependencyResolver {
-        pub fn new(_registry: LocalRegistry) -> Self { Self }
-    }
-
-    pub struct PluginHealthChecker;
-    impl PluginHealthChecker {
-        pub fn new() -> Self { Self }
-        pub fn check_binary_exists(&self, _path: &Path) -> bool { true }
-    }
-
-    pub struct SignatureManager;
-    impl SignatureManager {
-        pub fn new() -> Self { Self }
-    }
-
-    pub fn verify_artifact(_path: &Path, _key: Option<&[u8]>) -> Result<()> { Ok(()) }
-    pub fn extract_artifact(_path: &Path, _dest: &Path) -> Result<ExtractResult> {
-        Ok(ExtractResult {
-            plugin_name: _path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
-            plugin_dir: _dest.to_path_buf(),
-            plugin_version: "1.0.0".to_string(),
-        })
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct PluginRegistryEntry {
-        pub name: String,
-        pub version: String,
-        pub abi_version: String,
-        pub plugin_id: String,
-        pub description: Option<String>,
-        pub author: Option<String>,
-        pub license: Option<String>,
-        pub keywords: Option<Vec<String>>,
-        pub dependencies: Option<Vec<String>>,
-    }
-
-    #[derive(Debug)]
-    pub struct ExtractResult {
-        pub plugin_name: String,
-        pub plugin_dir: PathBuf,
-        pub plugin_version: String,
-    }
-}
-
-use stub_plugin_packager::{
+// Integration with RFC-0003 (Package handling)
+// Use proprietary plugin-packager crate for full functionality
+use skylet_lifecycle_stubs::{
     extract_artifact, verify_artifact, DependencyResolver, LocalRegistry, PluginHealthChecker,
     PluginRegistryEntry, SignatureManager,
 };

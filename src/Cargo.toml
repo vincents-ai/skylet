@@ -21,8 +21,9 @@ path = "lib.rs"
 
 [dependencies]
 # Core dependencies
-skylet-abi = { path = "../abi" }
-permissions = { path = "../permissions" }
+skylet-abi = { git = "https://github.com/vincents-ai/skylet-abi.git", branch = "main" }
+permissions = { git = "https://github.com/vincents-ai/skylet-permissions.git", branch = "main" }
+skylet-lifecycle-stubs = { git = "https://github.com/vincents-ai/skylet-lifecycle-stubs.git", branch = "main" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

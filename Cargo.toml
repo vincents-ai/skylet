@@ -1,8 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "abi",
-    "permissions",
     "plugin-test-harness",
     "src",
     "plugins/skylet-plugin-common",

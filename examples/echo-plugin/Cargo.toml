@@ -8,4 +8,4 @@ description = "An echo plugin that demonstrates request handling in the Skylet p
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-skylet-abi = { git = "https://github.com/vincents-ai/skylet.git", branch = "main" }
+skylet-abi = { git = "https://github.com/vincents-ai/skylet-abi.git", branch = "main" }

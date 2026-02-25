@@ -1097,6 +1097,7 @@ dependencies = [
  "serde",
  "serde_json",
  "skylet-abi 0.2.0",
+ "skylet-lifecycle-stubs",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -3832,6 +3833,13 @@ dependencies = [
  "url",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "skylet-lifecycle-stubs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]
