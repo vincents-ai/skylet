@@ -10,6 +10,6 @@ authors = ["Skylet Team"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-skylet-abi = { git = "https://github.com/vincents-ai/skylet.git", tag = "v0.2.0" }
+skylet-abi = { git = "https://github.com/vincents-ai/skylet.git", branch = "main" }
 serde = "1.0"
 serde_json = "1.0"

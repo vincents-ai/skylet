@@ -1089,7 +1089,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "skylet-abi",
+ "skylet-abi 0.2.0",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -2328,6 +2328,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "metrics"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "skylet-abi 0.2.0 (git+https://github.com/vincents-ai/skylet.git?branch=main)",
+ "tokio",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2729,7 +2740,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "skylet-abi",
+ "skylet-abi 0.2.0",
  "subtle",
  "tempfile",
  "thiserror 1.0.69",
@@ -2830,7 +2841,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
- "skylet-abi",
+ "skylet-abi 0.2.0 (git+https://github.com/vincents-ai/skylet.git?branch=main)",
  "tokio",
 ]
 
@@ -2849,13 +2860,28 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
- "skylet-abi",
+ "skylet-abi 0.2.0",
  "tempfile",
  "tokio",
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "plugin-tester"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "libloading",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3534,7 +3560,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "skylet-abi",
+ "skylet-abi 0.2.0 (git+https://github.com/vincents-ai/skylet.git?branch=main)",
 ]
 
 [[package]]
@@ -3780,6 +3806,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "skylet-abi"
+version = "0.2.0"
+source = "git+https://github.com/vincents-ai/skylet.git?branch=main#e717d2c344a16d466b8d2415ea29f542ced8f12a"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "async-trait",
+ "blake3",
+ "chrono",
+ "ed25519-dalek",
+ "hex",
+ "hmac",
+ "jsonschema",
+ "libloading",
+ "md5",
+ "num_cpus",
+ "parking_lot",
+ "rand",
+ "regex-lite",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "skylet-plugin-common"
 version = "0.5.0"
 dependencies = [
@@ -3796,7 +3857,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "sha2",
- "skylet-abi",
+ "skylet-abi 0.2.0 (git+https://github.com/vincents-ai/skylet.git?branch=main)",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -4000,6 +4061,15 @@ checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "system-monitor"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "skylet-abi 0.2.0 (git+https://github.com/vincents-ai/skylet.git?branch=main)",
 ]
 
 [[package]]
