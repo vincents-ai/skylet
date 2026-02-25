@@ -10,9 +10,6 @@ members = [
     "plugins/security-classifier",
     "plugins/metrics",
     "plugins/system-monitor",
-    "plugins/file-integrity",
-    "plugins/network-monitor",
-    "plugins/audit-logger",
 ]
 
 [workspace.package]
