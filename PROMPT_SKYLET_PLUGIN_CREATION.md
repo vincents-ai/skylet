@@ -80,14 +80,14 @@ members = [
 cargo build -p <plugin-name>
 ```
 
-## Open Source Plugins (In skylet repo)
+## Open Source Plugins (Separate repos)
 
-| Plugin | Description |
-|--------|-------------|
-| `platform-detect` | Bare metal, virtualized, container, secure boot, TPM detection |
-| `security-classifier` | Device trust classification (trusted/high/moderate/low/minimal) |
-| `metrics` | Prometheus-style metrics |
-| `system-monitor` | CPU, memory, disk, network stats |
+| Plugin | Repo |
+|--------|------|
+| `platform-detect` | vincents-ai/skylet-platform-detect |
+| `security-classifier` | vincents-ai/skylet-security-classifier |
+| `metrics` | vincents-ai/skylet-metrics |
+| `system-monitor` | vincents-ai/skylet-system-monitor |
 
 ## Proprietary Plugins (Separate repos)
 
