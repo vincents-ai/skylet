@@ -1,44 +1,20 @@
 # Plugin Test Configuration
 #
-# Test multiple plugins with configurable test cases
+# Test external plugins with configurable test cases
+# Add plugins as git dependencies, build, then test
+#
+# Example plugin repos:
+# - vincents-ai/skylet-platform-detect
+# - vincents-ai/skylet-security-classifier
+# - vincents-ai/skylet-metrics
+# - vincents-ai/skylet-system-monitor
 
-[[plugins]]
-name = "platform-detect"
-path = "../target/release/libplatform_detect.so"
-
-[[plugins.tests]]
-name = "init"
-expected_status = "success"
-timeout_ms = 5000
-
-[[plugins.tests]]
-name = "shutdown"
-expected_status = "success"
-timeout_ms = 5000
-
-[[plugins]]
-name = "security-classifier"
-path = "../target/release/libsecurity_classifier.so"
-
-[[plugins.tests]]
-name = "init"
-expected_status = "success"
-timeout_ms = 5000
-
-[[plugins]]
-name = "metrics"
-path = "../target/release/libmetrics.so"
-
-[[plugins.tests]]
-name = "init"
-expected_status = "success"
-timeout_ms = 5000
-
-[[plugins]]
-name = "system-monitor"
-path = "../target/release/libsystem_monitor.so"
-
-[[plugins.tests]]
-name = "init"
-expected_status = "success"
-timeout_ms = 5000
+# Add your built plugins here
+# [[plugins]]
+# name = "platform-detect"
+# path = "/path/to/your/build/libplatform_detect.so"
+#
+# [[plugins.tests]]
+# name = "init"
+# expected_status = "success"
+# timeout_ms = 5000

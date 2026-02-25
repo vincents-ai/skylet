@@ -6,10 +6,6 @@ members = [
     "plugin-test-harness",
     "src",
     "plugins/skylet-plugin-common",
-    "plugins/platform-detect",
-    "plugins/security-classifier",
-    "plugins/metrics",
-    "plugins/system-monitor",
     "tools/plugin-tester",
 ]
 
