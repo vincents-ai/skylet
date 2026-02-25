@@ -7,6 +7,7 @@ members = [
     "src",
     "plugins/skylet-plugin-common",
     "plugins/platform-detect",
+    "plugins/security-classifier",
 ]
 
 [workspace.package]
