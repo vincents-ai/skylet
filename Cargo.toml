@@ -8,6 +8,8 @@ members = [
     "plugins/skylet-plugin-common",
     "tools/plugin-tester",
     "tools/plugin-scaffold",
+    "examples/hello-plugin",
+    "examples/echo-plugin",
 ]
 
 [workspace.package]

@@ -1,0 +1,11 @@
+[package]
+name = "hello-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "A minimal Hello World plugin demonstrating the Skylet plugin API"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skylet-abi = { git = "https://github.com/vincents-ai/skylet.git", branch = "main" }
