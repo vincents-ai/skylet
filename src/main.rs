@@ -10,6 +10,7 @@ mod plugin_manager;
 use crate::config::AppConfig;
 use anyhow::Result;
 use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
+use futures::future;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -185,23 +186,35 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     };
 
-    let loader = bootstrap::DynamicPluginLoader::new();
-    for (plugin_name, abi_version) in app_plugins {
-        match loader.load_plugin(&plugin_name) {
-            Ok(_) => {
-                info!("Loaded application plugin: {}", plugin_name);
-                app_state
-                    .add_plugin(&plugin_name, "healthy", &abi_version)
-                    .await;
+    let app_state_clone = app_state.clone();
+    let load_futures: Vec<_> = app_plugins
+        .iter()
+        .map(|(plugin_name, abi_version)| {
+            let loader = bootstrap::DynamicPluginLoader::new();
+            let plugin_name = plugin_name.clone();
+            let abi_version = abi_version.clone();
+            let app_state = app_state_clone.clone();
+
+            async move {
+                match loader.load_plugin(&plugin_name) {
+                    Ok(_) => {
+                        info!("Loaded application plugin: {}", plugin_name);
+                        app_state
+                            .add_plugin(&plugin_name, "healthy", &abi_version)
+                            .await;
+                    }
+                    Err(e) => {
+                        warn!("Failed to load application plugin '{}': {}", plugin_name, e);
+                        app_state
+                            .add_plugin(&plugin_name, "failed", &abi_version)
+                            .await;
+                    }
+                }
             }
-            Err(e) => {
-                warn!("Failed to load application plugin '{}': {}", plugin_name, e);
-                app_state
-                    .add_plugin(&plugin_name, "failed", &abi_version)
-                    .await;
-            }
-        }
-    }
+        })
+        .collect();
+
+    future::join_all(load_futures).await;
 
     // Simplified server startup, relying on plugins for networking
     let app = Router::new()

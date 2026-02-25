@@ -1916,6 +1916,17 @@ impl PluginManager {
         Ok(plugins_v2.keys().cloned().collect())
     }
 
+    /// Get read access to loaded v2 plugins (for hot reload)
+    pub async fn get_plugins(&self) -> tokio::sync::RwLockReadGuard<'_, HashMap<String, EpochGuardedPlugin>> {
+        self.loaded_plugins_v2.read().await
+    }
+
+    /// Check if a plugin is loaded
+    pub async fn is_plugin_loaded(&self, name: &str) -> bool {
+        let plugins = self.loaded_plugins_v2.read().await;
+        plugins.contains_key(name)
+    }
+
     // ========================================================================
     // RFC-ARCH Section 10.3: Billing Metrics Collection
     // ========================================================================

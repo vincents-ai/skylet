@@ -11,6 +11,7 @@
 //! - Filters plugins by naming patterns and ABI compatibility
 //! - Supports exclusion patterns for test/utility plugins
 //! - Integrates with AppConfig for configurable plugin directories
+//! - Caching support for improved performance
 //!
 //! # Usage
 //! ```rust
@@ -28,8 +29,11 @@
 #![allow(dead_code)]
 
 use anyhow::{anyhow, Result};
+use lru::LruCache;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tracing::{debug, info, warn};
 
 /// Information about a discovered plugin
@@ -194,15 +198,19 @@ impl DiscoveryConfig {
     }
 }
 
-/// Plugin discovery engine
+/// Plugin discovery engine with caching support
 pub struct PluginDiscovery {
     config: DiscoveryConfig,
+    cache: Mutex<LruCache<PathBuf, Vec<DiscoveredPlugin>>>,
 }
 
 impl PluginDiscovery {
     /// Create a new plugin discovery engine with the given configuration
     pub fn new(config: DiscoveryConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            cache: Mutex::new(LruCache::new(NonZeroUsize::new(16).unwrap())),
+        }
     }
 
     /// Create with default configuration
@@ -220,7 +228,42 @@ impl PluginDiscovery {
         &self.config
     }
 
-    /// Discover all plugins in configured search paths
+    /// Clear the discovery cache
+    pub fn clear_cache(&self) {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.clear();
+            debug!("Discovery cache cleared");
+        }
+    }
+
+    /// Invalidate cache for a specific path
+    pub fn invalidate(&self, path: &PathBuf) {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.pop(path);
+        }
+    }
+
+    /// Get cached plugins for a path, or discover if not cached
+    fn get_cached_or_discover(&self, path: &PathBuf) -> Result<Vec<DiscoveredPlugin>> {
+        // Try to get from cache first
+        {
+            let mut cache = self.cache.lock().unwrap();
+            if let Some(cached) = cache.get(path) {
+                debug!("Using cached discovery results for {:?}", path);
+                return Ok(cached.clone());
+            }
+        }
+
+        // Not cached, discover and cache
+        let plugins = self.scan_directory(path)?;
+        {
+            let mut cache = self.cache.lock().unwrap();
+            cache.put(path.clone(), plugins.clone());
+        }
+        Ok(plugins)
+    }
+
+    /// Discover all plugins in configured search paths (with caching)
     ///
     /// Returns a list of discovered plugins, sorted by name for deterministic loading order.
     pub fn discover_plugins(&self) -> Result<Vec<DiscoveredPlugin>> {
@@ -245,7 +288,15 @@ impl PluginDiscovery {
                 continue;
             }
 
-            let found = self.scan_directory(search_path)?;
+            // Use cached or discover
+            let found = match self.get_cached_or_discover(search_path) {
+                Ok(plugins) => plugins,
+                Err(e) => {
+                    warn!("Error discovering in {:?}: {}", search_path, e);
+                    continue;
+                }
+            };
+
             for plugin in found {
                 // Only add if not already found (first path wins)
                 if !plugins.contains_key(&plugin.name) {

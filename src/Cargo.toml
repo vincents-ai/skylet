@@ -54,5 +54,11 @@ libloading = { workspace = true }
 # Epoch-based memory reclamation for safe hot-reload
 crossbeam-epoch = { workspace = true }
 
+# LRU cache for plugin path caching
+lru = { workspace = true }
+
+# Async utilities
+futures = { workspace = true }
+
 [dev-dependencies]
 tokio-test = { workspace = true }

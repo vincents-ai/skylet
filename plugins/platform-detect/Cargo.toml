@@ -1,0 +1,17 @@
+[package]
+name = "platform-detect"
+version = "0.1.0"
+edition = "2021"
+description = "Platform detection plugin - bare metal, virtualized, container, secure boot"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

@@ -6,6 +6,7 @@ members = [
     "plugin-test-harness",
     "src",
     "plugins/skylet-plugin-common",
+    "plugins/platform-detect",
 ]
 
 [workspace.package]
@@ -39,6 +40,8 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tokio-test = "0.4"
 rusqlite = { version = "0.30", features = ["bundled"] }
+lru = "0.12"
+futures = "0.3"
 
 [profile.release]
 opt-level = 3
