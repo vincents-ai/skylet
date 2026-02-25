@@ -102,7 +102,7 @@ cargo build -p <plugin-name>
 All plugins depend on `skylet-abi` from:
 ```
 git = "https://github.com/vincents-ai/skylet.git"
-tag = "v0.2.0"
+branch = "main"
 ```
 
 The `abi` crate contains:
