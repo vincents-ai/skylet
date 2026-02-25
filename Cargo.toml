@@ -2,18 +2,9 @@
 resolver = "2"
 members = [
     "abi",
-    "http-router",
-    "job-queue",
-    "core",
-    "plugin-packager",
-    "plugin-test-harness",
     "permissions",
+    "plugin-test-harness",
     "src",
-    "plugins/config-manager",
-    "plugins/logging",
-    "plugins/marketplace",
-    "plugins/registry",
-    "plugins/secrets-manager",
     "plugins/skylet-plugin-common",
 ]
 

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use bootstrap::{load_bootstrap_plugins, shutdown_bootstrap_plugins, BootstrapContext};
+use permissions::{auth_router, AuthState};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -21,9 +22,6 @@ use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
-
-// GAP-003: Import auth HTTP handlers from permissions crate
-use permissions::http::{auth_router, AuthState};
 
 // CQ-003: Import dynamic plugin discovery
 use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
