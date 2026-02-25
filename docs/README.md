@@ -4,46 +4,78 @@
   <img src="../logo.svg" alt="Skylet Logo" width="150">
 </div>
 
-## Welcome to Skylet
+## Overview
 
-**Skylet** is a secure, extensible plugin runtime for autonomous agents and microservices. This documentation covers everything you need to build, deploy, and manage plugins.
+**Skylet** is a secure, extensible plugin runtime for autonomous agents and microservices. It provides a stable ABI (v2.0.0) that enables safe plugin execution with strict FFI boundaries, type-safe configuration, and hot reload support.
 
 ### Key Features
 
-- **Secure Plugin Runtime**: Sandboxed execution of untrusted plugins
-- **ABI Stability**: v2.0.0 frozen for backwards compatibility
-- **Well Tested**: 1,079+ tests, zero compiler warnings
-- **Open Source**: Apache 2.0, zero proprietary dependencies
-- **Performance**: Async/await, efficient job queue, hot reload
+- **Secure Plugin Runtime**: Sandboxed execution with strict FFI boundaries
+- **ABI v2.0.0**: Frozen ABI with backward compatibility until v3.0
+- **Hot Reload**: Update plugins without downtime
+- **Type-Safe Config**: Schema validation with 14+ field types
+- **Cryptographic Operations**: Ed25519, AES-GCM, SHA-256 support
+- **Comprehensive Testing**: 1,079+ tests, zero compiler warnings
 
-### Quick Links
+### Quick Start
 
-- [API Reference](API_REFERENCE.md) - Complete API documentation
-- [Plugin Development](PLUGIN_DEVELOPMENT.md) - Start building plugins
-- [Configuration Reference](CONFIG_REFERENCE.md) - Learn configuration options
-- [Security Guide](SECURITY.md) - Security best practices
-- [Migration Guide](MIGRATION_GUIDE.md) - Upgrade from previous versions
+```bash
+# Create a new plugin
+cargo new --lib my-plugin
+cd my-plugin
 
-### Documentation Sections
+# Add dependencies
+cargo add skylet-abi skylet-plugin-common
 
-| Section | Purpose |
-|---------|---------|
-| **Getting Started** | API and plugin development basics |
-| **Core** | ABI, configuration, security, and contracts |
-| **Guides** | Migration, performance tuning, and branding |
+# Build
+cargo build --release
+```
 
-### Support
-
-- 📖 [Full Documentation](index.html)
-- 🐛 [Report Issues](https://github.com/vincents-ai/execution-engine/issues)
-- 💬 [Discussions](https://github.com/vincents-ai/execution-engine/discussions)
-
-### License
-
-Skylet is licensed under the [Apache 2.0 License](../LICENSE).
+See [Plugin Development Guide](PLUGIN_DEVELOPMENT.md) for the full tutorial.
 
 ---
 
-**Version**: 0.5.0  
-**Status**: Beta  
-**Last Updated**: February 2024
+## Documentation Structure
+
+### Getting Started
+
+| Guide | Description |
+|-------|-------------|
+| [Plugin Development](PLUGIN_DEVELOPMENT.md) | Create your first plugin |
+| [API Reference](API.md) | Core types and FFI functions |
+| [Configuration Reference](CONFIG_REFERENCE.md) | Configuration system |
+
+### Core Concepts
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](ARCHITECTURE.md) | System design and plugin model |
+| [Plugin Contract](PLUGIN_CONTRACT.md) | ABI v2.0 specification |
+| [ABI Stability](ABI_STABILITY.md) | Versioning guarantees |
+
+### Security & Operations
+
+| Guide | Description |
+|-------|-------------|
+| [Security Best Practices](SECURITY.md) | Secure development guidelines |
+| [Performance Tuning](PERFORMANCE.md) | Optimization techniques |
+
+---
+
+## Version Information
+
+- **Release Version**: 0.5.0 (Beta)
+- **ABI Version**: 2.0.0 (Stable)
+- **License**: Apache 2.0
+
+---
+
+## Support
+
+- **Issues**: [Report bugs](https://github.com/vincents-ai/skylet/issues)
+- **Discussions**: [Ask questions](https://github.com/vincents-ai/skylet/discussions)
+- **Security**: Report vulnerabilities to `shift+security@someone.section.me`
+
+---
+
+*Last Updated: February 2026*
