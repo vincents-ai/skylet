@@ -1,0 +1,15 @@
+[package]
+name = "system-monitor"
+version = "0.1.0"
+edition = "2021"
+description = "System monitoring plugin - CPU, memory, disk, and network stats"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+serde = { workspace = true }
+serde_json = { workspace = true }

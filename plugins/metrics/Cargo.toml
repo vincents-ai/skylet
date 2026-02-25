@@ -1,0 +1,17 @@
+[package]
+name = "metrics"
+version = "0.1.0"
+edition = "2021"
+description = "Prometheus-style metrics collection plugin"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }

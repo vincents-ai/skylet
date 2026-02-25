@@ -3529,6 +3529,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "security-classifier"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "skylet-abi",
+]
+
+[[package]]
 name = "security-framework"
 version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

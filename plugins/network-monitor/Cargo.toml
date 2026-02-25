@@ -1,0 +1,15 @@
+[package]
+name = "network-monitor"
+version = "0.1.0"
+edition = "2021"
+description = "Network monitoring plugin - interfaces, traffic stats, active connections"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skylet-abi = { path = "../../abi" }
+serde = { workspace = true }
+serde_json = { workspace = true }
