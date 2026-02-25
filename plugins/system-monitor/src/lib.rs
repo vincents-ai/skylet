@@ -205,10 +205,9 @@ impl SystemStats {
             .map(|p| p.get())
             .unwrap_or(1);
 
-        let usage_percent = if let Ok(output) = Command::new("top")
-            .args(["-l", "1", "-n", "0"])
-            .output()
-        {
+        let mut usage_percent = 0.0;
+
+        if let Ok(output) = Command::new("top").args(["-l", "1", "-n", "0"]).output() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 if line.contains("CPU usage:") {
@@ -217,10 +216,7 @@ impl SystemStats {
                         let parts: Vec<&str> = rest.split_whitespace().collect();
                         if parts.len() >= 2 {
                             if let Ok(val) = parts[1].trim_end_matches('%').parse::<f64>() {
-                                return CpuStats {
-                                    usage_percent: val,
-                                    core_count,
-                                };
+                                usage_percent = val;
                             }
                         }
                     }
@@ -229,7 +225,7 @@ impl SystemStats {
         }
 
         CpuStats {
-            usage_percent: 0.0,
+            usage_percent,
             core_count,
         }
     }
@@ -242,23 +238,23 @@ impl SystemStats {
             .map(|p| p.get())
             .unwrap_or(1);
 
-        let usage_percent = if let Ok(output) = Command::new("wmic")
+        let mut usage_percent = 0.0;
+
+        if let Ok(output) = Command::new("wmic")
             .args(["cpu", "get", "loadpercentage"])
             .output()
         {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines().skip(1) {
                 if let Ok(val) = line.trim().parse::<f64>() {
-                    return CpuStats {
-                        usage_percent: val,
-                        core_count,
-                    };
+                    usage_percent = val;
+                    break;
                 }
             }
         }
 
         CpuStats {
-            usage_percent: 0.0,
+            usage_percent,
             core_count,
         }
     }
@@ -391,7 +387,12 @@ impl SystemStats {
         use std::process::Command;
 
         if let Ok(output) = Command::new("wmic")
-            .args(["OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory", "/format:list"])
+            .args([
+                "OS",
+                "get",
+                "TotalVisibleMemorySize,FreePhysicalMemory",
+                "/format:list",
+            ])
             .output()
         {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -548,10 +549,7 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 
     #[cfg(target_os = "macos")]
@@ -576,10 +574,7 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 
     #[cfg(target_os = "windows")]
@@ -619,19 +614,12 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
-
+pub extern "C" fn plugin_init_v2(_context: *const PluginContextV2) -> PluginResultV2 {
     let stats = SystemStats::collect();
     let json = serde_json::to_string(&stats).unwrap_or_default();
 
@@ -689,5 +677,5 @@ pub extern "C" fn plugin_invoke_v2(
         return PluginResultV2::Success;
     }
 
-    PluginResultV2::NotFound
+    PluginResultV2::NotImplemented
 }

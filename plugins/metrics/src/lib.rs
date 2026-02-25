@@ -223,7 +223,10 @@ fn collect_system_metrics() {
                         .iter()
                         .filter_map(|s| s.parse::<u64>().ok())
                         .sum();
-                    let idle: u64 = parts.get(4).and_then(|s| s.parse::<u64>().unwrap_or(0));
+                    let idle: u64 = parts
+                        .get(4)
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .unwrap_or(0);
                     if total > 0 {
                         let usage = ((total - idle) * 100) / total;
                         set_cpu_percent(usage);
@@ -303,11 +306,7 @@ fn update_metrics() {
 }
 
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
-
+pub extern "C" fn plugin_init_v2(_context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         START_TIME = Some(Instant::now());
     }

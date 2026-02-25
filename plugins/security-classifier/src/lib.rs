@@ -237,11 +237,7 @@ fn get_platform_info() -> PlatformInput {
 }
 
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
-
+pub extern "C" fn plugin_init_v2(_context: *const PluginContextV2) -> PluginResultV2 {
     let platform = get_platform_info();
     let classification = SecurityClassification::classify(&platform);
     let json = serde_json::to_string(&classification).unwrap_or_default();
