@@ -1,0 +1,56 @@
+# Build artifacts
+/target/
+target/
+**/target/
+
+# Compiled files
+*.so
+*.dylib
+*.dll
+*.a
+*.rlib
+*.lib
+
+# Generated files
+*.pb.rs
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.*.local
+.zai-token
+
+# Logs
+*.log
+logs/
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# Nix
+result
+result-*
+
+# Documentation
+/book/
+book/

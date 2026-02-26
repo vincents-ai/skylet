@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+    "abi",
+    "permissions",
+    "plugin-test-harness",
+    "src",
+    "plugins/skylet-plugin-common",
+    "plugins/platform-detect",
+    "plugins/security-classifier",
+    "plugins/metrics",
+    "plugins/system-monitor",
+    "tools/plugin-tester",
+]
+
+[workspace.package]
+authors = ["Skylet Team"]
+
+[workspace.dependencies]
+# Core dependencies
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+thiserror = "1.0"
+sha2 = "0.10"
+dirs = "5.0"
+toml = { version = "0.8", features = ["preserve_order"] }
+reqwest = { version = "0.11", features = ["rustls-tls", "json"], default-features = false }
+semver = "1.0"
+parking_lot = "0.12"
+crossbeam-epoch = "0.9"
+tempfile = "3.0"
+libloading = "0.8"
+async-trait = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
+lazy_static = "1.4"
+clap = { version = "4.5", features = ["derive"] }
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tokio-test = "0.4"
+rusqlite = { version = "0.30", features = ["bundled"] }
+lru = "0.12"
+futures = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

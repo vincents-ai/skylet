@@ -1,0 +1,44 @@
+# Plugin Test Configuration
+#
+# Test multiple plugins with configurable test cases
+
+[[plugins]]
+name = "platform-detect"
+path = "../target/release/libplatform_detect.so"
+
+[[plugins.tests]]
+name = "init"
+expected_status = "success"
+timeout_ms = 5000
+
+[[plugins.tests]]
+name = "shutdown"
+expected_status = "success"
+timeout_ms = 5000
+
+[[plugins]]
+name = "security-classifier"
+path = "../target/release/libsecurity_classifier.so"
+
+[[plugins.tests]]
+name = "init"
+expected_status = "success"
+timeout_ms = 5000
+
+[[plugins]]
+name = "metrics"
+path = "../target/release/libmetrics.so"
+
+[[plugins.tests]]
+name = "init"
+expected_status = "success"
+timeout_ms = 5000
+
+[[plugins]]
+name = "system-monitor"
+path = "../target/release/libsystem_monitor.so"
+
+[[plugins.tests]]
+name = "init"
+expected_status = "success"
+timeout_ms = 5000
