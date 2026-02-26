@@ -9,3 +9,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 skylet-abi = { git = "https://github.com/vincents-ai/skylet-abi.git", branch = "main" }
+
+[dev-dependencies]
+plugin-test-harness = { path = "../../plugin-test-harness" }

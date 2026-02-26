@@ -8,6 +8,7 @@ members = [
     "tools/plugin-scaffold",
     "examples/hello-plugin",
     "examples/echo-plugin",
+    "examples/counter-plugin",
 ]
 
 [workspace.package]

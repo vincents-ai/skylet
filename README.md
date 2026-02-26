@@ -9,6 +9,8 @@ A secure, extensible, open-source plugin runtime for autonomous agents and micro
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+![ABI Version](https://img.shields.io/badge/ABI-v2.0.0-green)
+![Documentation](https://img.shields.io/badge/docs-2%2C500%2B%20lines-blue)
 
 ## Overview
 
@@ -29,14 +31,14 @@ Perfect for building:
 
 ## Quick Links
 
-**Documentation** | Getting Started → [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)
---- | ---
-**Configuration** | Learn → [Configuration Reference](docs/CONFIG_REFERENCE.md)
-**Security** | Best Practices → [Security Guide](docs/SECURITY.md)
-**Performance** | Optimize → [Performance Tuning](docs/PERFORMANCE.md)
-**Specification** | Technical → [ABI Contract](docs/PLUGIN_CONTRACT.md)
-**Migration** | Upgrade from V1 → [Migration Guide](docs/MIGRATION_GUIDE.md)
-📊 **Stability** | Guarantees → [ABI Stability](docs/ABI_STABILITY.md)
+**Getting Started** | [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) | Create your first plugin
+--- | --- | ---
+**Configuration** | [Configuration Reference](docs/CONFIG_REFERENCE.md) | Understand config system
+**Security** | [Security Best Practices](docs/SECURITY.md) | Secure your plugins
+**Performance** | [Performance Tuning](docs/PERFORMANCE.md) | Optimize your code
+**Technical** | [ABI Contract](docs/PLUGIN_CONTRACT.md) | FFI specification
+**Stability** | [ABI Stability](docs/ABI_STABILITY.md) | Version guarantees
+**Examples** | [Example Plugins](#example-plugins) | Learn by example
 
 ## ✨ Features
 
@@ -143,6 +145,57 @@ cargo build --release
 
 See [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) for complete tutorial.
 
+## Example Plugins
+
+The repository includes several example plugins demonstrating different features:
+
+### Hello Plugin
+Basic plugin demonstrating:
+- Simple request handling
+- Response generation
+- Health check implementation
+- Plugin lifecycle management
+
+```bash
+cd examples/hello-plugin
+cargo build --release
+```
+
+### Echo Plugin
+Advanced plugin showing:
+- Request body processing
+- Event handling
+- Metrics collection
+- State management with atomic counters
+
+```bash
+cd examples/echo-plugin
+cargo build --release
+```
+
+### More Examples Coming Soon
+- Database plugin (SQLite integration)
+- HTTP client plugin
+- Cryptographic operations plugin
+- Async task processing plugin
+
+See [examples/](examples/) directory for full source code and integration tests.
+
+### Testing Example Plugins
+
+```bash
+# Build all example plugins
+cargo build --release
+
+# Run integration tests using the test harness
+cd plugin-test-harness
+cargo test --test integration
+
+# Test a specific plugin
+./target/debug/plugin-test-harness test \
+  --plugin-path ../target/release/libecho_plugin.so
+```
+
 ### Build the Engine
 
 ```bash
@@ -199,57 +252,69 @@ cargo build --release --features proprietary
    - Compatibility promises
    - Support timeline
 
-### Migration
-7. **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Upgrade from V1
-   - Step-by-step instructions
-   - Common issues
-   - Dual compatibility patterns
+### API Reference
+7. **[API Reference](docs/API.md)** - Complete API documentation
+    - Data structures
+    - Function signatures
+    - Type definitions
+8. **[Architecture](docs/ARCHITECTURE.md)** - System design
+    - Component overview
+    - Data flow
+    - Design decisions
 
 ## 🏗️ Architecture
 
 ```
-execution-engine/
-├── abi/                      # Plugin ABI v2 (Rust bindings)
-│   ├── src/
-│   │   ├── lib.rs           # Main ABI exports
-│   │   ├── v2_spec.rs       # FFI specifications
-│   │   ├── config/          # Configuration system
-│   │   ├── security_rfc/    # Security policies
-│   │   ├── logging/         # Structured logging
-│   │   └── ...
-│   └── Cargo.toml
-│
-├── src/                      # Core engine implementation
-│   ├── main.rs              # CLI entry point
-│   ├── server.rs            # Server implementation
+skylet/
+├── src/                     # Core engine implementation
+│   ├── main.rs             # CLI entry point
+│   ├── lib.rs              # Library exports
 │   └── ...
 │
-├── core/                     # Test framework and utilities
-├── plugins/                  # Built-in plugins
-│   ├── logging/             # Logging service
-│   ├── registry/            # Service registry
-│   ├── config-manager/      # Configuration management
-│   └── secrets-manager/     # Secret management
+├── plugins/                 # Plugin infrastructure
+│   └── skylet-plugin-common/ # Common utilities for plugins
+│       └── src/
+│           └── lib.rs      # Plugin helpers and macros
 │
-├── http-router/             # HTTP routing
-├── job-queue/               # Background job queue
-├── permissions/             # Permission system
-├── plugin-packager/         # Plugin packaging utilities
+├── examples/                # Example plugins
+│   ├── hello-plugin/       # Basic plugin example
+│   └── echo-plugin/        # Advanced plugin with events/metrics
 │
-├── docs/                    # Comprehensive documentation (2,500+ lines)
+├── plugin-test-harness/     # Testing framework
+│   ├── src/
+│   │   ├── lib.rs         # Test harness library
+│   │   └── main.rs        # CLI tool
+│   └── features/           # BDD/Gherkin tests
+│
+├── tools/                   # Development tools
+│   ├── plugin-tester/      # Plugin testing utility
+│   └── plugin-scaffold/    # Plugin project generator
+│
+├── docs/                    # Comprehensive documentation
+│   ├── PLUGIN_DEVELOPMENT.md
+│   ├── CONFIG_REFERENCE.md
+│   ├── SECURITY.md
+│   ├── PERFORMANCE.md
+│   ├── PLUGIN_CONTRACT.md
+│   ├── ABI_STABILITY.md
+│   └── ...
+│
+├── README.md                # This file
+├── CONTRIBUTING.md          # Contribution guidelines
 ├── CHANGELOG.md             # Release notes
-├── NOTICE                   # Third-party attributions
-└── Cargo.toml
+├── LICENSE                  # Apache 2.0
+└── NOTICE                   # Third-party attributions
 ```
 
 ## 📊 Project Statistics
 
-- **12 crates** with clear separation of concerns
-- **125 source files** all with Apache 2.0 license headers
-- **1,079 tests** with comprehensive coverage
+- **Rust workspace** with 6 crates
+- **Multiple example plugins** demonstrating key features
+- **Comprehensive test framework** with BDD support
 - **Zero proprietary dependencies** in standalone mode
 - **Feature-gated support** for advanced features
-- **2,500+ lines of documentation**
+- **2,500+ lines** of documentation
+- **Integration tests** for all example plugins
 
 ## 🔒 Security
 
@@ -285,6 +350,43 @@ See [Security Best Practices](docs/SECURITY.md) for detailed guidelines.
 | Memory per plugin | 5-20MB | Typical usage |
 
 See [Performance Tuning Guide](docs/PERFORMANCE.md) for optimization techniques.
+
+## 🧪 Testing
+
+### Test Framework
+
+The project includes a comprehensive testing framework with:
+
+- **Unit Tests**: Standard Rust unit tests
+- **Integration Tests**: Full plugin lifecycle testing
+- **BDD Tests**: Cucumber/Gherkin feature files
+- **Mock Context**: Isolated testing without full engine
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test --all
+
+# Run integration tests
+cargo test --test integration
+
+# Run BDD tests using plugin-test-harness
+cd plugin-test-harness
+cargo run -- bdd --feature-path ./features
+
+# Test specific plugin
+cargo run -- test --plugin-path ../target/release/libecho_plugin.so
+```
+
+### Test Coverage
+
+Example plugins include comprehensive integration tests:
+- **Hello Plugin**: Basic lifecycle and request handling
+- **Echo Plugin**: Advanced features with events and metrics
+- **Test Harness**: Full BDD suite with multiple scenarios
+
+See [plugin-test-harness/README.md](plugin-test-harness/README.md) for testing documentation.
 
 ## 🛠️ Development
 
@@ -392,25 +494,30 @@ This project is licensed under the **Apache License 2.0**.
 
 ## Roadmap
 
-### v2.1 (Q3 2024)
+### v0.6.0 (Q1 2024)
+- Additional example plugins with real-world use cases
+- Integration tests for all example plugins
+- Enhanced BDD test coverage
+- Documentation improvements
+- Plugin marketplace integration (planned)
+
+### v0.7.0 (Q2 2024)
 - WebAssembly (WASM) plugin support
 - Enhanced metrics collection
-- Additional example plugins
+- Performance profiling tools
+- Plugin packaging utilities
 
-### v2.2 (Q4 2024)
+### v0.8.0 (Q3 2024)
 - Distributed tracing defaults
-- Plugin marketplace integration
-- Performance optimizations
-
-### v2.3 (Q1 2025)
-- Peer-to-peer plugin distribution
-- Cross-instance replication
 - Advanced security policies
+- Plugin dependency management
+- Hot reload improvements
 
-### v3.0 (2026+)
-- Breaking changes allowed
-- Next-generation ABI
-- Enhanced clustering
+### v1.0.0 (Q4 2024)
+- API stabilization
+- Full feature parity
+- Production-ready guarantees
+- Comprehensive plugin ecosystem
 
 See [CHANGELOG.md](CHANGELOG.md) for current status.
 

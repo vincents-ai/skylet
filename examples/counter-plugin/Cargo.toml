@@ -1,14 +1,18 @@
 [package]
-name = "echo-plugin"
+name = "counter-plugin"
 version = "0.1.0"
 edition = "2021"
-description = "An echo plugin that demonstrates request handling in the Skylet plugin API"
+description = "Counter plugin demonstrating state management and configuration"
+license = "MIT OR Apache-2.0"
+authors = ["Skylet Team"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+name = "counter_plugin"
+crate-type = ["cdylib"]
 
 [dependencies]
 skylet-abi = { git = "https://github.com/vincents-ai/skylet-abi.git", branch = "main" }
 
 [dev-dependencies]
 plugin-test-harness = { path = "../../plugin-test-harness" }
+serde_json = "1.0"
