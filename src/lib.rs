@@ -8,5 +8,6 @@ pub mod memory;
 pub mod observability;
 pub mod plugin_manager;
 pub mod security;
+pub mod startup;
 pub mod testing_comprehensive;
 pub mod types;
