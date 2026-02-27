@@ -54,8 +54,6 @@ impl PlatformInfo {
 
     #[cfg(target_os = "linux")]
     fn detect_linux() -> Self {
-        use std::fs;
-
         let (platform_type, hypervisor) = detect_virtualization_linux();
         let (is_container, container_runtime) = detect_container_linux();
         let secure_boot = detect_secure_boot_linux();

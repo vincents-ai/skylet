@@ -205,28 +205,26 @@ impl SystemStats {
             .map(|p| p.get())
             .unwrap_or(1);
 
-        let usage_percent = if let Ok(output) = Command::new("top")
-            .args(["-l", "1", "-n", "0"])
-            .output()
-        {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines() {
-                if line.contains("CPU usage:") {
-                    if let Some(usr) = line.find("user:") {
-                        let rest = &line[usr..];
-                        let parts: Vec<&str> = rest.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            if let Ok(val) = parts[1].trim_end_matches('%').parse::<f64>() {
-                                return CpuStats {
-                                    usage_percent: val,
-                                    core_count,
-                                };
+        let usage_percent =
+            if let Ok(output) = Command::new("top").args(["-l", "1", "-n", "0"]).output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    if line.contains("CPU usage:") {
+                        if let Some(usr) = line.find("user:") {
+                            let rest = &line[usr..];
+                            let parts: Vec<&str> = rest.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                if let Ok(val) = parts[1].trim_end_matches('%').parse::<f64>() {
+                                    return CpuStats {
+                                        usage_percent: val,
+                                        core_count,
+                                    };
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
+            };
 
         CpuStats {
             usage_percent: 0.0,
@@ -255,7 +253,7 @@ impl SystemStats {
                     };
                 }
             }
-        }
+        };
 
         CpuStats {
             usage_percent: 0.0,
@@ -391,7 +389,12 @@ impl SystemStats {
         use std::process::Command;
 
         if let Ok(output) = Command::new("wmic")
-            .args(["OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory", "/format:list"])
+            .args([
+                "OS",
+                "get",
+                "TotalVisibleMemorySize,FreePhysicalMemory",
+                "/format:list",
+            ])
             .output()
         {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -548,10 +551,7 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 
     #[cfg(target_os = "macos")]
@@ -576,10 +576,7 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 
     #[cfg(target_os = "windows")]
@@ -619,10 +616,7 @@ impl SystemStats {
             }
         }
 
-        NetworkStats {
-            rx_bytes,
-            tx_bytes,
-        }
+        NetworkStats { rx_bytes, tx_bytes }
     }
 }
 
@@ -689,5 +683,5 @@ pub extern "C" fn plugin_invoke_v2(
         return PluginResultV2::Success;
     }
 
-    PluginResultV2::NotFound
+    PluginResultV2::InvalidRequest
 }

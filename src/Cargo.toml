@@ -31,6 +31,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 clap = { workspace = true }
+async-trait = { workspace = true }
 
 # Time and parsing
 chrono = { workspace = true }
@@ -59,6 +60,14 @@ lru = { workspace = true }
 
 # Async utilities
 futures = { workspace = true }
+
+# File watching and regex for config hot-reload
+notify = { workspace = true }
+regex = { workspace = true }
+
+# System monitoring for metrics
+sysinfo = "0.30"
+rand = "0.8"
 
 [dev-dependencies]
 tokio-test = { workspace = true }

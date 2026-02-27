@@ -5,4 +5,5 @@ pub mod bootstrap;
 pub mod config;
 pub mod observability;
 pub mod plugin_manager;
+pub mod testing_comprehensive;
 pub mod types;

@@ -223,7 +223,10 @@ fn collect_system_metrics() {
                         .iter()
                         .filter_map(|s| s.parse::<u64>().ok())
                         .sum();
-                    let idle: u64 = parts.get(4).and_then(|s| s.parse::<u64>().unwrap_or(0));
+                    let idle: u64 = parts
+                        .get(4)
+                        .map(|s| s.parse::<u64>().unwrap_or(0))
+                        .unwrap_or(0);
                     if total > 0 {
                         let usage = ((total - idle) * 100) / total;
                         set_cpu_percent(usage);
