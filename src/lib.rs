@@ -4,6 +4,7 @@
 pub mod bootstrap;
 pub mod cache;
 pub mod config;
+pub mod memory;
 pub mod observability;
 pub mod plugin_manager;
 pub mod security;
