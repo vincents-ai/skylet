@@ -31,6 +31,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 thiserror = "1.0"
 sha2 = "0.10"
+ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
 dirs = "5.0"
 toml = { version = "0.8", features = ["preserve_order"] }
 reqwest = { version = "0.11", features = ["rustls-tls", "json"], default-features = false }
@@ -54,6 +55,9 @@ lru = "0.12"
 futures = "0.3"
 notify = "6.1"
 regex = "1.10"
+ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
+hex = "0.4"
+base64 = "0.22"
 
 [profile.release]
 opt-level = 3
