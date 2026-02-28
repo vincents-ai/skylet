@@ -111,6 +111,29 @@ async fn health_handler(
     })))
 }
 
+async fn ready_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let plugins = state.plugins.read().await;
+    let healthy_count = plugins.iter().filter(|p| p.status == "healthy").count();
+    let total_count = plugins.len();
+
+    let is_ready = healthy_count > 0;
+
+    if is_ready {
+        Ok(Json(json!({
+            "status": "ready",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "plugins": {
+                "total": total_count,
+                "healthy": healthy_count
+            }
+        })))
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize structured JSON logging per RFC-0018
@@ -208,6 +231,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
     // Simplified server startup, relying on plugins for networking
     let app = Router::new()
         .route("/health", get(health_handler))
+        .route("/ready", get(ready_handler))
         .with_state(app_state.clone())
         .layer(
             ServiceBuilder::new()
