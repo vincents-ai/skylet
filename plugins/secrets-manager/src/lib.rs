@@ -393,9 +393,11 @@ impl SecretBackend for EncryptedSecretBackend {
 /// backend.set("api/key", SecretValue::new("secret-value"))?;
 /// let value = backend.get("api/key")?;
 /// ```
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SqliteBackend {
     conn: std::sync::Mutex<rusqlite::Connection>,
     master_key: [u8; 32],
+    #[zeroize(skip)]
     key_id: String,
 }
 
@@ -412,8 +414,19 @@ impl SqliteBackend {
     /// - Database schema migration fails
     /// - Master key is invalid
     pub fn new(path: &std::path::Path, master_key: &[u8; 32]) -> Result<Self> {
+        if master_key.iter().all(|&b| b == 0) {
+            return Err(anyhow!("Invalid master key: key cannot be all zeros"));
+        }
+
         let conn = rusqlite::Connection::open(path)
-            .map_err(|e| anyhow!("Failed to open secrets database: {}", e))?;
+            .map_err(|e| anyhow!("Failed to open secrets database"))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| anyhow!("Failed to set database file permissions"))?;
+        }
 
         conn.execute_batch(
             r#"
@@ -428,7 +441,7 @@ impl SqliteBackend {
             CREATE INDEX IF NOT EXISTS idx_secrets_key ON secrets(key);
             "#,
         )
-        .map_err(|e| anyhow!("Failed to initialize database schema: {}", e))?;
+        .map_err(|_| anyhow!("Failed to initialize database schema"))?;
 
         let key_id = Self::compute_key_id(master_key);
 
@@ -441,8 +454,12 @@ impl SqliteBackend {
 
     /// Create an in-memory SQLite backend (for testing)
     pub fn in_memory(master_key: &[u8; 32]) -> Result<Self> {
+        if master_key.iter().all(|&b| b == 0) {
+            return Err(anyhow!("Invalid master key: key cannot be all zeros"));
+        }
+
         let conn = rusqlite::Connection::open_in_memory()
-            .map_err(|e| anyhow!("Failed to create in-memory database: {}", e))?;
+            .map_err(|_| anyhow!("Failed to create in-memory database"))?;
 
         conn.execute_batch(
             r#"
@@ -456,7 +473,7 @@ impl SqliteBackend {
             );
             "#,
         )
-        .map_err(|e| anyhow!("Failed to initialize database schema: {}", e))?;
+        .map_err(|_| anyhow!("Failed to initialize database schema"))?;
 
         let key_id = Self::compute_key_id(master_key);
 
@@ -493,7 +510,7 @@ impl SqliteBackend {
 
         let ciphertext = cipher
             .encrypt(&nonce, plaintext)
-            .map_err(|e| anyhow!("Encryption failed: {:?}", e))?;
+            .map_err(|_| anyhow!("Encryption failed"))?;
 
         Ok((ciphertext, nonce_bytes))
     }
@@ -508,19 +525,19 @@ impl SqliteBackend {
 
         cipher
             .decrypt(&nonce, ciphertext)
-            .map_err(|e| anyhow!("Decryption failed (possible corruption): {:?}", e))
+            .map_err(|_| anyhow!("Decryption failed (possible corruption or tampering)"))
     }
 }
 
 impl SecretBackend for SqliteBackend {
     fn get(&self, key: &str) -> Result<SecretValue> {
-        let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+        let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let mut stmt = conn
             .prepare_cached(
                 "SELECT encrypted_value, nonce FROM secrets WHERE key = ?1",
             )
-            .map_err(|e| anyhow!("Failed to prepare statement: {}", e))?;
+            .map_err(|_| anyhow!("Failed to prepare statement"))?;
 
         let result = stmt.query_row([key], |row| {
             let encrypted_value: Vec<u8> = row.get(0)?;
@@ -531,23 +548,23 @@ impl SecretBackend for SqliteBackend {
         match result {
             Ok((encrypted_value, nonce_blob)) => {
                 if nonce_blob.len() != 12 {
-                    return Err(anyhow!("Invalid nonce length in database"));
+                    return Err(anyhow!("Invalid data in database"));
                 }
                 let mut nonce = [0u8; 12];
                 nonce.copy_from_slice(&nonce_blob);
                 let plaintext = self.decrypt(&encrypted_value, &nonce)?;
                 Ok(SecretValue::new(
                     String::from_utf8(plaintext)
-                        .map_err(|e| anyhow!("Invalid UTF-8 in secret value: {}", e))?,
+                        .map_err(|_| anyhow!("Invalid secret value format"))?,
                 ))
             }
-            Err(rusqlite::Error::QueryReturnedNoRows) => Err(anyhow!("Secret not found: {}", key)),
-            Err(e) => Err(anyhow!("Database error: {}", e)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Err(anyhow!("Secret not found")),
+            Err(_) => Err(anyhow!("Database error")),
         }
     }
 
     fn set(&self, key: &str, value: SecretValue) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+        let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let (encrypted_value, nonce) = self.encrypt(value.as_str().as_bytes())?;
         let now = chrono::Utc::now().timestamp();
@@ -564,37 +581,41 @@ impl SecretBackend for SqliteBackend {
             "#,
             rusqlite::params![key, encrypted_value, nonce.to_vec(), now],
         )
-        .map_err(|e| anyhow!("Failed to store secret: {}", e))?;
+        .map_err(|_| anyhow!("Failed to store secret"))?;
 
         Ok(())
     }
 
     fn delete(&self, key: &str) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+        let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let rows_affected = conn
             .execute_cached("DELETE FROM secrets WHERE key = ?1", [key])
-            .map_err(|e| anyhow!("Failed to delete secret: {}", e))?;
+            .map_err(|_| anyhow!("Failed to delete secret"))?;
 
         if rows_affected == 0 {
-            return Err(anyhow!("Secret not found: {}", key));
+            return Err(anyhow!("Secret not found"));
         }
 
         Ok(())
     }
 
     fn list(&self, prefix: &str) -> Result<Vec<String>> {
-        let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+        let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let mut stmt = conn
-            .prepare_cached("SELECT key FROM secrets WHERE key LIKE ?1 ORDER BY key")
-            .map_err(|e| anyhow!("Failed to prepare statement: {}", e))?;
+            .prepare_cached("SELECT key FROM secrets WHERE key LIKE ?1 ESCAPE '\\' ORDER BY key")
+            .map_err(|_| anyhow!("Failed to prepare statement"))?;
 
-        let pattern = format!("{}%", prefix);
+        let escaped_prefix = prefix
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let pattern = format!("{}%", escaped_prefix);
         let keys: Vec<String> = stmt
             .query_map([&pattern], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| anyhow!("Failed to list secrets: {}", e))?;
+            .map_err(|_| anyhow!("Failed to list secrets"))?;
 
         Ok(keys)
     }
