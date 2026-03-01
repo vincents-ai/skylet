@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::RwLock;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info, warn};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // ============================================================================
 // Service Definitions
@@ -395,6 +395,7 @@ impl SecretBackend for EncryptedSecretBackend {
 /// ```
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SqliteBackend {
+    #[zeroize(skip)]
     conn: std::sync::Mutex<rusqlite::Connection>,
     master_key: [u8; 32],
     #[zeroize(skip)]
@@ -419,13 +420,13 @@ impl SqliteBackend {
         }
 
         let conn = rusqlite::Connection::open(path)
-            .map_err(|e| anyhow!("Failed to open secrets database"))?;
+            .map_err(|_| anyhow!("Failed to open secrets database"))?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-                .map_err(|e| anyhow!("Failed to set database file permissions"))?;
+                .map_err(|_| anyhow!("Failed to set database file permissions"))?;
         }
 
         conn.execute_batch(
@@ -569,7 +570,7 @@ impl SecretBackend for SqliteBackend {
         let (encrypted_value, nonce) = self.encrypt(value.as_str().as_bytes())?;
         let now = chrono::Utc::now().timestamp();
 
-        conn.execute_cached(
+        conn.execute(
             r#"
             INSERT INTO secrets (key, encrypted_value, nonce, version, created_at, updated_at)
             VALUES (?1, ?2, ?3, 1, ?4, ?4)
@@ -590,7 +591,7 @@ impl SecretBackend for SqliteBackend {
         let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let rows_affected = conn
-            .execute_cached("DELETE FROM secrets WHERE key = ?1", [key])
+            .execute("DELETE FROM secrets WHERE key = ?1", [key])
             .map_err(|_| anyhow!("Failed to delete secret"))?;
 
         if rows_affected == 0 {
