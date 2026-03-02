@@ -19,6 +19,13 @@ members = [
 
 [workspace.package]
 authors = ["Skylet Team"]
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/vincents-ai/skylet"
+homepage = "https://github.com/vincents-ai/skylet"
+keywords = ["plugin", "runtime", "ffi", "async", "microservices"]
+categories = ["api-bindings", "development-tools::ffi", "asynchronous"]
+rust-version = "1.70"
 
 [workspace.dependencies]
 # Core dependencies
@@ -38,6 +45,7 @@ reqwest = { version = "0.11", features = ["rustls-tls", "json"], default-feature
 semver = "1.0"
 parking_lot = "0.12"
 crossbeam-epoch = "0.9"
+signature = "2.2"
 tempfile = "3.0"
 libloading = "0.8"
 async-trait = "0.1"
@@ -55,7 +63,6 @@ lru = "0.12"
 futures = "0.3"
 notify = "6.1"
 regex = "1.10"
-ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
 hex = "0.4"
 base64 = "0.22"
 
