@@ -8,6 +8,7 @@ use tokio::sync::RwLock;
 
 /// Event filter for conditional event processing
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventFilter {
     pub id: String,
     pub name: String,
@@ -16,6 +17,7 @@ pub struct EventFilter {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterCondition {
     EventTypeEquals(String),
     EventTypeMatches(String),
@@ -43,6 +45,7 @@ impl std::fmt::Debug for FilterCondition {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterAction {
     Allow,
     Block,
@@ -70,6 +73,7 @@ impl std::fmt::Debug for FilterAction {
     }
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventFilter {
     pub fn new(id: String, name: String) -> Self {
         Self {
@@ -143,6 +147,7 @@ impl EventFilter {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterResult {
     Allowed,
     Filtered,
@@ -152,6 +157,7 @@ pub enum FilterResult {
 
 /// Rate limiter for events
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RateLimiter {
     pub id: String,
     pub event_type: String,
@@ -159,6 +165,7 @@ pub struct RateLimiter {
     pub events: Arc<RwLock<Vec<(std::time::Instant, Event)>>>,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl RateLimiter {
     pub fn new(id: String, event_type: String, max_events_per_second: f64) -> Self {
         Self {
@@ -190,6 +197,7 @@ impl RateLimiter {
         Ok(true)
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_current_rate(&self) -> f64 {
         let events = self.events.read().await;
         let now = std::time::Instant::now();

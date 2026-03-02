@@ -29,6 +29,7 @@ pub enum ReloadStatus {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ReloadConfig {
     pub enabled: bool,
     pub debounce_duration: Duration,
@@ -49,8 +50,10 @@ impl Default for ReloadConfig {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub type ReloadCallback = Arc<dyn Fn(ConfigReloadEvent) + Send + Sync>;
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ConfigHotReload {
     config_dir: PathBuf,
     reload_config: ReloadConfig,
@@ -62,6 +65,7 @@ pub struct ConfigHotReload {
     _watcher: RecommendedWatcher,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl ConfigHotReload {
     pub fn new(config_dir: PathBuf) -> Result<Self> {
         let reload_config = ReloadConfig::default();

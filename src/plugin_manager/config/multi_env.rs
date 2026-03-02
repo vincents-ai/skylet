@@ -29,6 +29,7 @@ impl Default for EnvironmentConfig {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvironmentConfig {
     pub fn new(environment: ConfigEnvironment) -> Self {
         Self {
@@ -37,6 +38,7 @@ impl EnvironmentConfig {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_environment(mut self, env: ConfigEnvironment) -> Self {
         self.environment = env;
         self
@@ -53,6 +55,7 @@ impl EnvironmentConfig {
         self.overrides.insert(key, value);
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn add_default_value(&mut self, key: String, value: serde_json::Value) {
         self.default_values.insert(key, value);
     }
@@ -71,6 +74,7 @@ impl EnvironmentConfig {
         self.enabled_features.contains(&feature.to_string())
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn get_config_path(&self, plugin_name: &str) -> PathBuf {
         if let Some(path) = self.env_specific_paths.get(&self.environment) {
             path.join(format!("{}.toml", plugin_name))
@@ -89,12 +93,14 @@ impl EnvironmentConfig {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct MultiEnvConfigManager {
     base_dir: PathBuf,
     environments: HashMap<ConfigEnvironment, EnvironmentConfig>,
     current_environment: ConfigEnvironment,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl MultiEnvConfigManager {
     pub fn new(base_dir: PathBuf) -> Self {
         let mut manager = Self {
@@ -247,6 +253,7 @@ impl MultiEnvConfigManager {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvironmentComparison {
     pub plugin_name: String,
     pub environments: HashMap<String, serde_json::Value>,
@@ -254,6 +261,7 @@ pub struct EnvironmentComparison {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ConfigDiff {
     pub key: String,
     pub env1: String,
@@ -262,6 +270,7 @@ pub struct ConfigDiff {
     pub value2: serde_json::Value,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl MultiEnvConfigManager {
     pub fn compare_configs_for_plugin(&self, plugin_name: &str) -> EnvironmentComparison {
         let configs = self.compare_env_configs(plugin_name);

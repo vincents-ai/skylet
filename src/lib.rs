@@ -1,8 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
-
 pub mod bootstrap;
 // pub mod cache;
 pub mod config;

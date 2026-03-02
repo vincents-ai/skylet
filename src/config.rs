@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -190,6 +189,7 @@ impl AppConfig {
         Ok(app_config)
     }
 
+    #[allow(dead_code)] // Config validation — not yet wired up
     pub fn validate(&self) -> Result<()> {
         if self.server.port == 0 {
             return Err(anyhow!("Server port must be greater than 0"));
@@ -202,10 +202,12 @@ impl AppConfig {
         Ok(())
     }
 
+    #[allow(dead_code)] // Config export — not yet wired up
     pub fn export_toml(&self) -> Result<String> {
         toml::to_string_pretty(self).map_err(|e| anyhow!("Failed to export config as TOML: {}", e))
     }
 
+    #[allow(dead_code)] // Config export — not yet wired up
     pub fn export_json(&self) -> Result<String> {
         serde_json::to_string_pretty(self)
             .map_err(|e| anyhow!("Failed to export config as JSON: {}", e))

@@ -41,6 +41,8 @@ enum Commands {
 }
 
 struct ServicePtr(*mut c_void);
+// SAFETY: ServicePtr wraps a raw pointer but is only accessed behind a RwLock
+// in the SERVICES static, ensuring exclusive mutable access is properly synchronized.
 unsafe impl Send for ServicePtr {}
 unsafe impl Sync for ServicePtr {}
 

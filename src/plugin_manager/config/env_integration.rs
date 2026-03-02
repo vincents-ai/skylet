@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvVarConfig {
     pub prefix: String,
     pub separator: String,
@@ -23,6 +24,7 @@ impl Default for EnvVarConfig {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarConfig {
     pub fn new(prefix: String) -> Self {
         Self {
@@ -31,16 +33,19 @@ impl EnvVarConfig {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_prefix(mut self, prefix: String) -> Self {
         self.prefix = prefix;
         self
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_separator(mut self, separator: String) -> Self {
         self.separator = separator;
         self
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_overwrite_files(mut self, overwrite: bool) -> Self {
         self.overwrite_files = overwrite;
         self
@@ -50,6 +55,7 @@ impl EnvVarConfig {
         self.mappings.insert(key, env_var);
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn get_env_value(&self, plugin_name: &str, config_key: &str) -> Option<String> {
         if let Some(mapped) = self.mappings.get(config_key) {
             return std::env::var(mapped).ok();
@@ -105,6 +111,7 @@ pub struct EnvVarIntegrator {
     config: EnvVarConfig,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarIntegrator {
     pub fn new(config: EnvVarConfig) -> Self {
         Self { config }
@@ -173,10 +180,12 @@ impl EnvVarIntegrator {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn get_config_value(&self, plugin_name: &str, config_key: &str) -> Option<String> {
         self.config.get_env_value(plugin_name, config_key)
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn list_env_keys_for_plugin(&self, plugin_name: &str) -> Vec<String> {
         let plugin_prefix = format!(
             "{}{}{}",
@@ -201,12 +210,14 @@ impl EnvVarIntegrator {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvVarReference {
     pub key: String,
     pub default: Option<String>,
     pub required: bool,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarReference {
     pub fn new(key: String) -> Self {
         Self {
@@ -227,6 +238,7 @@ impl EnvVarReference {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub fn parse_env_refs(config_str: &str) -> Vec<EnvVarReference> {
     let mut refs = Vec::new();
 
@@ -247,6 +259,7 @@ pub fn parse_env_refs(config_str: &str) -> Vec<EnvVarReference> {
     refs
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub fn resolve_env_refs(config_str: &str) -> Result<String> {
     let refs = parse_env_refs(config_str);
     let mut result = config_str.to_string();

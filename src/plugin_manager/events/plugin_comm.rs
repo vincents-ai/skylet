@@ -28,6 +28,7 @@ impl<T> Request<T> {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
@@ -36,12 +37,14 @@ impl<T> Request<T> {
 
 /// Response from a plugin request
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum Response<T> {
     Success(T),
     Error(String),
     Timeout(String),
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl<T> Response<T> {
     pub fn is_success(&self) -> bool {
         matches!(self, Response::Success(_))
@@ -56,11 +59,13 @@ impl<T> Response<T> {
 }
 
 /// Request-response manager for plugin communication
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RequestResponseManager {
     pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>,
     timeout: std::time::Duration,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl RequestResponseManager {
     pub fn new(timeout_ms: u64) -> Self {
         Self {
@@ -144,10 +149,12 @@ impl RequestResponseManager {
 }
 
 /// Broadcast manager for sending events to multiple subscribers
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct BroadcastManager {
     event_system: Arc<super::EventSystem>,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl BroadcastManager {
     pub fn new(event_system: Arc<super::EventSystem>) -> Self {
         Self { event_system }
@@ -202,11 +209,13 @@ impl BroadcastManager {
 }
 
 /// Event bus wrapper for easy plugin communication
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventBus {
     event_system: Arc<super::EventSystem>,
     plugin_name: String,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventBus {
     pub fn new(event_system: Arc<super::EventSystem>, plugin_name: String) -> Self {
         Self {

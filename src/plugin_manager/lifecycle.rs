@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 //! Plugin Lifecycle Automation - RFC-0002
 //!
 //! This module implements the complete plugin management workflow with:
@@ -34,6 +33,7 @@ use plugin_packager::{
 use skylet_abi::{PluginLoadConfig, PluginLoadPipeline};
 
 /// Plugin status for tracking in the lifecycle manager
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginStatus {
     /// Plugin is discovered but not installed
@@ -79,6 +79,7 @@ impl std::fmt::Display for PluginStatus {
 }
 
 /// Detailed plugin state tracked by the lifecycle manager
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct PluginState {
     /// Unique plugin identifier
@@ -104,6 +105,7 @@ pub struct PluginState {
 }
 
 /// Configuration for the lifecycle manager
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct LifecycleConfig {
     /// Directory for installed plugins
@@ -141,6 +143,7 @@ impl Default for LifecycleConfig {
 
 impl LifecycleConfig {
     /// Create a new configuration with custom paths
+    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
     pub fn new(plugins_dir: impl Into<PathBuf>) -> Self {
         let plugins_dir = plugins_dir.into();
         Self {
@@ -152,18 +155,21 @@ impl LifecycleConfig {
     }
 
     /// Enable auto-activation after installation
+    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
     pub fn with_auto_activate(mut self) -> Self {
         self.auto_activate = true;
         self
     }
 
     /// Disable signature verification
+    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
     pub fn without_signature_verification(mut self) -> Self {
         self.verify_signatures = false;
         self
     }
 
     /// Set health check interval
+    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
     pub fn with_health_check_interval(mut self, secs: u64) -> Self {
         self.health_check_interval_secs = secs;
         self
@@ -171,6 +177,7 @@ impl LifecycleConfig {
 }
 
 /// Result of an installation operation
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct InstallationResult {
     /// Plugin ID
@@ -186,6 +193,7 @@ pub struct InstallationResult {
 }
 
 /// Result of an activation operation
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct ActivationResult {
     /// Plugin ID
@@ -201,6 +209,7 @@ pub struct ActivationResult {
 }
 
 /// Result of a deactivation operation
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct DeactivationResult {
     /// Plugin ID
@@ -214,6 +223,7 @@ pub struct DeactivationResult {
 }
 
 /// Result of an uninstallation operation
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct UninstallationResult {
     /// Plugin ID
@@ -227,6 +237,7 @@ pub struct UninstallationResult {
 }
 
 /// Main lifecycle manager for plugin automation
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 pub struct PluginLifecycleManager {
     /// Configuration
     config: LifecycleConfig,
@@ -244,6 +255,7 @@ pub struct PluginLifecycleManager {
     load_pipeline: PluginLoadPipeline,
 }
 
+#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 impl PluginLifecycleManager {
     /// Create a new lifecycle manager
     pub fn new(config: LifecycleConfig) -> Result<Self> {

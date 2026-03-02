@@ -59,6 +59,7 @@ pub struct EpochGuardedPlugin {
 
 impl EpochGuardedPlugin {
     /// Create a new epoch-guarded plugin from a loader.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn new(name: impl Into<String>, loader: AbiV2PluginLoader) -> Self {
         let name = name.into();
         debug!(plugin = %name, "Creating epoch-guarded plugin");
@@ -77,6 +78,7 @@ impl EpochGuardedPlugin {
     ///
     /// A `PluginGuard` that provides safe access to the plugin loader.
     /// Returns `None` if the plugin has been unloaded.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn access(&self) -> Option<PluginGuard<'_>> {
         let guard = epoch::pin();
         let shared = self.inner.load(Ordering::Acquire, &guard);
@@ -145,6 +147,7 @@ impl EpochGuardedPlugin {
     /// # Returns
     ///
     /// `true` if a plugin was unloaded, `false` if already unloaded.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn unload(&self) -> bool {
         let guard = epoch::pin();
 
@@ -207,6 +210,7 @@ unsafe impl Sync for EpochGuardedPlugin {}
 ///
 /// This guard ensures the plugin remains valid for its entire lifetime,
 /// even if a hot-reload is triggered while the guard is held.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginGuard<'a> {
     /// Raw pointer to the plugin (kept valid by the epoch guard)
     ptr: NonNull<AbiV2PluginLoader>,
@@ -224,6 +228,7 @@ impl<'a> PluginGuard<'a> {
     /// This is safe because:
     /// - The epoch guard ensures the plugin won't be deallocated
     /// - The pointer is guaranteed non-null (checked in `access()`)
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugin(&self) -> &AbiV2PluginLoader {
         // SAFETY: The epoch guard ensures the plugin is valid, and we checked
         // for null in access()

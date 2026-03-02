@@ -24,6 +24,7 @@ use types::*;
 
 /// Event system configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventSystemConfig {
     pub enabled: bool,
     pub max_event_size: usize,
@@ -49,6 +50,7 @@ impl Default for EventSystemConfig {
 }
 
 /// Main event system manager
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventSystem {
     config: EventSystemConfig,
     router: Arc<router::EventRouter>,
@@ -58,6 +60,7 @@ pub struct EventSystem {
     statistics: Arc<RwLock<EventStatistics>>,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventSystem {
     pub fn new(config: EventSystemConfig) -> Self {
         let storage = Arc::new(storage::EventStorage::new(config.retention_period));

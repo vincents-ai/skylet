@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 /// Plugin Manager v2 - ABI v2 Integration
 ///
 /// This module handles loading, managing, and executing plugins using the
@@ -51,10 +50,12 @@ use tracing::{debug, error, info, warn};
 /// Configuration backend for plugins
 ///
 /// Simple key-value store backed by a HashMap for plugin configuration.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginConfigBackend {
     config: Mutex<HashMap<String, String>>,
 }
 
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginConfigBackend {
     pub fn new() -> Self {
         Self {
@@ -97,10 +98,12 @@ impl Default for PluginConfigBackend {
 /// In-memory service registry for plugins
 ///
 /// Allows plugins to register and discover services by name.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginServiceRegistryBackend {
     services: Mutex<HashMap<String, (*mut std::ffi::c_void, String)>>,
 }
 
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginServiceRegistryBackend {
     pub fn new() -> Self {
         Self {
@@ -139,6 +142,7 @@ impl Default for PluginServiceRegistryBackend {
 }
 
 /// Event subscription entry for tracking callbacks
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 struct EventSubscriptionEntry {
     event_type: String,
     #[allow(dead_code)] // Retained to keep FFI callback reference alive
@@ -149,11 +153,13 @@ struct EventSubscriptionEntry {
 /// Event bus backend for plugins
 ///
 /// Bridges the C FFI EventBusV2 to the Rust TypedEventBus.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginEventBusBackend {
     bus: TypedEventBus,
     subscriptions: Mutex<Vec<EventSubscriptionEntry>>,
 }
 
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginEventBusBackend {
     pub fn new() -> Self {
         Self {
@@ -265,6 +271,7 @@ impl Default for PluginEventBusBackend {
 ///
 /// Bridges the C FFI PluginTracer to the Rust SpanManager from the tracing module.
 /// Provides distributed tracing capabilities as specified in RFC-0017.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginTracerBackend {
     /// Span manager for tracking active spans
     span_manager: SpanManager,
@@ -289,6 +296,7 @@ impl PluginTracerBackend {
     }
 
     /// Create a tracer backend with OpenTelemetry export enabled
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_otel(config: ExporterConfig) -> Self {
         let tracer_config = TracerConfig {
             service_name: config.service_name.clone(),
@@ -310,6 +318,7 @@ impl PluginTracerBackend {
     ///
     /// The span is created as a child of the current active span (if any).
     /// Returns a handle that must be used for subsequent operations on this span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn start_span(&self, name: &str) -> SpanHandle {
         // Get next handle
         let handle = {
@@ -335,6 +344,7 @@ impl PluginTracerBackend {
     ///
     /// Marks the span as ended and removes it from active tracking.
     /// The span data may still be exported after ending.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn end_span(&self, handle: SpanHandle) {
         let mut active = self.active_spans.lock().unwrap();
         if let Some(span) = active.remove(&handle) {
@@ -347,6 +357,7 @@ impl PluginTracerBackend {
     /// Add an event to a span
     ///
     /// Events are timestamped annotations on a span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn add_event(&self, handle: SpanHandle, name: &str) {
         let active = self.active_spans.lock().unwrap();
         if let Some(span) = active.get(&handle) {
@@ -357,6 +368,7 @@ impl PluginTracerBackend {
     /// Set an attribute on a span
     ///
     /// Attributes are key-value pairs that provide context about the span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn set_attribute(&self, handle: SpanHandle, key: &str, value: &str) {
         let active = self.active_spans.lock().unwrap();
         if let Some(span) = active.get(&handle) {
@@ -365,6 +377,7 @@ impl PluginTracerBackend {
     }
 
     /// Get the number of active spans
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn active_span_count(&self) -> usize {
         self.active_spans.lock().unwrap().len()
     }
@@ -384,6 +397,7 @@ impl Default for PluginTracerBackend {
 ///
 /// Provides a thread-safe secrets storage backend that implements the SecretsV2 FFI interface.
 /// Uses the DefaultSecretsProvider from the ABI for encrypted storage with versioning.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginSecretsBackend {
     provider: DefaultSecretsProvider,
 }
@@ -404,6 +418,7 @@ impl PluginSecretsBackend {
     ///
     /// # Returns
     /// The secret value as a string, or None if not found
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get(&self, plugin_id: &str, secret_name: &str) -> Option<String> {
         self.provider
             .get_secret(plugin_id, secret_name)
@@ -420,6 +435,7 @@ impl PluginSecretsBackend {
     ///
     /// # Returns
     /// true on success, false on failure
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn put(&self, plugin_id: &str, secret_name: &str, value: &str) -> bool {
         self.provider
             .put_secret(plugin_id, secret_name, value.as_bytes(), None)
@@ -443,6 +459,7 @@ impl Default for PluginSecretsBackend {
 /// Stores routes registered by plugins and supports dynamic route discovery.
 ///
 /// This backend enables plugins to register their own REST API endpoints at initialization time.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginHttpRouterBackend {
     /// Registered routes indexed by "METHOD:path" key
     routes: Mutex<HashMap<String, PluginRouteEntry>>,
@@ -451,6 +468,7 @@ pub struct PluginHttpRouterBackend {
 }
 
 /// Internal route entry stored by the backend
+#[allow(dead_code)] // Fields stored for future HTTP routing dispatch and OpenAPI generation
 struct PluginRouteEntry {
     /// HTTP method (GET, POST, etc.)
     method: HttpMethod,
@@ -464,7 +482,7 @@ struct PluginRouteEntry {
     user_data: *mut std::ffi::c_void,
 }
 
-// Safety: PluginRouteEntry contains raw pointers but is only accessed behind a Mutex
+// SAFETY: PluginRouteEntry contains raw pointers but is only accessed behind a Mutex
 unsafe impl Send for PluginRouteEntry {}
 unsafe impl Sync for PluginRouteEntry {}
 
@@ -488,6 +506,7 @@ impl PluginHttpRouterBackend {
     ///
     /// # Returns
     /// true if registration succeeded, false if route already exists
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_route(
         &self,
         method: HttpMethod,
@@ -537,6 +556,7 @@ impl PluginHttpRouterBackend {
     ///
     /// # Returns
     /// true if route was removed, false if not found
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn unregister_route(&self, method: HttpMethod, path: &str) -> bool {
         let key = format!("{}:{}", Self::method_to_string(method), path);
 
@@ -552,12 +572,14 @@ impl PluginHttpRouterBackend {
     }
 
     /// Get all registered routes as JSON
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get_routes_json(&self) -> String {
         let meta = self.route_metadata.lock().unwrap();
         serde_json::to_string(&*meta).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Generate OpenAPI specification as JSON
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get_openapi_spec_json(&self) -> String {
         let meta = self.route_metadata.lock().unwrap();
 
@@ -614,11 +636,13 @@ impl PluginHttpRouterBackend {
     }
 
     /// Get route count
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn route_count(&self) -> usize {
         self.routes.lock().unwrap().len()
     }
 
     /// Convert HttpMethod to string
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn method_to_string(method: HttpMethod) -> &'static str {
         match method {
             HttpMethod::Get => "GET",
@@ -642,6 +666,7 @@ impl Default for PluginHttpRouterBackend {
 ///
 /// This struct holds all the service backends that are wired to PluginContextV2.
 /// It is passed via user_data pointer to allow C FFI callbacks to access services.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginServices {
     pub config: Arc<PluginConfigBackend>,
     pub service_registry: Arc<PluginServiceRegistryBackend>,
@@ -671,6 +696,7 @@ impl PluginServices {
 
     /// Create services with OpenTelemetry-enabled tracing
     #[allow(clippy::arc_with_non_send_sync)]
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_tracing(exporter_config: ExporterConfig) -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -709,7 +735,7 @@ struct PluginResources {
     http_router_ptr: *mut HttpRouterV2,
 }
 
-// Safety: PluginResources contains raw pointers but they are only accessed
+// SAFETY: PluginResources contains raw pointers but they are only accessed
 // through the PluginManager which ensures proper synchronization via RwLock
 unsafe impl Send for PluginResources {}
 unsafe impl Sync for PluginResources {}
@@ -756,6 +782,7 @@ impl Drop for PluginResources {
 /// Main plugin manager that handles the complete plugin lifecycle
 ///
 /// Supports ABI v2 plugins only.
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginManager {
     /// Loaded v2 plugins - key is fully qualified name
     ///
@@ -782,6 +809,7 @@ impl Default for PluginManager {
     }
 }
 
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginManager {
     // RFC-0003: Security fixes for unsafe FFI (Phase 3)
     // Issue #7: Vec::from_raw_parts validation (service list allocation)
@@ -789,7 +817,9 @@ impl PluginManager {
 
     // Issue #8: String length bounds validation
     const MAX_EVENT_NAME_LEN: usize = 256;
+    #[allow(dead_code)] // RFC-0003 security bounds for future FFI attribute validation
     const MAX_ATTRIBUTE_KEY_LEN: usize = 256;
+    #[allow(dead_code)] // RFC-0003 security bounds for future FFI attribute validation
     const MAX_ATTRIBUTE_VALUE_LEN: usize = 4096;
 
     /// Create a new plugin manager
@@ -2068,6 +2098,7 @@ impl PluginManager {
 }
 
 /// Convert a TOML value to a JSON value
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 fn toml_to_json(toml: toml::Value) -> Value {
     match toml {
         toml::Value::String(s) => Value::String(s),

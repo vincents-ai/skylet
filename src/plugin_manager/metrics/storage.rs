@@ -41,6 +41,7 @@ impl MetricsStorage {
         Ok(())
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn store_batch(&self, metrics: Vec<Metric>) -> Result<()> {
         let mut all_metrics = self.metrics.write().await;
 
@@ -85,6 +86,7 @@ impl MetricsStorage {
         results
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_latest(&self, metric_name: &str) -> Option<Metric> {
         let metrics = self.metrics.read().await;
         metrics
@@ -92,6 +94,7 @@ impl MetricsStorage {
             .and_then(|values| values.last().cloned())
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_range(
         &self,
         metric_name: &str,
@@ -158,16 +161,19 @@ impl MetricsStorage {
         Ok(())
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_all_metric_names(&self) -> Vec<String> {
         let metrics = self.metrics.read().await;
         metrics.keys().cloned().collect()
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_metric_count(&self, metric_name: &str) -> usize {
         let metrics = self.metrics.read().await;
         metrics.get(metric_name).map(|v| v.len()).unwrap_or(0)
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn clear(&self) {
         let mut metrics = self.metrics.write().await;
         metrics.clear();
@@ -176,6 +182,7 @@ impl MetricsStorage {
         cache.clear();
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_stats(&self) -> StorageStats {
         let metrics = self.metrics.read().await;
         let cache = self.cache.read().await;
@@ -199,6 +206,7 @@ impl Default for MetricsStorage {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct StorageStats {
     pub total_metrics: usize,
     pub metric_names: usize,

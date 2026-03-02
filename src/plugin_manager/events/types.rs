@@ -51,16 +51,19 @@ impl Event {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_priority(mut self, priority: EventPriority) -> Self {
         self.priority = priority;
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_header(mut self, key: String, value: String) -> Self {
         self.headers.insert(key, value);
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
         self.headers.extend(headers);
         self
@@ -75,10 +78,12 @@ impl Event {
         self.headers.get(key)
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn get_payload_string(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self.payload)
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn get_payload<T: for<'de> Deserialize<'de>>(&self) -> Result<T, serde_json::Error> {
         serde_json::from_value(self.payload.clone())
     }
@@ -102,21 +107,25 @@ impl EventMetadata {
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_reply_to(mut self, reply_to: String) -> Self {
         self.reply_to = Some(reply_to);
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_tag(mut self, tag: String) -> Self {
         self.tags.push(tag);
         self
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_tags(mut self, tags: Vec<String>) -> Self {
         self.tags.extend(tags);
         self
@@ -125,6 +134,7 @@ impl EventMetadata {
 
 /// Event subscriber information
 #[derive(Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventSubscriber {
     pub id: String,
     pub plugin_name: String,
@@ -148,6 +158,7 @@ impl EventSubscriber {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_filter(mut self, filter: EventFilter) -> Self {
         self.filter = Some(filter);
         self
@@ -156,12 +167,14 @@ impl EventSubscriber {
 
 /// Event callback trait
 #[async_trait::async_trait]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub trait EventCallback: Send + Sync {
     async fn on_event(&self, event: Event) -> Result<(), EventError>;
 }
 
 /// Event publication result
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum EventResult {
     Published { subscriber_count: usize },
     Filtered,
@@ -169,6 +182,7 @@ pub enum EventResult {
 
 /// Event errors
 #[derive(Debug, Clone, thiserror::Error)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum EventError {
     #[error("Event system is disabled")]
     Disabled,
@@ -198,6 +212,7 @@ pub struct EventStatistics {
 }
 
 impl EventStatistics {
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn published_mut(&mut self) -> &mut u64 {
         &mut self.total_published
     }
@@ -211,6 +226,7 @@ pub enum EventPattern {
     Regex(String),
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventPattern {
     pub fn matches(&self, event_type: &str) -> bool {
         match self {
@@ -246,6 +262,7 @@ impl EventPattern {
 
 /// Event routing configuration
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RoutingConfig {
     pub enable_pattern_matching: bool,
     pub enable_wildcard_routing: bool,

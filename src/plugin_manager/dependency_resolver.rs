@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 //! Plugin Dependency Resolution - CQ-004
 //!
 //! This module provides dependency ordering for plugin loading.
@@ -22,6 +21,7 @@ use tracing::{debug, info};
 
 /// Plugin manifest information extracted from plugin metadata
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginManifest {
     /// Plugin name
     pub name: String,
@@ -51,6 +51,7 @@ impl PluginDependencyResolver {
     ///
     /// This is used for plugins where we can't easily extract the manifest
     /// (e.g., before the plugin is loaded).
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_plugin(
         &mut self,
         name: &str,
@@ -77,6 +78,7 @@ impl PluginDependencyResolver {
     ///
     /// Format: "plugin_name:abi_version:dep1,dep2,dep3"
     /// Example: "database:v2:config-manager,logging"
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_from_string(&mut self, manifest_str: &str) -> Result<()> {
         let parts: Vec<&str> = manifest_str.split(':').collect();
         if parts.len() < 2 {
@@ -101,6 +103,7 @@ impl PluginDependencyResolver {
     ///
     /// Returns a list of (plugin_name, abi_version) tuples in the order
     /// they should be loaded (dependencies first).
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn resolve_loading_order(&self) -> Result<Vec<(String, String)>> {
         let mut graph = DependencyGraph::new();
 
@@ -145,6 +148,7 @@ impl PluginDependencyResolver {
     }
 
     /// Build a PluginNode from a PluginManifest
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn build_plugin_node(&self, manifest: &PluginManifest) -> Result<PluginNode> {
         let mut node = PluginNode::new(&manifest.name, manifest.version.clone());
 
@@ -163,6 +167,7 @@ impl PluginDependencyResolver {
     /// - "plugin_name@1.0.0" -> exact version
     /// - "plugin_name@^1.0.0" -> caret constraint
     /// - "plugin_name@>=1.0.0,<2.0.0" -> range constraint
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn parse_dependency(&self, dep_str: &str) -> Result<Dependency> {
         let parts: Vec<&str> = dep_str.splitn(2, '@').collect();
         let name = parts[0].trim();
@@ -178,16 +183,19 @@ impl PluginDependencyResolver {
     }
 
     /// Get the number of registered plugins
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn len(&self) -> usize {
         self.manifests.len()
     }
 
     /// Check if no plugins are registered
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn is_empty(&self) -> bool {
         self.manifests.is_empty()
     }
 
     /// Get all registered plugins (unordered)
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugins(&self) -> impl Iterator<Item = &PluginManifest> {
         self.manifests.values()
     }
@@ -221,6 +229,7 @@ impl Default for PluginDependencyResolver {
 ///     }
 /// });
 /// ```
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub fn resolve_plugin_order<F>(
     plugins: Vec<(String, String)>,
     get_dependencies: F,

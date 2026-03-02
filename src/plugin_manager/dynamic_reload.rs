@@ -17,6 +17,7 @@ use tracing::{info, warn};
 use super::manager::PluginManager;
 
 /// Result of a reload operation
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 #[derive(Debug, Clone)]
 pub struct ReloadResult {
     pub plugin_id: String,
@@ -33,6 +34,7 @@ impl PluginManager {
     /// This is a placeholder that returns an error indicating the feature
     /// is not yet implemented. Hot reload should be triggered via the
     /// HTTP API or through plugin-specific mechanisms.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub async fn reload_plugin(&self, plugin_id: &str) -> Result<ReloadResult> {
         info!("🔄 Hot reload requested for plugin: {}", plugin_id);
         warn!("Hot reload via PluginManager is not yet implemented. Use the HTTP API instead.");
@@ -54,6 +56,7 @@ impl PluginManager {
     ///
     /// This is a placeholder that returns an error indicating the feature
     /// is not yet implemented.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub async fn reload_plugin_from_path(
         &self,
         plugin_id: &str,

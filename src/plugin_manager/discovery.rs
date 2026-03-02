@@ -25,8 +25,6 @@
 //! }
 //! ```
 
-#![allow(dead_code)]
-
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -57,6 +55,7 @@ impl DiscoveredPlugin {
     }
 
     /// Check if this plugin matches a given name
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn matches_name(&self, pattern: &str) -> bool {
         if let Some(prefix) = pattern.strip_suffix('*') {
             self.name.starts_with(prefix)
@@ -125,6 +124,7 @@ impl DiscoveryConfig {
     }
 
     /// Create config with custom search paths
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_paths(paths: Vec<PathBuf>) -> Self {
         Self {
             search_paths: paths,
@@ -141,18 +141,21 @@ impl DiscoveryConfig {
     }
 
     /// Add an exclusion pattern
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn exclude(mut self, pattern: &str) -> Self {
         self.exclude_patterns.push(pattern.to_string());
         self
     }
 
     /// Add an inclusion pattern
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn include(mut self, pattern: &str) -> Self {
         self.include_patterns.push(pattern.to_string());
         self
     }
 
     /// Enable debug builds in discovery
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_debug_builds(mut self, include: bool) -> Self {
         self.include_debug_builds = include;
         self
@@ -222,11 +225,13 @@ impl PluginDiscovery {
     }
 
     /// Create with a single plugin directory
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_directory(dir: PathBuf) -> Self {
         Self::new(DiscoveryConfig::with_plugin_directory(dir))
     }
 
     /// Get the configuration
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn config(&self) -> &DiscoveryConfig {
         &self.config
     }
@@ -438,12 +443,14 @@ impl PluginDiscovery {
     }
 
     /// Get list of all discovered plugin names
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugin_names(&self) -> Result<Vec<String>> {
         let plugins = self.discover_plugins()?;
         Ok(plugins.into_iter().map(|p| p.name).collect())
     }
 
     /// Check if a specific plugin exists
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugin_exists(&self, name: &str) -> bool {
         for search_path in &self.config.search_paths {
             if !search_path.exists() {
@@ -468,6 +475,7 @@ impl PluginDiscovery {
     }
 
     /// Get the path to a specific plugin
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn find_plugin(&self, name: &str) -> Option<PathBuf> {
         for search_path in &self.config.search_paths {
             if !search_path.exists() {

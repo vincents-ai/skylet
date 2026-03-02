@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 #[async_trait]
 pub trait MetricsExporter: Send + Sync {
     async fn export(&self) -> Result<String>;
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     fn name(&self) -> &str;
 }
 
@@ -26,6 +27,7 @@ impl PrometheusExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }
@@ -137,6 +139,7 @@ pub struct OpenTelemetryExporter {
 }
 
 impl OpenTelemetryExporter {
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn new(endpoint: String) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Vec::new())),
@@ -144,6 +147,7 @@ impl OpenTelemetryExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>, endpoint: String) -> Self {
         Self { metrics, endpoint }
     }
@@ -227,6 +231,7 @@ impl TextExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }

@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 use super::storage::EventStorage;
 
 /// Event router with pattern matching
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventRouter {
     storage: Arc<EventStorage>,
     patterns: Arc<RwLock<HashMap<String, Vec<EventSubscriber>>>>,
@@ -17,6 +18,7 @@ pub struct EventRouter {
     config: RoutingConfig,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventRouter {
     pub fn new(storage: Arc<EventStorage>) -> Self {
         Self {

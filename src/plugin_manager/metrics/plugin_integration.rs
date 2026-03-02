@@ -7,11 +7,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Plugin metrics integration
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct PluginMetricsIntegration {
     manager: Arc<super::MetricsManager>,
     plugin_timers: Arc<RwLock<HashMap<String, MetricTimer>>>,
 }
 
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 impl PluginMetricsIntegration {
     pub fn new(manager: Arc<super::MetricsManager>) -> Self {
         Self {
@@ -94,6 +96,7 @@ impl PluginMetricsIntegration {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn increment_counter(
         &self,
         plugin_name: &str,
@@ -106,6 +109,7 @@ impl PluginMetricsIntegration {
         self.manager.record_metric(metric).await;
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn set_gauge(
         &self,
         plugin_name: &str,
@@ -118,6 +122,7 @@ impl PluginMetricsIntegration {
         self.manager.record_metric(metric).await;
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn record_histogram(
         &self,
         plugin_name: &str,
@@ -206,10 +211,12 @@ impl PluginMetricsIntegration {
 }
 
 /// Simple metric timer
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricTimer {
     start: std::time::Instant,
 }
 
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 impl MetricTimer {
     pub fn new() -> Self {
         Self {
@@ -224,6 +231,7 @@ impl MetricTimer {
 
 /// Summary of plugin metrics
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct PluginSummary {
     pub plugin_name: String,
     pub total_calls: u64,
