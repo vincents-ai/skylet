@@ -6,7 +6,7 @@
 
 A secure, extensible, open-source plugin runtime for autonomous agents and microservices.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE-APACHE)
 [![CI](https://github.com/vincents-ai/skylet/actions/workflows/test.yml/badge.svg)](https://github.com/vincents-ai/skylet/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/vincents-ai/skylet/branch/main/graph/badge.svg)](https://codecov.io/gh/vincents-ai/skylet)
 ![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
