@@ -499,8 +499,7 @@ skylet/
 ├── permissions/           # Permission system
 ├── plugin-packager/       # Plugin packaging utilities
 ├── docs/                  # Documentation
-├── examples/              # Example plugins and code
-└── tests/                 # Integration tests
+└── examples/              # Example plugins and code
 ```
 
 ## Good First Issues

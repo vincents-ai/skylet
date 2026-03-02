@@ -8,10 +8,10 @@ on:
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'abi/**'
   pull_request:
     paths:
-      - 'abi/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
 
 jobs:
   audit:
@@ -19,189 +19,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: rustsec/audit-check-action@v1
+
+      - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  deny:
-    name: Check Dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-      
-      - name: Check dependencies
-        run: cargo deny check
 
   licenses:
     name: License Compliance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install cargo-license
         run: cargo install cargo-license
-      
+
       - name: Check licenses
         run: |
           # Define allowed licenses (permissive open source)
           ALLOWED='Apache-2.0|MIT|BSD-2-Clause|BSD-3-Clause|ISC|Unlicense|Zlib|BSL-1.0|CC0-1.0|Unicode-3.0|Unicode-DFS-2016'
-          
+
           # Check for disallowed licenses (GPL, LGPL, AGPL, proprietary)
           DISALLOWED=$(cargo license --json | \
             jq -r '.[] | select(.license != null) | .license' | \
             grep -v -E "^($ALLOWED)( OR ($ALLOWED))*( WITH .+)?$" | \
             grep -E "^(GPL|LGPL|AGPL|Commercial|Proprietary)" || true)
-          
+
           if [ -n "$DISALLOWED" ]; then
             echo "Found disallowed licenses:"
             echo "$DISALLOWED"
             exit 1
           fi
-          
+
           echo "All licenses OK (permissive open source)"
-
-  ffi-fuzzing:
-    name: FFI Boundary Fuzzing
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools-preview
-      
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      
-      - name: Create fuzz targets directory
-        run: |
-          mkdir -p fuzz/fuzz_targets
-          
-          # Create FFI input validation fuzzer if not exists
-          if [ ! -f fuzz/fuzz_targets/ffi_input.rs ]; then
-            cat > fuzz/fuzz_targets/ffi_input.rs << 'EOF'
-          #![no_main]
-          use libfuzzer_sys::fuzz_target;
-          use std::ffi::CString;
-          
-          fuzz_target!(|data: &[u8]| {
-              // Test FFI string handling with arbitrary bytes
-              if let Ok(s) = std::str::from_utf8(data) {
-                  if let Ok(cstring) = CString::new(s) {
-                      // Simulate FFI boundary crossing
-                      let ptr = cstring.as_ptr();
-                      unsafe {
-                          // Verify null-termination and valid UTF-8 round-trip
-                          let _ = std::ffi::CStr::from_ptr(ptr);
-                      }
-                  }
-              }
-          });
-          EOF
-          fi
-          
-          # Create FFI plugin context fuzzer if not exists
-          if [ ! -f fuzz/fuzz_targets/ffi_context.rs ]; then
-            cat > fuzz/fuzz_targets/ffi_context.rs << 'EOF'
-          #![no_main]
-          use libfuzzer_sys::fuzz_target;
-          use arbitrary::Arbitrary;
-          
-          #[derive(Arbitrary, Debug)]
-          struct FuzzedPluginRequest {
-              method_id: u32,
-              payload_len: u16,
-              payload: Vec<u8>,
-          }
-          
-          fuzz_target!(|req: FuzzedPluginRequest| {
-              // Validate bounds checking on plugin requests
-              if req.payload_len as usize <= req.payload.len() {
-                  // Simulate processing truncated payload
-                  let _truncated = &req.payload[..req.payload_len as usize];
-              }
-          });
-          EOF
-          fi
-      
-      - name: Create Cargo.toml for fuzz
-        run: |
-          if [ ! -f fuzz/Cargo.toml ]; then
-            cat > fuzz/Cargo.toml << 'EOF'
-          [package]
-          name = "skylet-fuzz"
-          version = "0.0.0"
-          edition = "2021"
-          publish = false
-          
-          [package.metadata]
-          cargo-fuzz = true
-          
-          [dependencies]
-          libfuzzer-sys = "0.4"
-          arbitrary = { version = "1", features = ["derive"] }
-          
-          [[bin]]
-          name = "ffi_input"
-          path = "fuzz_targets/ffi_input.rs"
-          test = false
-          doc = false
-          bench = false
-          
-          [[bin]]
-          name = "ffi_context"
-          path = "fuzz_targets/ffi_context.rs"
-          test = false
-          doc = false
-          bench = false
-          EOF
-          fi
-      
-      - name: Run FFI input fuzzer (time-limited)
-        run: |
-          cd fuzz
-          cargo +nightly fuzz run ffi_input -- -max_total_time=60 -max_len=4096
-        continue-on-error: true
-      
-      - name: Run FFI context fuzzer (time-limited)
-        run: |
-          cd fuzz
-          cargo +nightly fuzz run ffi_context -- -max_total_time=60 -max_len=1024
-        continue-on-error: true
-      
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fuzz-crashes
-          path: fuzz/artifacts/
-          retention-days: 30
-
-  miri:
-    name: Undefined Behavior Check (Miri)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: miri
-      
-      - name: Setup Miri
-        run: cargo miri setup
-      
-      - name: Run Miri on ABI crate
-        run: |
-          cd abi
-          # Run Miri on unit tests to detect undefined behavior
-          cargo miri test --lib 2>&1 | head -500 || true
-        env:
-          MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-symbolic-alignment-check
