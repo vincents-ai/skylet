@@ -266,12 +266,20 @@ mod tests {
 
         let popped = queue.pop_available().expect("Failed to pop").unwrap();
 
-        // Simulate failure
+        // Simulate failure and retry
         let _ = queue.retry_job(popped);
 
-        // Should have the job again with attempts = 1
-        let popped = queue.pop_available().expect("Failed to pop").unwrap();
-        assert_eq!(popped.attempts, 1);
+        // The retried job has exponential backoff (available_at is in the future),
+        // so pop_available won't return it immediately. Instead, verify the job
+        // was re-enqueued by checking the database directly.
+        let conn = queue.pool.get().expect("Failed to get connection");
+        let (attempts, task_name): (u32, String) = conn
+            .query_row("SELECT attempts, task_name FROM jobs LIMIT 1", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .expect("Failed to query retried job");
+        assert_eq!(attempts, 1);
+        assert_eq!(task_name, "test_task");
     }
 
     #[test]
