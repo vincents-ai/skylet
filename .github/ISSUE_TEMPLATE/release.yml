@@ -1,0 +1,63 @@
+name: Release Note
+description: Create a release note for a new version
+title: "Release v"
+labels: ["release"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Version number (e.g., 0.6.0)
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: release-type
+    attributes:
+      label: Release Type
+      options:
+        - Patch (bug fixes)
+        - Minor (new features, backward compatible)
+        - Major (breaking changes)
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief summary of the release
+    validations:
+      required: true
+  - type: textarea
+    id: changes
+    attributes:
+      label: Changes
+      description: List of changes in this release
+      value: |
+        ### Added
+        - 
+        
+        ### Changed
+        - 
+        
+        ### Fixed
+        - 
+        
+        ### Deprecated
+        - 
+        
+        ### Removed
+        - 
+        
+        ### Security
+        - 
+  - type: textarea
+    id: breaking
+    attributes:
+      label: Breaking Changes
+      description: List any breaking changes and migration instructions
+  - type: textarea
+    id: migration
+    attributes:
+      label: Migration Guide
+      description: Steps to migrate from the previous version

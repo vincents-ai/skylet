@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skylet-sa
+  namespace: skylet
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skylet
+  namespace: skylet
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: skylet
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skylet
+  namespace: skylet
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: skylet
+  template:
+    metadata:
+      labels:
+        app: skylet
+    spec:
+      serviceAccountName: skylet-sa
+      containers:
+        - name: skylet
+          image: skylet:latest
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
