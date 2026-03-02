@@ -301,6 +301,7 @@ impl PluginDiscovery {
     }
 
     /// Discover plugins and return as (name, abi_version) tuples for loading
+    #[allow(dead_code)] // Convenience wrapper; production uses discover_plugins() for full metadata
     pub fn discover_for_loading(&self) -> Result<Vec<(String, String)>> {
         let plugins = self.discover_plugins()?;
         Ok(plugins

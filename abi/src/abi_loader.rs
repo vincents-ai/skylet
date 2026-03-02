@@ -97,6 +97,17 @@ pub struct PluginCapabilities {
     pub capabilities: Vec<String>,
 }
 
+/// A single dependency entry extracted from plugin metadata
+#[derive(Debug, Clone)]
+pub struct PluginDependencyEntry {
+    /// Name of the required plugin (e.g., "config-manager")
+    pub name: String,
+    /// Optional semver range constraint (e.g., "^1.0.0", ">=1.0.0, <2.0.0")
+    pub version_range: Option<String>,
+    /// Whether this dependency is required (true) or optional (false)
+    pub required: bool,
+}
+
 /// ABI V2 Plugin Loader
 pub struct AbiV2PluginLoader {
     #[allow(dead_code)] // Must be kept alive to maintain valid FFI function pointers
@@ -329,6 +340,50 @@ impl AbiV2PluginLoader {
                 provides_services,
                 capabilities,
             })
+        }
+    }
+
+    /// Get plugin dependency information from the ABI metadata
+    ///
+    /// Extracts the `dependencies` array from `PluginInfoV2` and returns
+    /// them as safe Rust structs. Each dependency has a name, optional
+    /// version range constraint, and a required/optional flag.
+    pub fn get_dependencies(&self) -> AbiLoaderResult<Vec<PluginDependencyEntry>> {
+        unsafe {
+            let info = &*self.info;
+
+            if info.dependencies.is_null() || info.num_dependencies == 0 {
+                return Ok(Vec::new());
+            }
+
+            let deps = std::slice::from_raw_parts(info.dependencies, info.num_dependencies);
+
+            let mut result = Vec::with_capacity(deps.len());
+            for dep in deps {
+                let name = if dep.name.is_null() {
+                    continue; // Skip entries with null names
+                } else {
+                    CStr::from_ptr(dep.name).to_string_lossy().into_owned()
+                };
+
+                let version_range = if dep.version_range.is_null() {
+                    None
+                } else {
+                    Some(
+                        CStr::from_ptr(dep.version_range)
+                            .to_string_lossy()
+                            .into_owned(),
+                    )
+                };
+
+                result.push(PluginDependencyEntry {
+                    name,
+                    version_range,
+                    required: dep.required,
+                });
+            }
+
+            Ok(result)
         }
     }
 

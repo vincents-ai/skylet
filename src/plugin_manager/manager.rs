@@ -50,12 +50,10 @@ use tracing::{debug, error, info, warn};
 /// Configuration backend for plugins
 ///
 /// Simple key-value store backed by a HashMap for plugin configuration.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginConfigBackend {
     config: Mutex<HashMap<String, String>>,
 }
 
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginConfigBackend {
     pub fn new() -> Self {
         Self {
@@ -98,12 +96,10 @@ impl Default for PluginConfigBackend {
 /// In-memory service registry for plugins
 ///
 /// Allows plugins to register and discover services by name.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginServiceRegistryBackend {
     services: Mutex<HashMap<String, (*mut std::ffi::c_void, String)>>,
 }
 
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginServiceRegistryBackend {
     pub fn new() -> Self {
         Self {
@@ -142,7 +138,6 @@ impl Default for PluginServiceRegistryBackend {
 }
 
 /// Event subscription entry for tracking callbacks
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 struct EventSubscriptionEntry {
     event_type: String,
     #[allow(dead_code)] // Retained to keep FFI callback reference alive
@@ -153,13 +148,11 @@ struct EventSubscriptionEntry {
 /// Event bus backend for plugins
 ///
 /// Bridges the C FFI EventBusV2 to the Rust TypedEventBus.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginEventBusBackend {
     bus: TypedEventBus,
     subscriptions: Mutex<Vec<EventSubscriptionEntry>>,
 }
 
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginEventBusBackend {
     pub fn new() -> Self {
         Self {
@@ -271,7 +264,6 @@ impl Default for PluginEventBusBackend {
 ///
 /// Bridges the C FFI PluginTracer to the Rust SpanManager from the tracing module.
 /// Provides distributed tracing capabilities as specified in RFC-0017.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginTracerBackend {
     /// Span manager for tracking active spans
     span_manager: SpanManager,
@@ -397,7 +389,6 @@ impl Default for PluginTracerBackend {
 ///
 /// Provides a thread-safe secrets storage backend that implements the SecretsV2 FFI interface.
 /// Uses the DefaultSecretsProvider from the ABI for encrypted storage with versioning.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginSecretsBackend {
     provider: DefaultSecretsProvider,
 }
@@ -459,7 +450,6 @@ impl Default for PluginSecretsBackend {
 /// Stores routes registered by plugins and supports dynamic route discovery.
 ///
 /// This backend enables plugins to register their own REST API endpoints at initialization time.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginHttpRouterBackend {
     /// Registered routes indexed by "METHOD:path" key
     routes: Mutex<HashMap<String, PluginRouteEntry>>,
@@ -666,15 +656,16 @@ impl Default for PluginHttpRouterBackend {
 ///
 /// This struct holds all the service backends that are wired to PluginContextV2.
 /// It is passed via user_data pointer to allow C FFI callbacks to access services.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginServices {
     pub config: Arc<PluginConfigBackend>,
     pub service_registry: Arc<PluginServiceRegistryBackend>,
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
+    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
+    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,
@@ -782,7 +773,6 @@ impl Drop for PluginResources {
 /// Main plugin manager that handles the complete plugin lifecycle
 ///
 /// Supports ABI v2 plugins only.
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginManager {
     /// Loaded v2 plugins - key is fully qualified name
     ///
@@ -809,7 +799,6 @@ impl Default for PluginManager {
     }
 }
 
-#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 impl PluginManager {
     // RFC-0003: Security fixes for unsafe FFI (Phase 3)
     // Issue #7: Vec::from_raw_parts validation (service list allocation)
@@ -848,6 +837,7 @@ impl PluginManager {
     }
 
     /// Load a plugin from a path using ABI v2
+    #[allow(dead_code)] // Simpler loading path without FFI context — used in tests
     pub async fn load_plugin(&self, name: &str, path: &PathBuf) -> Result<()> {
         info!("Loading plugin: {} from {:?}", name, path);
 
@@ -1922,6 +1912,31 @@ impl PluginManager {
         Ok(plugins_v2.keys().cloned().collect())
     }
 
+    /// Shutdown all loaded plugins and clean up resources
+    ///
+    /// Unloads every loaded plugin in reverse insertion order, cleaning up
+    /// FFI resources (Box'd service structs, Arc<PluginServices> refs) for each.
+    pub async fn shutdown_all(&self) {
+        let plugin_names: Vec<String> = {
+            let plugins = self.loaded_plugins_v2.read().await;
+            plugins.keys().cloned().collect()
+        };
+
+        info!(
+            "Shutting down {} application plugins...",
+            plugin_names.len()
+        );
+
+        for name in &plugin_names {
+            match self.unload_plugin(name).await {
+                Ok(()) => info!("Unloaded plugin: {}", name),
+                Err(e) => error!("Error unloading plugin '{}': {}", name, e),
+            }
+        }
+
+        info!("All application plugins shut down");
+    }
+
     // ========================================================================
     // RFC-0006: Plugin Configuration Schema Validation
     // ========================================================================
@@ -1933,6 +1948,7 @@ impl PluginManager {
     /// 2. `~/.config/skylet/plugins/{plugin_name}.toml`
     ///
     /// Returns the config as a JSON Value for schema validation.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub fn load_plugin_config_from_toml(plugin_name: &str) -> Result<Value> {
         let config_paths = vec![
             PathBuf::from(format!("data/{}.toml", plugin_name)),
@@ -1971,6 +1987,7 @@ impl PluginManager {
     /// Validate a plugin's configuration against its schema
     ///
     /// Returns validation result with any errors found.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn validate_plugin_config(
         &self,
         plugin_name: &str,
@@ -2036,6 +2053,7 @@ impl PluginManager {
     /// This is the main entry point for config loading during plugin initialization.
     /// It loads from TOML, validates against schema (if available), and populates
     /// the config backend with the values.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn load_and_validate_config(&self, plugin_name: &str) -> Result<bool> {
         // Load config from TOML
         let config_json = Self::load_plugin_config_from_toml(plugin_name)?;
@@ -2075,6 +2093,7 @@ impl PluginManager {
     }
 
     /// Check if a plugin exports a configuration schema
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn plugin_has_config_schema(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         if let Some(guarded) = plugins_v2.get(plugin_name) {
@@ -2086,6 +2105,7 @@ impl PluginManager {
     }
 
     /// Get the JSON schema for a plugin's configuration
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn get_plugin_config_schema(&self, plugin_name: &str) -> Option<String> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         if let Some(guarded) = plugins_v2.get(plugin_name) {
