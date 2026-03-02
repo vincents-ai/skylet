@@ -37,7 +37,6 @@ Perfect for building:
 **Security** | Best Practices → [Security Guide](docs/SECURITY.md)
 **Performance** | Optimize → [Performance Tuning](docs/PERFORMANCE.md)
 **Specification** | Technical → [ABI Contract](docs/PLUGIN_CONTRACT.md)
-**Migration** | Upgrade from V1 → [Migration Guide](docs/MIGRATION_GUIDE.md)
 📊 **Stability** | Guarantees → [ABI Stability](docs/ABI_STABILITY.md)
 
 ## ✨ Features
@@ -201,12 +200,6 @@ cargo build --release --features proprietary
    - Compatibility promises
    - Support timeline
 
-### Migration
-7. **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Upgrade from V1
-   - Step-by-step instructions
-   - Common issues
-   - Dual compatibility patterns
-
 ## 🏗️ Architecture
 
 ```
@@ -246,9 +239,9 @@ execution-engine/
 
 ## 📊 Project Statistics
 
-- **16 crates** with clear separation of concerns
-- **213 source files** all with MIT OR Apache-2.0 license headers
-- **1,079+ tests** with comprehensive coverage
+- **13 crates** with clear separation of concerns
+- **186 source files** all with MIT OR Apache-2.0 license headers
+- **1,676+ tests** with comprehensive coverage
 - **Zero proprietary dependencies** in standalone mode
 - **Feature-gated support** for advanced features
 - **2,500+ lines of documentation**

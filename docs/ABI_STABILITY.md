@@ -340,6 +340,5 @@ fn test_with_engine_v2_1() {
 ## See Also
 
 - [Plugin Contract](./PLUGIN_CONTRACT.md)
-- [Migration Guide](./MIGRATION_GUIDE.md)
 - [API Reference](./API_REFERENCE.md)
 - [Changelog](../CHANGELOG.md)
