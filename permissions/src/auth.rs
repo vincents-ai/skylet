@@ -172,6 +172,16 @@ impl LocalAuthProvider {
         password: String,
         display_name: Option<String>,
     ) -> Result<UserId> {
+        // Check for duplicate username before proceeding
+        let passwords = self.passwords.read();
+        if passwords.contains_key(&username) {
+            return Err(anyhow::anyhow!(
+                "User with username '{}' already exists",
+                username
+            ));
+        }
+        drop(passwords);
+
         let user = UserIdentity::new(format!("age-{}", &username))
             .with_display_name(display_name.clone().unwrap_or_else(|| username.clone()));
 
@@ -481,13 +491,23 @@ impl AuthProvider for LocalAuthProvider {
     fn refresh_token(&self, token: &str, ttl_seconds: i64) -> Option<SessionToken> {
         let mut sessions = self.sessions.write();
 
-        if let Some(session) = sessions.get_mut(token) {
+        // Remove the old session (if valid) and re-insert under a new token
+        if let Some(mut session) = sessions.remove(token) {
             if !session.token.is_expired() {
+                // Generate a fresh token with a new UUID
+                let new_token = SessionToken::new(session.token.user_id.clone(), ttl_seconds);
+                let new_token_str = new_token.token.clone();
+
+                // Update session with new token and refreshed claims
                 let now = chrono::Utc::now();
-                session.token.expires_at = now + chrono::Duration::seconds(ttl_seconds);
+                session.token = new_token;
                 session.claims.exp = now.timestamp() + ttl_seconds;
-                return Some(session.token.clone());
+
+                let result = session.token.clone();
+                sessions.insert(new_token_str, session);
+                return Some(result);
             }
+            // Token was expired — don't re-insert, effectively revoking it
         }
         None
     }
