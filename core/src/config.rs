@@ -1,61 +1,9 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TorConfig {
-    pub socks_port: u16,
-    pub control_port: u16,
-    pub hidden_service_port: u16,
-}
-
-impl Default for TorConfig {
-    fn default() -> Self {
-        Self {
-            socks_port: 9050,
-            control_port: 9051,
-            hidden_service_port: 8080,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DiscoveryConfig {
-    pub enabled: bool,
-    pub dht_bootstrap_nodes: Vec<String>,
-    pub dht_replication_factor: u32,
-    pub dht_timeout_seconds: u64,
-    pub i2p_enabled: bool,
-    pub i2p_sam_host: Option<String>,
-    pub i2p_sam_port: Option<u16>,
-    pub fallback_endpoints: Vec<String>,
-    pub cache_ttl: u64,
-    pub announce_interval: u64,
-    pub peer_id: Option<String>,
-    pub private_key: Option<String>,
-}
-
-impl Default for DiscoveryConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            dht_bootstrap_nodes: vec![],
-            dht_replication_factor: 20,
-            dht_timeout_seconds: 30,
-            i2p_enabled: false,
-            i2p_sam_host: None,
-            i2p_sam_port: None,
-            fallback_endpoints: vec![],
-            cache_ttl: 3600,
-            announce_interval: 300,
-            peer_id: None,
-            private_key: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -84,8 +32,6 @@ impl Default for DataDirConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
-    pub tor: TorConfig,
-    pub discovery: DiscoveryConfig,
     pub database: DataDirConfig,
 }
 
@@ -131,8 +77,6 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
-            tor: TorConfig::default(),
-            discovery: DiscoveryConfig::default(),
             database: DataDirConfig::default(),
         }
     }

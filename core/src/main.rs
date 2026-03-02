@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::config::AppConfig; // Use AppConfig only, ConfigArgs from crate::config will be used implicitly for Cli
 use anyhow::Result;
@@ -15,7 +15,7 @@ mod config;
 
 #[derive(Parser)]
 #[command(name = "skylet")]
-#[command(about = "Autonomous Marketplace")]
+#[command(about = "Skylet Plugin Execution Engine")]
 struct Cli {
     #[command(flatten)]
     config_args: crate::config::ConfigArgs, // Explicitly use ConfigArgs from crate::config
@@ -25,7 +25,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run the marketplace server
+    /// Run the server
     Server,
     /// Migrate the source database
     MigrateSource,

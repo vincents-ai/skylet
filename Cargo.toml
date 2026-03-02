@@ -11,7 +11,6 @@ members = [
     "src",
     "plugins/config-manager",
     "plugins/logging",
-    "plugins/marketplace",
     "plugins/registry",
     "plugins/secrets-manager",
     "plugins/skylet-plugin-common",
@@ -20,7 +19,7 @@ members = [
 [workspace.package]
 authors = ["Skylet Team"]
 edition = "2021"
-license = "Apache-2.0 OR MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/vincents-ai/skylet"
 homepage = "https://github.com/vincents-ai/skylet"
 keywords = ["plugin", "runtime", "ffi", "async", "microservices"]

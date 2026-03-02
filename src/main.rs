@@ -1,5 +1,7 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(dead_code)]
 
 use clap::Parser;
 mod bootstrap;
@@ -161,7 +163,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_server(config: AppConfig) -> Result<()> {
-    info!("Starting autonomous marketplace server...");
+    info!("Starting Skylet server...");
 
     let app_state = Arc::new(AppState::new());
 
