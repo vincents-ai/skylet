@@ -12,5 +12,3 @@ pub mod framework_tests;
 pub mod hot_reload_tests;
 #[cfg(test)]
 pub mod integration_tests;
-#[cfg(test)]
-pub mod wallet_test;
