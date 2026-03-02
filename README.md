@@ -6,7 +6,9 @@
 
 A secure, extensible, open-source plugin runtime for autonomous agents and microservices.
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/vincents-ai/skylet/actions/workflows/test.yml/badge.svg)](https://github.com/vincents-ai/skylet/actions/workflows/test.yml)
+[![Coverage](https://codecov.io/gh/vincents-ai/skylet/branch/main/graph/badge.svg)](https://codecov.io/gh/vincents-ai/skylet)
 ![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 
@@ -355,13 +357,12 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 We welcome contributions! Please:
 
-1. Read [Security Best Practices](docs/SECURITY.md)
-2. Follow Rust naming conventions (snake_case functions, PascalCase types)
-3. Add tests for new functionality
-4. Update documentation
-5. Sign commits with your GPG key
-
-For detailed guidelines, see CONTRIBUTING.md (coming soon).
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
+2. Read [Security Best Practices](docs/SECURITY.md)
+3. Follow Rust naming conventions (snake_case functions, PascalCase types)
+4. Add tests for new functionality
+5. Update documentation
+6. Sign commits with your GPG key
 
 ## 📄 License
 
