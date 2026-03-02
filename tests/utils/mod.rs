@@ -36,58 +36,7 @@ impl TestSetup {
 
     /// Load test configuration
     pub fn test_config() -> crate::config::AppConfig {
-        use crate::config::ConfigArgs;
-        
-        let args = ConfigArgs {
-            config: None,
-            database_path: None,
-            database_node_id: None,
-            database_raft_nodes: None,
-            database_election_timeout_ms: None,
-            database_secret_raft: None,
-            database_secret_api: None,
-            database_data_dir: None,
-            tor_socks_port: None,
-            tor_control_port: None,
-            tor_hidden_service_port: None,
-            monero_daemon_url: None,
-            monero_wallet_path: None,
-            monero_wallet_rpc_port: None,
-            monero_network: None,
-            monero_wallet_password: None,
-            monero_auto_refresh: None,
-            monero_refresh_interval: None,
-            agents_enabled: None,
-            agents_security_scan_interval: None,
-            agents_maintenance_interval: None,
-            discovery_enabled: None,
-            discovery_dht_bootstrap_nodes: None,
-            discovery_dht_replication_factor: None,
-            discovery_dht_timeout_seconds: None,
-            discovery_i2p_enabled: None,
-            discovery_i2p_sam_host: None,
-            discovery_i2p_sam_port: None,
-            discovery_fallback_endpoints: None,
-            discovery_cache_ttl: None,
-            discovery_announce_interval: None,
-            discovery_peer_id: None,
-            discovery_private_key: None,
-            payments_enabled: None,
-            payments_reserve_months: None,
-            payments_payment_buffer_days: None,
-            payments_check_interval_hours: None,
-            payments_max_payment_amount: None,
-            payments_retry_attempts: None,
-            payments_retry_delay_minutes: None,
-            payments_large_payment_threshold: None,
-            escrow_default_release_days: None,
-            escrow_max_dispute_days: None,
-            escrow_marketplace_fee_percentage: None,
-            escrow_min_arbiter_confidence: None,
-            escrow_auto_arbitration_enabled: None,
-        };
-
-        crate::config::AppConfig::load(&args).expect("Failed to load test config")
+        crate::config::AppConfig::default()
     }
 }
 
