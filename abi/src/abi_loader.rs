@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// ABI Loader - RFC-0004 Plugin Loading with Complete ABI Validation
 /// This module handles the complete lifecycle of loading and validating plugins
@@ -98,8 +98,8 @@ pub struct PluginCapabilities {
 }
 
 /// ABI V2 Plugin Loader
-#[allow(dead_code)]
 pub struct AbiV2PluginLoader {
+    #[allow(dead_code)] // Must be kept alive to maintain valid FFI function pointers
     library: Library,
     info: *const PluginInfoV2,
     init_fn: PluginInitFnV2,
@@ -275,14 +275,70 @@ impl AbiV2PluginLoader {
         unsafe {
             let info = &*self.info;
 
+            // Extract requires_services
+            let requires_services = if !info.requires_services.is_null()
+                && info.num_requires_services > 0
+            {
+                let services =
+                    std::slice::from_raw_parts(info.requires_services, info.num_requires_services);
+                services
+                    .iter()
+                    .filter_map(|s| {
+                        if s.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(s.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Extract provides_services
+            let provides_services = if !info.provides_services.is_null()
+                && info.num_provides_services > 0
+            {
+                let services =
+                    std::slice::from_raw_parts(info.provides_services, info.num_provides_services);
+                services
+                    .iter()
+                    .filter_map(|s| {
+                        if s.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(s.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Extract capabilities
+            let capabilities = if !info.capabilities.is_null() && info.num_capabilities > 0 {
+                let caps = std::slice::from_raw_parts(info.capabilities, info.num_capabilities);
+                caps.iter()
+                    .filter_map(|c| {
+                        if c.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(c.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
             Ok(PluginCapabilities {
                 supports_hot_reload: info.supports_hot_reload,
                 supports_async: info.supports_async,
                 supports_streaming: info.supports_streaming,
                 max_concurrency: info.max_concurrency,
-                requires_services: Vec::new(), // TODO: Parse from info
-                provides_services: Vec::new(), // TODO: Parse from info
-                capabilities: Vec::new(),      // TODO: Parse from info
+                requires_services,
+                provides_services,
+                capabilities,
             })
         }
     }

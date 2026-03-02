@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Framework tests - Testing mock plugin framework utilities
 // Task: c7c4f29f-95b0-4263-94f0-f1b95e478d33

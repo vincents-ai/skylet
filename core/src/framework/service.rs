@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Service testing utilities for the test framework
 //!
@@ -20,7 +20,6 @@
 pub struct MockPlugin {
     name: String,
     version: String,
-    #[allow(dead_code)]
     capabilities: Vec<String>,
 }
 

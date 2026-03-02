@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code)]
 /// Plugin Manager v2 - ABI v2 Integration
@@ -158,7 +158,7 @@ impl Default for PluginServiceRegistryBackend {
 /// Event subscription entry for tracking callbacks
 struct EventSubscriptionEntry {
     event_type: String,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained to keep FFI callback reference alive
     callback: extern "C" fn(*const EventV2),
     subscription: Subscription,
 }
@@ -290,7 +290,7 @@ pub struct PluginTracerBackend {
     /// Next span handle
     next_handle: Mutex<u64>,
     /// Optional OpenTelemetry tracer for export
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for future span export integration
     otel_tracer: Option<OtelTracer>,
 }
 
@@ -379,13 +379,6 @@ impl PluginTracerBackend {
         if let Some(span) = active.get(&handle) {
             span.set_attribute(key, value);
         }
-    }
-
-    /// Get a span by handle (for internal use)
-    #[allow(dead_code)]
-    pub fn get_span(&self, handle: SpanHandle) -> Option<Span> {
-        let active = self.active_spans.lock().unwrap();
-        active.get(&handle).cloned()
     }
 
     /// Get the number of active spans

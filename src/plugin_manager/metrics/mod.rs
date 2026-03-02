@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Advanced Metrics Collection and Monitoring Module
 //!
@@ -124,6 +124,11 @@ impl MetricsManager {
     pub async fn get_plugin_metrics(&self, plugin_name: &str) -> Option<PluginMetrics> {
         let metrics = self.plugin_metrics.read().await;
         metrics.get(plugin_name).cloned()
+    }
+
+    pub async fn update_plugin_metrics(&self, plugin_name: &str, updated: PluginMetrics) {
+        let mut metrics = self.plugin_metrics.write().await;
+        metrics.insert(plugin_name.to_string(), updated);
     }
 
     pub async fn query_metrics(&self, query: MetricQuery) -> Vec<Metric> {

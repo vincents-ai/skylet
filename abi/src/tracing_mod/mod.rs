@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! RFC-0017: Distributed Tracing and Telemetry
 //!
@@ -56,7 +56,7 @@ pub use opentelemetry::{OtelTracer, SamplerConfig, TracerConfig};
 pub use span::{Span, SpanBuilder, SpanContext, SpanId, SpanManager, TraceId};
 
 /// Standard span attributes for Skylet plugins
-#[allow(dead_code)]
+#[allow(dead_code)] // Standard attribute keys for plugin span tagging
 pub mod attributes {
     pub const PLUGIN_NAME: &str = "skylet.plugin.name";
     pub const PLUGIN_VERSION: &str = "skylet.plugin.version";

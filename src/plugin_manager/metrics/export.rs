@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -132,7 +132,7 @@ impl Default for PrometheusExporter {
 /// OpenTelemetry metrics exporter
 pub struct OpenTelemetryExporter {
     metrics: Arc<RwLock<Vec<Metric>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for future OTel HTTP export endpoint
     endpoint: String,
 }
 

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -601,11 +601,7 @@ impl PluginState {
 // RFC-0003: Security fixes for unsafe FFI (Phase 3)
 // Issue #7: Vec::from_raw_parts validation
 // Maximum size for plugin state allocation (512MB)
-#[allow(dead_code)]
 const MAX_PLUGIN_STATE_SIZE: usize = 512 * 1024 * 1024;
-// Maximum size for service list allocation (100k entries * 8 bytes per ptr)
-#[allow(dead_code)]
-const MAX_SERVICE_LIST_SIZE: usize = 100_000;
 
 /// Default free function for PluginState allocated via Box
 ///

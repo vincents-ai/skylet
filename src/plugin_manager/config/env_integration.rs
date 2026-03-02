@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -259,7 +259,7 @@ pub fn resolve_env_refs(config_str: &str) -> Result<String> {
                 .ok_or_else(|| anyhow!("Required environment variable '{}' not found", env_ref.key))
         })?;
 
-        let pattern = format!("\\${{env:{}(?::[^}}]*)?}}", regex::escape(&env_ref.key));
+        let pattern = format!("\\$\\{{env:{}(?::[^}}]*)?\\}}", regex::escape(&env_ref.key));
         let re = regex::Regex::new(&pattern).unwrap();
         result = re.replace_all(&result, &value).to_string();
     }
@@ -283,14 +283,14 @@ mod tests {
 
     #[test]
     fn test_env_var_integrator() {
-        std::env::set_var("TEST_MYPLUGIN_API_KEY", "secret123");
+        std::env::set_var("TEST_MYPLUGIN_APIKEY", "secret123");
         std::env::set_var("TEST_MYPLUGIN_HOST", "localhost");
 
         let integrator = EnvVarIntegrator::with_prefix("TEST_".to_string());
 
         let config_json = serde_json::json!({
-            "api_key": "from_file",
-            "host": "file_host"
+            "APIKEY": "from_file",
+            "HOST": "file_host"
         });
 
         let merged = integrator
@@ -298,15 +298,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            merged.get("api_key").and_then(|v| v.as_str()),
+            merged.get("APIKEY").and_then(|v| v.as_str()),
             Some("secret123")
         );
         assert_eq!(
-            merged.get("host").and_then(|v| v.as_str()),
+            merged.get("HOST").and_then(|v| v.as_str()),
             Some("localhost")
         );
 
-        std::env::remove_var("TEST_MYPLUGIN_API_KEY");
+        std::env::remove_var("TEST_MYPLUGIN_APIKEY");
         std::env::remove_var("TEST_MYPLUGIN_HOST");
     }
 
@@ -366,7 +366,7 @@ mod tests {
         );
         assert_eq!(
             config_json.get("database").unwrap().get("port").unwrap(),
-            "5432"
+            &serde_json::json!(5432)
         );
         assert_eq!(config_json.get("simple_key").unwrap(), "value");
     }

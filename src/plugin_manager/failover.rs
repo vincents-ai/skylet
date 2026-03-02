@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code)]
 //! Graceful Degradation & Circuit Breaker System for RFC-0004 Phase 6.3
@@ -267,10 +267,15 @@ impl FailoverStrategy {
     /// Returns the service response, falling back if primary fails
     pub fn call_with_failover(&self, service_name: &str) -> ServiceResponse {
         // Get or create circuit breaker
-        let circuit_breaker = self
-            .circuit_breakers
-            .get(service_name)
-            .unwrap_or_else(|| panic!("Service {} not registered", service_name));
+        let circuit_breaker = match self.circuit_breakers.get(service_name) {
+            Some(cb) => cb,
+            None => {
+                return ServiceResponse::error(
+                    404,
+                    &format!("Service {} not registered", service_name),
+                );
+            }
+        };
 
         // Check if circuit allows request
         if !circuit_breaker.should_allow_request() {

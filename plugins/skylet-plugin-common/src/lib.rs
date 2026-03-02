@@ -78,9 +78,9 @@ impl CapabilityBuilder {
     /// Add a capability with name, description, and optional required permission.
     pub fn add(mut self, name: &str, description: &str, required_permission: Option<&str>) -> Self {
         self.capabilities.push((
-            CString::new(name).unwrap(),
-            CString::new(description).unwrap(),
-            required_permission.map(|p| CString::new(p).unwrap()),
+            CString::new(name).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            CString::new(description).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            required_permission.map(|p| CString::new(p).unwrap_or_else(|_| CString::new("invalid").unwrap())),
         ));
         self
     }
@@ -137,20 +137,20 @@ pub struct ServiceInfoBuilder {
 impl ServiceInfoBuilder {
     pub fn new(name: &str, version: &str) -> Self {
         Self {
-            name: CString::new(name).unwrap(),
-            version: CString::new(version).unwrap(),
+            name: CString::new(name).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            version: CString::new(version).unwrap_or_else(|_| CString::new("invalid").unwrap()),
             description: None,
             interface_spec: None,
         }
     }
 
     pub fn description(mut self, desc: &str) -> Self {
-        self.description = Some(CString::new(desc).unwrap());
+        self.description = Some(CString::new(desc).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
     pub fn interface_spec(mut self, spec: &str) -> Self {
-        self.interface_spec = Some(CString::new(spec).unwrap());
+        self.interface_spec = Some(CString::new(spec).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
@@ -191,7 +191,7 @@ impl TagsBuilder {
     }
 
     pub fn add(mut self, tag: &str) -> Self {
-        self.tags.push(CString::new(tag).unwrap());
+        self.tags.push(CString::new(tag).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 

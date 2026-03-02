@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // TDD Red Phase: Tests for temporary database management
 // Task: e5b7c328-9a8f-41ef-91e7-7071e24b56ef

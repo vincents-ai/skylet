@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Dynamic Plugin Reload System
 //!
@@ -17,7 +17,6 @@ use tracing::{info, warn};
 use super::manager::PluginManager;
 
 /// Result of a reload operation
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ReloadResult {
     pub plugin_id: String,
@@ -28,7 +27,6 @@ pub struct ReloadResult {
     pub error: Option<String>,
 }
 
-#[allow(dead_code)]
 impl PluginManager {
     /// Dynamically reload a plugin
     ///
@@ -69,28 +67,4 @@ impl PluginManager {
             plugin_id
         ))
     }
-}
-
-// ============================================================================
-// Hot Reload Support Trait
-// ============================================================================
-
-/// Extension trait to add hot reload support to plugins
-/// Note: The Plugin struct already has built-in hot reload methods:
-/// - `supports_hot_reload()` - checks if ABI symbols are available
-/// - `prepare_hot_reload()` - serializes state via FFI
-/// - `init_from_state()` - restores state via FFI
-///
-/// This trait is kept for potential future extensions that need custom
-/// hot reload behavior beyond the ABI-level support.
-#[allow(dead_code)]
-pub trait HotReloadPlugin {
-    /// Check if this plugin supports hot reload
-    fn supports_hot_reload(&self) -> bool;
-
-    /// Prepare for hot reload - serialize state
-    fn prepare_hot_reload(&self) -> Result<Vec<u8>>;
-
-    /// Initialize from serialized state after reload
-    fn init_from_state(&self, state: &[u8]) -> Result<()>;
 }

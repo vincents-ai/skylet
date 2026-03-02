@@ -1,10 +1,13 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
+
+use super::filtering::EventFilter;
 
 /// Event priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -121,7 +124,7 @@ impl EventMetadata {
 }
 
 /// Event subscriber information
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EventSubscriber {
     pub id: String,
     pub plugin_name: String,
@@ -212,7 +215,7 @@ impl EventPattern {
     pub fn matches(&self, event_type: &str) -> bool {
         match self {
             EventPattern::Exact(s) => event_type == s,
-            EventPattern::Wildcard(pattern) => self.match_wildcard(pattern, event_type),
+            EventPattern::Wildcard(pattern) => Self::match_wildcard(pattern, event_type),
             EventPattern::Regex(regex) => {
                 if let Ok(re) = regex::Regex::new(regex) {
                     re.is_match(event_type)
@@ -232,7 +235,7 @@ impl EventPattern {
         }
 
         for (p, e) in pattern_parts.iter().zip(event_parts.iter()) {
-            if *p != "*" && *p != e {
+            if *p != "*" && p != e {
                 return false;
             }
         }

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use std::collections::HashMap;
@@ -45,6 +45,22 @@ impl PluginMetricsIntegration {
 
             self.manager.record_metric(metric).await;
 
+            // Record total_calls counter
+            let total_metric = Metric::counter("total_calls".to_string(), 1)
+                .with_label("plugin".to_string(), plugin_name.to_string());
+            self.manager.record_metric(total_metric).await;
+
+            // Record success/failure counter
+            if success {
+                let success_metric = Metric::counter("successful_calls".to_string(), 1)
+                    .with_label("plugin".to_string(), plugin_name.to_string());
+                self.manager.record_metric(success_metric).await;
+            } else {
+                let fail_metric = Metric::counter("failed_calls".to_string(), 1)
+                    .with_label("plugin".to_string(), plugin_name.to_string());
+                self.manager.record_metric(fail_metric).await;
+            }
+
             self.update_plugin_performance(plugin_name, elapsed_ms, success)
                 .await;
         }
@@ -58,6 +74,7 @@ impl PluginMetricsIntegration {
     ) {
         if let Some(mut metrics) = self.manager.get_plugin_metrics(plugin_name).await {
             metrics.performance_metrics.record_call(latency_ms, success);
+            self.manager.update_plugin_metrics(plugin_name, metrics).await;
         }
     }
 
@@ -155,7 +172,7 @@ impl PluginMetricsIntegration {
 
         let (p50, p95, p99) = if !latencies.is_empty() {
             let mut sorted = latencies.clone();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let len = sorted.len();
 
             (

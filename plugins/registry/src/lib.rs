@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Registry Plugin - V2 ABI Implementation
 //!
@@ -44,6 +44,7 @@ skylet_plugin_common::skylet_plugin_v2! {
 ///
 /// For plugins that need custom init logic, consider using the macro for
 /// the boilerplate and adding a separate initialization function.
+#[allow(dead_code)] // FFI callback - may be registered at runtime via RPC service
 extern "C" fn registry_rpc_handler(_request: *const RpcRequestV2, response: *mut RpcResponseV2) {
     if response.is_null() {
         return;
@@ -56,26 +57,6 @@ extern "C" fn registry_rpc_handler(_request: *const RpcRequestV2, response: *mut
         (*response).result = result.into_raw();
         (*response).error = ptr::null();
         (*response).status = PluginResultV2::Success;
-    }
-}
-
-/// Register RPC handlers for the registry plugin
-///
-/// Call this function after plugin initialization to set up RPC handlers.
-/// This is kept separate from the macro-generated init since RPC registration
-/// requires access to the plugin context.
-#[allow(dead_code)]
-pub fn register_rpc_handlers(context: *const PluginContextV2) {
-    if context.is_null() {
-        return;
-    }
-
-    unsafe {
-        if !(*context).rpc_service.is_null() {
-            let rpc = &*(*context).rpc_service;
-            let method = CString::new("registry.info").unwrap();
-            (rpc.register_handler)(context, method.as_ptr(), registry_rpc_handler);
-        }
     }
 }
 

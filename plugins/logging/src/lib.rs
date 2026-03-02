@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Logging Plugin - Structured logging backend for Skylet (V2 ABI)
 //!
@@ -124,7 +124,7 @@ extern "C" fn logging_rpc_handler(_request: *const RpcRequestV2, response: *mut 
             Err(_) => "{\"error\":\"lock failed\"}".to_string(),
         };
 
-        let result = CString::new(stats).unwrap();
+        let result = CString::new(stats).unwrap_or_else(|_| CString::new("{}").unwrap());
         (*response).result = result.into_raw();
         (*response).error = ptr::null();
         (*response).status = PluginResultV2::Success;

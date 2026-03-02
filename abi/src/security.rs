@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Security utilities and validation functions for the Skylet ABI
 //! This module provides secure handling of plugin contexts, inputs, and FFI boundaries
@@ -2481,7 +2481,7 @@ impl PluginPermissions {
 pub struct PluginAuthenticator {
     credentials: Arc<Mutex<std::collections::HashMap<String, PluginCredential>>>,
     roles: Arc<Mutex<std::collections::HashMap<String, PluginRole>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for future credential encryption at rest
     secret_store: Arc<EncryptedSecretStore>,
     rotation_manager: Arc<CredentialRotationManager>,
     credential_versions: Arc<Mutex<std::collections::HashMap<String, Vec<CredentialVersion>>>>,

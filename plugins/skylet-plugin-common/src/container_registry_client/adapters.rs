@@ -418,7 +418,7 @@ impl ContainerRegistryClient for DockerHubClient {
             Ok(ImagePushResult {
                 digest,
                 size_bytes: layers.iter().map(|l| l.size).sum::<u64>() + manifest.config.size,
-                uploaded_at: Some(chrono::DateTime::parse_from_rfc3339(&chrono::Utc::now().to_rfc3339()).unwrap()),
+                uploaded_at: Some(chrono::Utc::now().fixed_offset()),
                 repository_url: Some(format!("{}/{}", self.base_url, image.name)),
                 tag: Some(image.tag.clone()),
             })
@@ -883,7 +883,7 @@ impl ContainerRegistryClient for GenericOCIRegistryClient {
             Ok(ImagePushResult {
                 digest,
                 size_bytes: layers.iter().map(|l| l.size).sum::<u64>() + manifest.config.size,
-                uploaded_at: Some(chrono::DateTime::parse_from_rfc3339(&chrono::Utc::now().to_rfc3339()).unwrap()),
+                uploaded_at: Some(chrono::Utc::now().fixed_offset()),
                 repository_url: Some(format!("{}/{}", self.base_url, image.name)),
                 tag: Some(image.tag.clone()),
             })

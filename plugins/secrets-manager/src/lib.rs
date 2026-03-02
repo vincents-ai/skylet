@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(non_camel_case_types)]
 #![allow(static_mut_refs)]
@@ -1903,7 +1903,6 @@ fn check_rotation_eligibility(metadata: &SecretMetadata, now: u64) -> Option<Rot
 
 /// Eligibility status for secret rotation
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum RotationEligibility {
     /// Approaching rotation deadline (warning)
     Warning {
@@ -2706,7 +2705,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2714,7 +2713,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                 match manager.get_secret(path_str) {
                     Ok(secret) => {
                         log_secret_operation("get", path_str, true, None);
-                        let value_cstring = CString::new(secret.to_string()).unwrap();
+                        let value_cstring = CString::new(secret.to_string()).unwrap_or_else(|_| CString::new("invalid string data").unwrap());
                         SecretResult {
                             success: 1,
                             value: value_cstring.into_raw(),
@@ -2727,7 +2726,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2796,7 +2795,7 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2816,7 +2815,7 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2873,7 +2872,7 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2893,7 +2892,7 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2948,7 +2947,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2958,7 +2957,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                         log_secret_operation("list", prefix_str, true, None);
                         let cstring_secrets: Vec<*const c_char> = secrets
                             .into_iter()
-                            .map(|s| CString::new(s).unwrap().into_raw() as *const c_char)
+                            .map(|s| CString::new(s).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw() as *const c_char)
                             .collect();
 
                         let count = cstring_secrets.len();
@@ -2983,7 +2982,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }

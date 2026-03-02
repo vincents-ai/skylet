@@ -272,8 +272,8 @@ mod tests {
     #[test]
     fn test_security_policy_defaults() {
         let policy = SecurityPolicy::new();
-        assert!(!policy.require_signature);
-        assert!(policy.allow_unsigned);
+        assert!(policy.require_signature);
+        assert!(!policy.allow_unsigned);
     }
 
     #[test]

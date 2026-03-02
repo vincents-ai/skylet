@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code)]
 //! Plugin Hot-Reload Service - RFC-0007
@@ -133,10 +133,8 @@ pub enum HotReloadEvent {
 #[derive(Debug, Clone)]
 struct PendingChange {
     plugin_id: String,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for diagnostics; not yet used in reload logic
     path: PathBuf,
-    #[allow(dead_code)]
-    first_seen: Instant,
     last_seen: Instant,
 }
 
@@ -300,7 +298,6 @@ impl HotReloadService {
                 PendingChange {
                     plugin_id: plugin_id.to_string(),
                     path: path.to_path_buf(),
-                    first_seen: now,
                     last_seen: now,
                 },
             );

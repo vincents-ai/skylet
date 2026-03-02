@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -330,7 +330,15 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        let count = storage.get_event_count().await;
+        // Trigger cleanup by storing another event
+        let event2 = Event::new(
+            "trigger.cleanup".to_string(),
+            "test_plugin".to_string(),
+            serde_json::json!({}),
+        );
+        storage.store_event(event2).await.unwrap();
+
+        let count = storage.get_event_count_for_type("test.event").await;
         assert_eq!(count, 0);
     }
 }

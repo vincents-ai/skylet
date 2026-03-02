@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(unused_imports)]
 use anyhow::{Context, Result};
@@ -55,6 +55,7 @@ pub struct ConfigHotReload {
     config_dir: PathBuf,
     reload_config: ReloadConfig,
     configs: Arc<RwLock<HashMap<String, serde_json::Value>>>,
+    #[allow(dead_code)]
     watchers: Arc<RwLock<HashMap<String, RecommendedWatcher>>>,
     callbacks: Arc<RwLock<Vec<ReloadCallback>>>,
     event_history: Arc<RwLock<Vec<ConfigReloadEvent>>>,

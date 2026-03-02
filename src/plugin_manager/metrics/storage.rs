@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -273,11 +273,13 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        let results = storage
-            .query(MetricQuery::new().with_metric("test_counter".to_string()))
-            .await;
+        // Trigger cleanup by storing another metric with the same name
+        let metric2 = Metric::counter("test_counter".to_string(), 2);
+        storage.store(metric2).await.unwrap();
 
-        assert_eq!(results.len(), 0);
+        // The old metric should have been cleaned up; only the new one remains
+        let count = storage.get_metric_count("test_counter").await;
+        assert_eq!(count, 1);
     }
 
     #[tokio::test]

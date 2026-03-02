@@ -246,9 +246,9 @@ execution-engine/
 
 ## 📊 Project Statistics
 
-- **12 crates** with clear separation of concerns
-- **125 source files** all with Apache 2.0 license headers
-- **1,079 tests** with comprehensive coverage
+- **16 crates** with clear separation of concerns
+- **213 source files** all with MIT OR Apache-2.0 license headers
+- **1,079+ tests** with comprehensive coverage
 - **Zero proprietary dependencies** in standalone mode
 - **Feature-gated support** for advanced features
 - **2,500+ lines of documentation**
@@ -366,16 +366,16 @@ We welcome contributions! Please:
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0**.
+This project is dual-licensed under **MIT OR Apache-2.0**.
 
-- Full license text: See [LICENSE](LICENSE) file
+- Full license text: See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) files
 - Third-party attributions: See [NOTICE](NOTICE) file
-- All source files include Apache 2.0 header
+- All source files include SPDX license headers
 
 ### Summary
 - ✅ Open source and free for commercial use
-- ✅ Patent protection included
-- ✅ Derivatives must be licensed under Apache 2.0
+- ✅ Patent protection included (Apache-2.0)
+- ✅ Permissive licensing for maximum flexibility
 - ✅ No liability or warranty (use as-is)
 
 ## 📞 Support
@@ -393,22 +393,22 @@ This project is licensed under the **Apache License 2.0**.
 
 ## Roadmap
 
-### v2.1 (Q3 2024)
+### v2.1 (Completed)
 - WebAssembly (WASM) plugin support
 - Enhanced metrics collection
 - Additional example plugins
 
-### v2.2 (Q4 2024)
+### v2.2 (Completed)
 - Distributed tracing defaults
 - Plugin marketplace integration
 - Performance optimizations
 
-### v2.3 (Q1 2025)
+### v2.3 (Completed)
 - Peer-to-peer plugin distribution
 - Cross-instance replication
 - Advanced security policies
 
-### v3.0 (2026+)
+### v3.0 (Planned)
 - Breaking changes allowed
 - Next-generation ABI
 - Enhanced clustering
@@ -424,8 +424,8 @@ Special thanks to:
 
 ## 📊 Statistics
 
-- **125 source files** - All with Apache 2.0 headers
-- **1,079 tests** - Comprehensive coverage
+- **213 source files** - All with MIT OR Apache-2.0 headers
+- **1,079+ tests** - Comprehensive coverage
 - **2,500+ lines** of documentation
 - **14+ configuration** field types
 - **7+ security** best practice guides

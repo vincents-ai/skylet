@@ -69,7 +69,7 @@ impl PluginLoaderRegistry {
                 .iter()
                 .filter(|l| !l.is_loaded())
                 .map(|loader| {
-                    let path = loader.plugin_path().clone();
+                    let _path = loader.plugin_path().clone();
                     task::spawn_blocking(move || {
                         // Actual loading logic would go here
                         // For now, just mark as loaded
@@ -152,7 +152,7 @@ impl StartupOptimizer {
 }
 
 pub struct DelayedInitializer<T> {
-    initializer: Option<Box<dyn FnOnce() -> T + Send + Sync>>,
+    initializer: std::sync::Mutex<Option<Box<dyn FnOnce() -> T + Send + Sync>>>,
     value: Arc<RwLock<Option<T>>>,
     initialized: AtomicBool,
 }
@@ -163,7 +163,7 @@ impl<T: 'static> DelayedInitializer<T> {
         F: FnOnce() -> T + Send + Sync + 'static,
     {
         Self {
-            initializer: Some(Box::new(initializer)),
+            initializer: std::sync::Mutex::new(Some(Box::new(initializer))),
             value: Arc::new(RwLock::new(None)),
             initialized: AtomicBool::new(false),
         }
@@ -171,7 +171,7 @@ impl<T: 'static> DelayedInitializer<T> {
 
     pub async fn get(&self) -> &Arc<RwLock<Option<T>>> {
         if !self.initialized.load(Ordering::SeqCst) {
-            if let Some(init) = self.initializer.take() {
+            if let Some(init) = self.initializer.lock().unwrap().take() {
                 let val = init();
                 *self.value.write().await = Some(val);
                 self.initialized.store(true, Ordering::SeqCst);

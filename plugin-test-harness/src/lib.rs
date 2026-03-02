@@ -80,10 +80,10 @@ pub struct MockServiceConfig {
 }
 
 /// Main plugin test harness
-#[allow(dead_code)]
 pub struct PluginTestHarness {
     config: PluginTestConfig,
     plugin: Option<Arc<LoadedPluginV2>>,
+    #[allow(dead_code)] // Retained for mock service injection in integration tests
     mock_services: Arc<Mutex<MockServiceRegistry>>,
     test_results: Vec<TestResult>,
     context: Option<Box<MockPluginContextV2>>,

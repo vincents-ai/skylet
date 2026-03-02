@@ -1,4 +1,3 @@
-use std::alloc::{GlobalAlloc, Layout};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod arena;
@@ -106,15 +105,15 @@ mod tests {
     #[test]
     fn test_memory_tracker() {
         let tracker = MemoryTracker::new();
-        
+
         tracker.track_allocation(100);
         assert_eq!(tracker.current_usage(), 100);
         assert_eq!(tracker.peak_usage(), 100);
-        
+
         tracker.track_allocation(200);
         assert_eq!(tracker.current_usage(), 300);
         assert_eq!(tracker.peak_usage(), 300);
-        
+
         tracker.track_deallocation(100);
         assert_eq!(tracker.current_usage(), 200);
     }
@@ -123,7 +122,7 @@ mod tests {
     fn test_memory_stats() {
         let tracker = MemoryTracker::new();
         tracker.track_allocation(500);
-        
+
         let stats = MemoryStats::from(&tracker);
         assert_eq!(stats.current_bytes, 500);
         assert_eq!(stats.total_allocations, 1);

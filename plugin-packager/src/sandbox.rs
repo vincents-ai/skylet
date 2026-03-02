@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin sandbox verification and static security analysis
 ///
@@ -240,7 +240,7 @@ pub struct SystemCallInfo {
 /// Plugin sandbox verifier
 pub struct PluginSandboxVerifier {
     whitelisted_syscalls: HashMap<String, SystemCallInfo>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for per-plugin permission enforcement
     required_permissions: HashMap<Permission, bool>,
     resource_limits: ResourceLimits,
 }

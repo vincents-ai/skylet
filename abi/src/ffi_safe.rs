@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Safe FFI Wrappers for ABI v2
 ///
@@ -865,7 +865,6 @@ const MAX_RESPONSE_BODY_SIZE: usize = 100 * 1024 * 1024;
 const MAX_SERVICES_RETURNED: usize = 10_000;
 
 /// Minimum valid memory address to prevent null/invalid pointers
-#[allow(dead_code)]
 const MIN_VALID_ADDRESS: usize = 0x1000;
 
 /// Secure wrapper for ResponseV2 that validates all pointers before access

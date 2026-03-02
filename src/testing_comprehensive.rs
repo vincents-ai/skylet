@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Comprehensive Testing Framework for Skylet
 //!
@@ -358,13 +358,12 @@ impl PerformanceTestRunner {
     fn sample_memory_usage(&self) -> f64 {
         // Mock memory sampling - in a real implementation, this would use
         // platform-specific APIs to get actual memory usage
-        use std::env;
         use sysinfo::System;
 
         let mut sys = System::new_all();
         sys.refresh_all();
 
-        let process_memory = sys.process(sys::Process::myself().unwrap().as_pid()).unwrap();
+        let process_memory = sys.process(sysinfo::Process::myself().unwrap().as_pid()).unwrap();
         process_memory.memory() as f64 / (1024.0 * 1024.0) // Convert to MB
     }
 

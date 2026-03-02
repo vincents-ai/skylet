@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Permission Types - RFC-0023 User-Level Permissions
 //!
@@ -39,6 +39,8 @@ impl Default for UserId {
 pub struct UserIdentity {
     pub user_id: UserId,
     pub age_public_key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ed25519_public_key: Option<String>,
     pub display_name: Option<String>,
     pub email: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -52,12 +54,18 @@ impl UserIdentity {
         Self {
             user_id: UserId::new(),
             age_public_key,
+            ed25519_public_key: None,
             display_name: None,
             email: None,
             created_at: now,
             updated_at: now,
             metadata: HashMap::new(),
         }
+    }
+
+    pub fn with_ed25519_key(mut self, public_key_hex: String) -> Self {
+        self.ed25519_public_key = Some(public_key_hex);
+        self
     }
 
     pub fn with_display_name(mut self, name: impl Into<String>) -> Self {
@@ -334,6 +342,7 @@ pub enum AuthResult {
     ProviderUnavailable,
     TokenExpired,
     TokenInvalid,
+    RateLimited,
 }
 
 // ============================================================================

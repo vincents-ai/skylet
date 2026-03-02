@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Advanced Event System Module
 //!
@@ -78,8 +78,9 @@ impl EventSystem {
             return Err(EventError::Disabled);
         }
 
-        if event.payload.len() > self.config.max_event_size {
-            return Err(EventError::TooLarge(event.payload.len()));
+        let payload_size = serde_json::to_string(&event.payload).map_err(|e| EventError::Callback(e.to_string()))?.len();
+        if payload_size > self.config.max_event_size {
+            return Err(EventError::TooLarge(payload_size));
         }
 
         self.update_statistics(&event).await;
@@ -93,7 +94,7 @@ impl EventSystem {
             let _ = self.storage.store_event(event.clone()).await;
         }
 
-        let subscriber_count = self.router.route_event(event.clone()).await?;
+        let subscriber_count = self.router.route_event(event.clone()).await.map_err(|e| EventError::Routing(e.to_string()))?;
 
         Ok(EventResult::Published { subscriber_count })
     }
@@ -163,7 +164,7 @@ impl EventSystem {
         let events = self
             .storage
             .query_events(event_type, start_time, end_time)
-            .await?;
+            .await.map_err(|e| EventError::Storage(e.to_string()))?;
 
         let mut replayed = 0;
         for event in events {
