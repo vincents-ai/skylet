@@ -278,7 +278,7 @@ See `docs/MIGRATION_GUIDE.md` for detailed examples.
 ### Future Roadmap
 - [ ] WebAssembly (WASM) plugin support (v2.1)
 - [ ] Distributed tracing defaults (v2.2)
-- [ ] Plugin marketplace integration (v2.3)
+- [ ] Plugin registry integration (v2.3)
 - [ ] Peer-to-peer plugin distribution (v2.4+)
 
 ## Contributors

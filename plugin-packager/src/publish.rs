@@ -4,10 +4,9 @@
 /// Plugin artifact publishing to registry
 ///
 /// This module provides functionality for publishing plugin artifacts to
-/// the Skylet marketplace or private registries. It handles:
+/// registries. It handles:
 /// - Artifact validation before publishing
 /// - Checksum computation and verification
-/// - Upload with authentication
 /// - Publishing metadata extraction from artifacts
 ///
 /// RFC-0003: Plugin Package and Artifact Specification
@@ -15,23 +14,18 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::abi_compat::{
-    ABICompatibleInfo, ABIVersion, MarketplaceMetadata, MaturityLevel, PluginCategory,
-    ResourceRequirements,
-};
-use crate::marketplace::{MarketplaceClient, PublishRequest, PublishSignature};
 use crate::platform::ArtifactMetadata;
 
 /// Publishing client for plugin artifacts
 #[derive(Clone)]
 pub struct ArtifactPublisher {
-    client: MarketplaceClient,
+    config: PublishConfig,
 }
 
 /// Configuration for artifact publishing
 #[derive(Debug, Clone)]
 pub struct PublishConfig {
-    /// Registry base URL (e.g., "https://marketplace.skylet.dev")
+    /// Registry base URL (e.g., "https://registry.example.com")
     pub registry_url: String,
     /// Authentication token (required for publishing)
     pub auth_token: String,
@@ -60,8 +54,8 @@ pub struct ArtifactPublishResult {
     pub status: String,
     /// Human-readable message
     pub message: String,
-    /// URL to view plugin in marketplace (if available)
-    pub marketplace_url: Option<String>,
+    /// URL to view plugin in registry (if available)
+    pub registry_url: Option<String>,
 }
 
 /// Local artifact information for publishing
@@ -78,145 +72,7 @@ pub struct LocalArtifact {
 impl ArtifactPublisher {
     /// Create a new artifact publisher
     pub fn new(config: PublishConfig) -> Self {
-        let client = MarketplaceClient::with_auth(config.registry_url, config.auth_token);
-        Self { client }
-    }
-
-    /// Create a publisher with an existing client
-    pub fn with_client(client: MarketplaceClient) -> Self {
-        Self { client }
-    }
-
-    /// Publish an artifact to the registry
-    ///
-    /// This function:
-    /// 1. Validates the artifact (unless skip_verify is true)
-    /// 2. Extracts metadata from the artifact
-    /// 3. Computes the checksum
-    /// 4. Uploads to the registry with authentication
-    ///
-    /// # Arguments
-    /// * `artifact_path` - Path to the .tar.gz artifact
-    /// * `config` - Publishing configuration
-    ///
-    /// # Returns
-    /// * `ArtifactPublishResult` on success
-    ///
-    /// # Example
-    /// ```no_run
-    /// use plugin_packager::publish::{ArtifactPublisher, PublishConfig};
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> anyhow::Result<()> {
-    ///     let config = PublishConfig {
-    ///         registry_url: "https://marketplace.skylet.dev".to_string(),
-    ///         auth_token: "my-token".to_string(),
-    ///         skip_verify: false,
-    ///         as_draft: false,
-    ///         sign: false,
-    ///         key_id: None,
-    ///     };
-    ///     
-    ///     let publisher = ArtifactPublisher::new(config);
-    ///     let result = publisher.publish(
-    ///         std::path::Path::new("./my-plugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz"),
-    ///         None,
-    ///     ).await?;
-    ///     
-    ///     tracing::info!("Published: {} v{}", result.plugin_id, result.version);
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn publish(
-        &self,
-        artifact_path: &Path,
-        signatures: Option<Vec<PublishSignature>>,
-    ) -> Result<ArtifactPublishResult> {
-        // Step 1: Validate artifact exists
-        if !artifact_path.exists() {
-            return Err(anyhow!("Artifact not found: {}", artifact_path.display()));
-        }
-
-        // Step 2: Parse artifact metadata from filename
-        let filename = artifact_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .context("Invalid artifact filename")?;
-
-        let artifact_metadata = ArtifactMetadata::parse(filename)
-            .with_context(|| format!("Failed to parse artifact name: {}", filename))?;
-
-        // Step 3: Verify artifact (RFC-0003 compliance)
-        crate::verify_artifact(artifact_path, None)
-            .with_context(|| "Artifact verification failed")?;
-
-        // Step 4: Compute checksum
-        let checksum = compute_artifact_checksum(artifact_path)?;
-
-        // Step 5: Extract plugin metadata from artifact
-        let plugin_metadata = extract_plugin_metadata(artifact_path)?;
-
-        // Step 6: Build ABI-compatible info
-        let abi_version = ABIVersion::parse(&plugin_metadata.abi_version).unwrap_or(ABIVersion::V1);
-
-        let maturity_level = plugin_metadata
-            .maturity
-            .as_deref()
-            .and_then(|m| MaturityLevel::parse(m).ok())
-            .unwrap_or(MaturityLevel::Alpha);
-
-        let category = plugin_metadata
-            .plugin_type
-            .as_deref()
-            .and_then(|c| PluginCategory::parse(c).ok())
-            .unwrap_or(PluginCategory::Other);
-
-        let abi_info = ABICompatibleInfo {
-            name: artifact_metadata.name.clone(),
-            version: artifact_metadata.version.clone(),
-            abi_version,
-            skylet_version_min: None,
-            skylet_version_max: None,
-            maturity_level,
-            category,
-            author: plugin_metadata.author,
-            license: plugin_metadata.license,
-            description: plugin_metadata.description,
-            capabilities: vec![],
-            dependencies: vec![],
-            resources: ResourceRequirements::default(),
-            marketplace: MarketplaceMetadata::default(),
-        };
-
-        // Step 7: Build publish request
-        let package_url = format!("file://{}", artifact_path.canonicalize()?.display());
-
-        let request = PublishRequest {
-            metadata: abi_info,
-            package_url,
-            checksum: checksum.clone(),
-            signatures,
-        };
-
-        // Step 8: Publish to marketplace
-        let response = self.client.publish(request).await?;
-
-        // Step 9: Build result
-        Ok(ArtifactPublishResult {
-            plugin_id: response.id,
-            version: response.version,
-            download_url: format!(
-                "{}/artifacts/{}-v{}-{}.tar.gz",
-                self.client.base_url(),
-                artifact_metadata.name,
-                artifact_metadata.version,
-                artifact_metadata.target_triple
-            ),
-            checksum,
-            status: format!("{:?}", response.status),
-            message: response.message,
-            marketplace_url: response.verification_url,
-        })
+        Self { config }
     }
 
     /// Validate an artifact without publishing
@@ -247,7 +103,12 @@ impl ArtifactPublisher {
 
     /// Check if the publisher has valid authentication
     pub fn is_authenticated(&self) -> bool {
-        self.client.has_auth()
+        !self.config.auth_token.is_empty()
+    }
+
+    /// Get the configured registry URL
+    pub fn registry_url(&self) -> &str {
+        &self.config.registry_url
     }
 }
 
@@ -273,6 +134,7 @@ fn compute_artifact_checksum(path: &Path) -> Result<String> {
 }
 
 /// Extract plugin metadata from an artifact
+#[allow(dead_code)]
 fn extract_plugin_metadata(artifact_path: &Path) -> Result<PluginMetadataExtract> {
     use flate2::read::GzDecoder;
     use std::fs::File;
@@ -318,6 +180,7 @@ struct PluginMetadataExtract {
 }
 
 /// Parse plugin.toml content
+#[allow(dead_code)]
 fn parse_plugin_toml(content: &str) -> Result<PluginMetadataExtract> {
     let value: toml::Value = toml::from_str(content)?;
 
@@ -367,7 +230,7 @@ mod tests {
     #[test]
     fn test_publish_config() {
         let config = PublishConfig {
-            registry_url: "https://marketplace.example.com".to_string(),
+            registry_url: "https://registry.example.com".to_string(),
             auth_token: "secret-token".to_string(),
             skip_verify: false,
             as_draft: false,
@@ -375,14 +238,14 @@ mod tests {
             key_id: None,
         };
 
-        assert_eq!(config.registry_url, "https://marketplace.example.com");
+        assert_eq!(config.registry_url, "https://registry.example.com");
         assert!(!config.skip_verify);
     }
 
     #[test]
     fn test_artifact_publisher_creation() {
         let config = PublishConfig {
-            registry_url: "https://marketplace.example.com".to_string(),
+            registry_url: "https://registry.example.com".to_string(),
             auth_token: "secret-token".to_string(),
             skip_verify: false,
             as_draft: false,

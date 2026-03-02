@@ -42,7 +42,7 @@ pub enum MaturityLevel {
     Deprecated = 4,
 }
 
-/// Plugin category for marketplace classification
+/// Plugin category for plugin classification
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PluginCategory {
@@ -56,17 +56,6 @@ pub enum PluginCategory {
     Integration = 7,
     Development = 8,
     Other = 9,
-}
-
-/// Monetization model for plugin marketplace
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MonetizationModel {
-    Free = 0,
-    OneTime = 1,
-    Subscription = 2,
-    Freemium = 3,
-    Custom = 4,
 }
 
 /// Service information for dependency and capability declaration
@@ -368,102 +357,6 @@ pub struct PluginMetrics {
     pub last_error: *const c_char,
 }
 
-// ============================================================================
-// Billing Metrics - RFC-ARCH Section 10: Marketplace and Billing
-// ============================================================================
-
-/// Billing unit types for metered usage
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BillingUnit {
-    /// Per API call/request
-    Request = 0,
-    /// Per compute hour (CPU time)
-    ComputeHour = 1,
-    /// Per gigabyte of data transferred
-    DataGB = 2,
-    /// Per gigabyte of storage used
-    StorageGB = 3,
-    /// Per LLM token processed
-    LLMToken = 4,
-    /// Per active user/seat
-    UserSeat = 5,
-    /// Per event/message
-    Event = 6,
-    /// Custom unit defined by plugin
-    Custom = 99,
-}
-
-/// Billing metrics for usage-based monetization
-///
-/// Plugins can optionally export `plugin_get_billing_metrics()` to declare
-/// their metered usage for marketplace billing. This enables:
-/// - Usage-based pricing for pay-per-use plugins
-/// - Transparent metering visible to the platform
-/// - Accurate billing without plugin-specific tracking
-///
-/// Per RFC-ARCH Section 10.3, billing metrics support various monetization
-/// models including usage-based metering where the platform meters usage
-/// transparently.
-#[repr(C)]
-pub struct BillingMetrics {
-    /// Name of the billing metric (e.g., "api_calls", "compute_hours")
-    pub metric_name: *const c_char,
-    /// Human-readable description of what is being metered
-    pub description: *const c_char,
-    /// Unit type for this metric
-    pub unit: BillingUnit,
-    /// Current period usage count
-    pub current_usage: u64,
-    /// Billing period start timestamp (Unix epoch seconds)
-    pub period_start: u64,
-    /// Billing period end timestamp (Unix epoch seconds)
-    pub period_end: u64,
-    /// Price per unit in stroops (1 XLM = 10,000,000 stroops)
-    pub price_per_unit: u64,
-    /// Currency code (e.g., "XLM" for Stellar Lumens)
-    pub currency: *const c_char,
-    /// Whether this is a metered (usage-based) or flat-rate metric
-    pub is_metered: bool,
-    /// Optional: Granular usage breakdown as JSON
-    pub usage_breakdown_json: *const c_char,
-}
-
-/// Aggregated billing metrics for a plugin with multiple metered resources
-#[repr(C)]
-pub struct BillingMetricsReport {
-    /// Plugin identifier
-    pub plugin_id: *const c_char,
-    /// Plugin version
-    pub plugin_version: *const c_char,
-    /// Array of billing metrics
-    pub metrics: *const BillingMetrics,
-    /// Number of metrics in the array
-    pub num_metrics: usize,
-    /// Total estimated cost in stroops for current period
-    pub total_cost_stroops: u64,
-    /// Timestamp when this report was generated
-    pub generated_at: u64,
-}
-
-/// Function type for billing metrics export
-///
-/// Plugins that support usage-based billing should export this function
-/// to report their current metered usage. The platform calls this
-/// periodically to aggregate billing data.
-///
-/// # Returns
-///
-/// Pointer to a BillingMetricsReport containing all metered resources.
-/// The pointer must remain valid until the next call or plugin shutdown.
-///
-/// # Memory Ownership
-///
-/// The returned pointer should point to statically allocated memory or
-/// memory managed by the plugin that remains valid across calls.
-pub type PluginGetBillingMetricsFnV2 =
-    extern "C" fn(context: *const PluginContextV2) -> *const BillingMetricsReport;
-
 /// Logger service for ABI v2
 #[repr(C)]
 pub struct LoggerV2 {
@@ -628,12 +521,7 @@ pub struct PluginInfoV2 {
     pub supports_streaming: bool,
     pub max_concurrency: usize,
 
-    // Marketplace and monetization
-    pub monetization_model: MonetizationModel,
-    pub price_usd: f32,
-    pub purchase_url: *const c_char,
-    pub subscription_url: *const c_char,
-    pub marketplace_category: *const c_char,
+    // Plugin presentation
     pub tagline: *const c_char,
     pub icon_url: *const c_char,
 
@@ -767,18 +655,6 @@ pub struct PluginApiV2 {
     /// configuration structure. Enables schema validation, admin UI
     /// form generation, and IDE autocompletion for config files.
     pub get_config_schema: Option<PluginGetConfigSchemaJsonFn>,
-
-    /// Billing metrics export - Optional (RFC-ARCH Section 10)
-    ///
-    /// If implemented, returns a BillingMetricsReport containing
-    /// usage-based billing information. Enables:
-    /// - Usage-based pricing for pay-per-use plugins
-    /// - Transparent metering visible to the platform
-    /// - Accurate billing without plugin-specific tracking
-    ///
-    /// Per RFC-ARCH Section 10.3, plugins declare billing metrics
-    /// through this function for marketplace integration.
-    pub get_billing_metrics: Option<PluginGetBillingMetricsFnV2>,
 
     // ========================================================================
     // State Transfer for Epoch-Based Hot Reload
@@ -1426,12 +1302,6 @@ mod tests {
     }
 
     #[test]
-    fn test_monetization_models() {
-        assert_eq!(MonetizationModel::Free as u32, 0);
-        assert_eq!(MonetizationModel::Subscription as u32, 2);
-    }
-
-    #[test]
     fn test_health_statuses() {
         assert_eq!(HealthStatus::Healthy as u32, 0);
         assert_eq!(HealthStatus::Unhealthy as u32, 2);
@@ -1501,7 +1371,6 @@ mod tests {
             get_metrics: None,
             query_capability: None,
             get_config_schema: None,
-            get_billing_metrics: None,
             serialize_state: None,
             deserialize_state: None,
             free_state: None,

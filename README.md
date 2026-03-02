@@ -400,7 +400,7 @@ This project is dual-licensed under **MIT OR Apache-2.0**.
 
 ### v2.2 (Completed)
 - Distributed tracing defaults
-- Plugin marketplace integration
+- Plugin registry integration
 - Performance optimizations
 
 ### v2.3 (Completed)

@@ -14,7 +14,7 @@
 #![allow(unused_imports)]
 
 use skylet_abi::v2_spec::*;
-use skylet_abi::{DependencyInfo, MaturityLevel, MonetizationModel, PluginCategory};
+use skylet_abi::{DependencyInfo, MaturityLevel, PluginCategory};
 use skylet_plugin_common::config_paths;
 use std::ffi::CString;
 use std::ptr;

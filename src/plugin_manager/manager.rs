@@ -38,28 +38,11 @@ use skylet_abi::{
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-// Billing module removed - moved to plugin-distribution
-use serde::Serialize;
 use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
-
-// ============================================================================
-// Stub Types for Removed Billing Module
-// ============================================================================
-
-/// Stub for billing collector statistics
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct BillingCollectorStats {
-    pub collections_total: u64,
-    pub plugins_with_metrics: u64,
-    pub plugins_without_metrics: u64,
-    pub successful_collections: u64,
-    pub failed_collections: u64,
-    pub last_collection_at: Option<String>,
-}
 
 // ============================================================================
 // Plugin Services - Shared service backends for PluginContextV2
@@ -1907,85 +1890,6 @@ impl PluginManager {
     pub async fn list_plugins(&self) -> Result<Vec<String>> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         Ok(plugins_v2.keys().cloned().collect())
-    }
-
-    // ========================================================================
-    // RFC-ARCH Section 10.3: Billing Metrics Collection
-    // ========================================================================
-
-    /// Collect billing metrics from all loaded plugins that support it
-    ///
-    /// This method iterates through all loaded v2 plugins and calls their
-    /// `plugin_get_billing_metrics_v2` function if available, then records
-    /// the metrics using the MeteringService.
-    ///
-    /// Returns statistics about the collection process.
-    /// Collect billing metrics from plugins
-    ///
-    /// Note: Billing collection functionality has been moved to the plugin-distribution plugin.
-    /// This is a stub that returns empty stats for backward compatibility.
-    pub async fn collect_billing_metrics(&self) -> Result<BillingCollectorStats> {
-        let plugins_v2 = self.loaded_plugins_v2.read().await;
-        let mut stats = BillingCollectorStats {
-            collections_total: 1,
-            ..Default::default()
-        };
-
-        for (name, guarded) in plugins_v2.iter() {
-            // Access plugin via epoch guard for safe hot-reload
-            let Some(guard) = guarded.access() else {
-                stats.failed_collections += 1;
-                continue;
-            };
-            let loader = guard.plugin();
-
-            // Check if plugin supports billing metrics
-            if !loader.has_billing_metrics() {
-                stats.plugins_without_metrics += 1;
-                continue;
-            }
-
-            stats.plugins_with_metrics += 1;
-
-            // Create a temporary context for the plugin - resources are dropped after use
-            match self.create_plugin_context_v2(name) {
-                Ok((context, resources)) => {
-                    // Get billing metrics from the plugin
-                    if loader.get_billing_metrics(&context).is_some() {
-                        stats.successful_collections += 1;
-                        debug!("Found billing metrics from plugin: {}", name);
-                    } else {
-                        stats.failed_collections += 1;
-                    }
-                    // Resources are dropped here, cleaning up the temporary allocations
-                    drop(resources);
-                }
-                Err(_) => {
-                    stats.failed_collections += 1;
-                }
-            }
-        }
-
-        stats.last_collection_at = Some(chrono::Utc::now().to_rfc3339());
-        info!(
-            "Billing collection stub executed: {} successful, {} failed, {} plugins with metrics support",
-            stats.successful_collections,
-            stats.failed_collections,
-            stats.plugins_with_metrics
-        );
-
-        Ok(stats)
-    }
-
-    /// Check if a specific plugin supports billing metrics
-    pub async fn plugin_supports_billing(&self, plugin_name: &str) -> bool {
-        let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(guarded) = plugins_v2.get(plugin_name) {
-            if let Some(guard) = guarded.access() {
-                return guard.plugin().has_billing_metrics();
-            }
-        }
-        false
     }
 
     // ========================================================================

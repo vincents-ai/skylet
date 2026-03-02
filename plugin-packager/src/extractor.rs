@@ -225,9 +225,10 @@ impl PluginExtractor {
             }
 
             // Check for manifest to extract plugin name/version
-            if entry_path.ends_with("plugin.toml") {
-                let mut content = String::new();
-                entry.read_to_string(&mut content)?;
+            // Read from the extracted file on disk rather than the tar entry,
+            // since extract_file() already consumed the entry's data stream.
+            if entry_path.ends_with("plugin.toml") && dest_path.exists() {
+                let content = fs::read_to_string(&dest_path)?;
                 if let Some((name, version)) = self.parse_manifest_basic(&content)? {
                     plugin_name = name;
                     plugin_version = version;
@@ -453,15 +454,15 @@ impl PluginExtractor {
                         _ => {}
                     }
                 }
-            } else if !in_package && name.is_empty() && version.is_empty() {
-                // Try flat format
+            } else if !in_package {
+                // Try flat format (top-level keys outside any section)
                 if let Some((key, value)) = trimmed.split_once('=') {
                     let key = key.trim();
                     let value = value.trim().trim_matches('"');
 
                     match key {
-                        "name" => name = value.to_string(),
-                        "version" => version = value.to_string(),
+                        "name" if name.is_empty() => name = value.to_string(),
+                        "version" if version.is_empty() => version = value.to_string(),
                         _ => {}
                     }
                 }

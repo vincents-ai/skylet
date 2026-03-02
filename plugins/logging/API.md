@@ -636,8 +636,8 @@ All log events follow RFC-0018 structured logging format:
 {
   "timestamp": "2024-02-03T14:25:30.123456Z",
   "level": "INFO",
-  "message": "Marketplace initialized",
-  "plugin_name": "marketplace-core",
+  "message": "Plugin initialized",
+  "plugin_name": "example-plugin",
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
   "span_id": "00f067aa0ba902b7",
   "data": {

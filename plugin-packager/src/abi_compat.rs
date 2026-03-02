@@ -1,16 +1,15 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Marketplace ABI v2.0 compatibility layer
+//! ABI v2.0 compatibility layer
 //!
 //! This module provides compatibility between plugin-packager and the skylet-abi,
-//! ensuring plugins packaged here are compatible with the marketplace plugin lifecycle
+//! ensuring plugins packaged here are compatible with the plugin lifecycle
 //! management system.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-/// Marketplace ABI v2.0 specification levels
+/// ABI v2.0 specification levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ABIVersion {
     V1,
@@ -46,7 +45,7 @@ impl ABIVersion {
     }
 }
 
-/// Plugin maturity level for marketplace classification
+/// Plugin maturity level for plugin classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MaturityLevel {
     Alpha,
@@ -81,7 +80,7 @@ impl MaturityLevel {
     }
 }
 
-/// Plugin category for marketplace classification
+/// Plugin category for plugin classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PluginCategory {
     Utility,
@@ -172,9 +171,6 @@ pub struct ABICompatibleInfo {
 
     /// Required resource specifications
     pub resources: ResourceRequirements,
-
-    /// Marketplace metadata
-    pub marketplace: MarketplaceMetadata,
 }
 
 /// Plugin capability information
@@ -241,80 +237,6 @@ impl Default for ResourceRequirements {
             min_disk_mb: 100,
             max_disk_mb: 1024,
             requires_gpu: false,
-        }
-    }
-}
-
-/// Marketplace metadata for plugin discovery and monetization
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketplaceMetadata {
-    /// Repository URL (GitHub, etc.)
-    pub repository: Option<String>,
-
-    /// Documentation URL
-    pub documentation: Option<String>,
-
-    /// Support/issue URL
-    pub support_url: Option<String>,
-
-    /// Monetization model
-    pub monetization: MonetizationModel,
-
-    /// Price if monetized (in USD cents)
-    pub price_cents: Option<u64>,
-
-    /// Supported platforms (e.g., ["linux-x64", "macos-arm64"])
-    pub platforms: Vec<String>,
-
-    /// Custom metadata key-value pairs
-    pub custom: HashMap<String, String>,
-}
-
-impl Default for MarketplaceMetadata {
-    fn default() -> Self {
-        Self {
-            repository: None,
-            documentation: None,
-            support_url: None,
-            monetization: MonetizationModel::Free,
-            price_cents: None,
-            platforms: vec![],
-            custom: HashMap::new(),
-        }
-    }
-}
-
-/// Monetization model for plugin marketplace
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MonetizationModel {
-    Free,
-    OneTime,
-    Subscription,
-    Freemium,
-    Custom,
-}
-
-impl MonetizationModel {
-    /// Parse monetization model from string
-    pub fn parse(model_str: &str) -> anyhow::Result<Self> {
-        match model_str.to_lowercase().as_str() {
-            "free" => Ok(MonetizationModel::Free),
-            "onetime" | "one-time" | "one_time" => Ok(MonetizationModel::OneTime),
-            "subscription" | "sub" => Ok(MonetizationModel::Subscription),
-            "freemium" => Ok(MonetizationModel::Freemium),
-            "custom" => Ok(MonetizationModel::Custom),
-            _ => anyhow::bail!("Unknown monetization model: {}", model_str),
-        }
-    }
-
-    /// Get as string representation
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            MonetizationModel::Free => "free",
-            MonetizationModel::OneTime => "onetime",
-            MonetizationModel::Subscription => "subscription",
-            MonetizationModel::Freemium => "freemium",
-            MonetizationModel::Custom => "custom",
         }
     }
 }
@@ -495,18 +417,6 @@ mod tests {
     }
 
     #[test]
-    fn test_monetization_model_parse() {
-        assert_eq!(
-            MonetizationModel::parse("free").unwrap(),
-            MonetizationModel::Free
-        );
-        assert_eq!(
-            MonetizationModel::parse("subscription").unwrap(),
-            MonetizationModel::Subscription
-        );
-    }
-
-    #[test]
     fn test_resource_requirements_default() {
         let res = ResourceRequirements::default();
         assert_eq!(res.min_cpu_cores, 1);
@@ -529,7 +439,6 @@ mod tests {
             capabilities: vec![],
             dependencies: vec![],
             resources: ResourceRequirements::default(),
-            marketplace: MarketplaceMetadata::default(),
         };
 
         let result = ABIValidator::validate(&info);
@@ -563,7 +472,6 @@ mod tests {
             capabilities: vec![],
             dependencies: vec![],
             resources,
-            marketplace: MarketplaceMetadata::default(),
         };
 
         let result = ABIValidator::validate(&info);
@@ -587,7 +495,6 @@ mod tests {
             capabilities: vec![],
             dependencies: vec![],
             resources: ResourceRequirements::default(),
-            marketplace: MarketplaceMetadata::default(),
         };
 
         let result = ABIValidator::validate(&info);

@@ -110,8 +110,6 @@ pub struct AbiV2PluginLoader {
     metrics_fn: Option<PluginGetMetricsFnV2>,
     /// Configuration schema function - Optional (RFC-0006)
     config_schema_fn: Option<PluginGetConfigSchemaJsonFn>,
-    /// Billing metrics function - Optional (RFC-ARCH Section 10.3)
-    billing_metrics_fn: Option<PluginGetBillingMetricsFnV2>,
 }
 
 impl AbiV2PluginLoader {
@@ -217,14 +215,6 @@ impl AbiV2PluginLoader {
                 .map(|sym| *(addr_of!(*sym) as *const _))
         };
 
-        // Load optional billing metrics function (RFC-ARCH Section 10.3)
-        let billing_metrics_fn: Option<PluginGetBillingMetricsFnV2> = unsafe {
-            library
-                .get::<Symbol<PluginGetBillingMetricsFnV2>>(b"plugin_get_billing_metrics_v2")
-                .ok()
-                .map(|sym| *(addr_of!(*sym) as *const _))
-        };
-
         Ok(AbiV2PluginLoader {
             library,
             info,
@@ -235,7 +225,6 @@ impl AbiV2PluginLoader {
             health_check_fn,
             metrics_fn,
             config_schema_fn,
-            billing_metrics_fn,
         })
     }
 
@@ -495,44 +484,6 @@ impl AbiV2PluginLoader {
     /// Check if plugin exports a configuration schema (RFC-0006)
     pub fn has_config_schema(&self) -> bool {
         self.config_schema_fn.is_some()
-    }
-
-    // ========================================================================
-    // RFC-ARCH Section 10.3: Billing Metrics Support
-    // ========================================================================
-
-    /// Get billing metrics from the plugin if available (RFC-ARCH Section 10.3)
-    ///
-    /// Returns a BillingMetricsReport containing usage-based billing information,
-    /// or None if the plugin doesn't support billing metrics.
-    ///
-    /// # Example
-    /// ```ignore
-    /// if let Some(report_ptr) = loader.get_billing_metrics(&context) {
-    ///     let report = unsafe { &*report_ptr };
-    ///     // Process billing metrics
-    /// }
-    /// ```
-    pub fn get_billing_metrics(
-        &self,
-        context: *const PluginContextV2,
-    ) -> Option<*const BillingMetricsReport> {
-        match &self.billing_metrics_fn {
-            Some(fn_ref) => {
-                let report_ptr = (fn_ref)(context);
-                if report_ptr.is_null() {
-                    None
-                } else {
-                    Some(report_ptr)
-                }
-            }
-            None => None,
-        }
-    }
-
-    /// Check if plugin supports billing metrics (RFC-ARCH Section 10.3)
-    pub fn has_billing_metrics(&self) -> bool {
-        self.billing_metrics_fn.is_some()
     }
 }
 

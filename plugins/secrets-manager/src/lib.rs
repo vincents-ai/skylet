@@ -3132,12 +3132,6 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 supports_streaming: false,
                 max_concurrency: 50, // Moderate concurrency for security
 
-                // Marketplace and monetization
-                monetization_model: MonetizationModel::Free,
-                price_usd: 0.0,
-                purchase_url: ptr::null(),
-                subscription_url: ptr::null(),
-                marketplace_category: ptr::null(),
                 tagline: tagline_str.into_raw(),
                 icon_url: ptr::null(),
 

@@ -23,7 +23,7 @@
 //!
 //! ```bash
 //! # Add a registry source
-//! skylet-lifecycle-cli source add official https://registry.skylet.dev
+//! skylet-lifecycle-cli source add official https://registry.example.com
 //!
 //! # Search for plugins
 //! skylet-lifecycle-cli plugin search "database"
@@ -1288,7 +1288,7 @@ mod tests {
             "source",
             "add",
             "official",
-            "https://registry.skylet.dev",
+            "https://registry.example.com",
         ]);
 
         assert!(cli.is_ok());
@@ -1296,7 +1296,7 @@ mod tests {
         match cli.command {
             Commands::Source(SourceCommands::Add { name, url, .. }) => {
                 assert_eq!(name, "official");
-                assert_eq!(url, "https://registry.skylet.dev");
+                assert_eq!(url, "https://registry.example.com");
             }
             _ => panic!("Expected Source Add command"),
         }

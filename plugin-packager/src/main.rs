@@ -59,7 +59,7 @@ enum PackageCommands {
     Publish {
         /// Path to the artifact file (.tar.gz)
         artifact: PathBuf,
-        /// Registry URL (e.g., https://marketplace.skylet.dev)
+        /// Registry URL (e.g., https://registry.example.com)
         #[arg(short, long)]
         registry: String,
         /// Authentication token
