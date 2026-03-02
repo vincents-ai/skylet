@@ -212,7 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_store_and_query() {
-        let storage = MetricsStorage::new(Duration::hours(1));
+        let storage = MetricsStorage::new(TimeDelta::hours(1));
 
         let metric = Metric::counter("test_counter".to_string(), 42)
             .with_label("plugin".to_string(), "test_plugin".to_string());
@@ -230,9 +230,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_get_latest() {
-        let storage = MetricsStorage::new(Duration::hours(1));
+        let storage = MetricsStorage::new(TimeDelta::hours(1));
 
-        let now = Utc::now();
+        let _now = Utc::now();
         let metric1 = Metric::gauge("test_gauge".to_string(), 1.0);
         let metric2 = Metric::gauge("test_gauge".to_string(), 2.0);
 
@@ -247,15 +247,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_time_range() {
-        let storage = MetricsStorage::new(Duration::hours(1));
+        let storage = MetricsStorage::new(TimeDelta::hours(1));
 
         let now = Utc::now();
         let metric1 = Metric::counter("test_counter".to_string(), 1);
 
         storage.store(metric1).await.unwrap();
 
-        let hour_ago = now - Duration::hours(1);
-        let hour_ahead = now + Duration::hours(1);
+        let hour_ago = now - TimeDelta::hours(1);
+        let hour_ahead = now + TimeDelta::hours(1);
 
         let results = storage
             .get_range("test_counter", hour_ago, hour_ahead)
@@ -266,7 +266,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_cleanup() {
-        let storage = MetricsStorage::new(Duration::milliseconds(100));
+        let storage = MetricsStorage::new(TimeDelta::milliseconds(100));
 
         let metric = Metric::counter("test_counter".to_string(), 1);
         storage.store(metric).await.unwrap();
@@ -282,7 +282,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_stats() {
-        let storage = MetricsStorage::new(Duration::hours(1));
+        let storage = MetricsStorage::new(TimeDelta::hours(1));
 
         let metric = Metric::counter("test_counter".to_string(), 1);
         storage.store(metric).await.unwrap();

@@ -30,6 +30,7 @@ impl PrometheusExporter {
         Self { metrics }
     }
 
+    #[allow(dead_code)]
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
@@ -131,6 +132,7 @@ impl Default for PrometheusExporter {
 /// OpenTelemetry metrics exporter
 pub struct OpenTelemetryExporter {
     metrics: Arc<RwLock<Vec<Metric>>>,
+    #[allow(dead_code)]
     endpoint: String,
 }
 
@@ -146,6 +148,7 @@ impl OpenTelemetryExporter {
         Self { metrics, endpoint }
     }
 
+    #[allow(dead_code)]
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
@@ -228,6 +231,7 @@ impl TextExporter {
         Self { metrics }
     }
 
+    #[allow(dead_code)]
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
@@ -281,6 +285,7 @@ fn sanitize_metric_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[allow(unused_imports)]
     use std::collections::HashMap;
 
     #[tokio::test]

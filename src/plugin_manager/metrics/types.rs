@@ -15,7 +15,7 @@ pub enum MetricType {
 }
 
 /// Metric data types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MetricValue {
     Counter(u64),

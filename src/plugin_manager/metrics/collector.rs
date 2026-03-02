@@ -230,7 +230,7 @@ mod tests {
     async fn test_collector_collect_all() {
         let collector = MetricsCollector::default();
 
-        let metrics = collector.collect_all().await;
+        let metrics = collector.collect_all().await.unwrap();
         assert!(!metrics.is_empty());
     }
 
@@ -238,10 +238,10 @@ mod tests {
     async fn test_collector_collect_system_metrics() {
         let collector = MetricsCollector::default();
 
-        let metrics = collector.collect_system_metrics().await;
+        let metrics = collector.collect_system_metrics().await.unwrap();
         assert!(!metrics.is_empty());
 
-        for metric in metrics {
+        for metric in &metrics {
             assert_eq!(metric.labels.get("source"), Some(&"metrics_collector".to_string()));
         }
     }
@@ -255,11 +255,12 @@ mod tests {
 
         let metrics = collector
             .collect_plugin_metrics("test_plugin", &performance, &resource)
-            .await;
+            .await
+            .unwrap();
 
         assert!(!metrics.is_empty());
 
-        for metric in metrics {
+        for metric in &metrics {
             assert_eq!(metric.labels.get("plugin"), Some(&"test_plugin".to_string()));
         }
     }

@@ -5,9 +5,11 @@ use super::types::*;
 use anyhow::Result;
 use chrono::{DateTime, TimeDelta, Utc};
 use lru::LruCache;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Event storage with persistence
@@ -29,7 +31,7 @@ pub struct DeadLetterEvent {
 
 impl Default for EventStorage {
     fn default() -> Self {
-        Self::new(Duration::hours(1))
+        Self::new(Duration::from_secs(3600))
     }
 }
 
@@ -37,7 +39,7 @@ impl EventStorage {
     pub fn new(retention_period: Duration) -> Self {
         Self {
             events: Arc::new(RwLock::new(HashMap::new())),
-            retention_period,
+            retention_period: TimeDelta::from_std(retention_period).unwrap_or_else(|_| TimeDelta::hours(1)),
             cache: Arc::new(RwLock::new(LruCache::new(
                 NonZeroUsize::new(1000).unwrap(),
             ))),
@@ -176,9 +178,9 @@ impl EventStorage {
         event_type: &str,
         limit: usize,
     ) -> Vec<Event> {
-        let cache = self.cache.read().await;
+        let mut cache = self.cache.write().await;
 
-        if let Some(events) = cache.get(event_type) {
+        if let Some(events) = cache.get_mut(event_type) {
             events.iter().rev().take(limit).cloned().collect()
         } else {
             Vec::new()
@@ -232,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_store_and_get() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -249,7 +251,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_query_by_type() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event1 = Event::new(
             "test.event".to_string(),
@@ -273,7 +275,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_query_by_time() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -283,8 +285,8 @@ mod tests {
 
         storage.store_event(event).await.unwrap();
 
-        let start = Utc::now() - chrono::Duration::hours(1);
-        let end = Utc::now() + chrono::Duration::hours(1);
+        let start = Utc::now() - TimeDelta::hours(1);
+        let end = Utc::now() + TimeDelta::hours(1);
 
         let events = storage.query_events(None, start, end).await.unwrap();
         assert_eq!(events.len(), 1);
@@ -292,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_dead_letter() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -316,7 +318,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_cleanup() {
-        let storage = EventStorage::new(Duration::milliseconds(100));
+        let storage = EventStorage::new(Duration::from_millis(100));
 
         let event = Event::new(
             "test.event".to_string(),

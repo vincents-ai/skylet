@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::types::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Request-response pattern for plugin communication
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Request<T> {
     pub id: String,
     pub payload: T,
@@ -56,7 +57,7 @@ impl<T> Response<T> {
 
 /// Request-response manager for plugin communication
 pub struct RequestResponseManager {
-    pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>>,
+    pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>,
     timeout: std::time::Duration,
 }
 
@@ -99,7 +100,7 @@ impl RequestResponseManager {
 
         tokio::select! {
             result = receiver => {
-                result.map_err(|_| "Request canceled".to_string())?
+                return Ok(result.map_err(|_| "Request canceled".to_string())?);
             }
             _ = tokio::time::sleep(self.timeout) => {
                 return Ok(Response::Timeout("Request timed out".to_string()));
@@ -132,7 +133,7 @@ impl RequestResponseManager {
 
         let expired: Vec<String> = pending
             .iter()
-            .filter(|(_, (_, timestamp))| now.duration(*timestamp) > self.timeout)
+            .filter(|(_, (_, timestamp))| now.saturating_duration_since(*timestamp) > self.timeout)
             .map(|(id, _)| id.clone())
             .collect();
 
@@ -164,7 +165,7 @@ impl BroadcastManager {
         )
         .with_metadata(EventMetadata::default().with_tags(vec!["broadcast".to_string()]));
 
-        let result = self.event_system.publish(event).await?;
+        let result = self.event_system.publish(event).await.map_err(|e| e.to_string())?;
 
         match result {
             EventResult::Published { subscriber_count } => Ok(subscriber_count),
@@ -187,8 +188,13 @@ impl BroadcastManager {
                 payload.clone(),
             );
 
-            let result = self.event_system.publish(event).await;
-            results.push(result.map_err(|e| e.to_string()));
+            let result = self.event_system.publish(event).await.map_err(|e| e.to_string()).and_then(|r| {
+                match r {
+                    EventResult::Published { subscriber_count } => Ok(subscriber_count),
+                    EventResult::Filtered => Ok(0),
+                }
+            });
+            results.push(result);
         }
 
         Ok(results)
@@ -260,7 +266,7 @@ impl EventBus {
 
         self.event_system.publish(event).await.map_err(|e| e.to_string())?;
 
-        manager.send_request(&self.event_system, target_plugin, request_obj).await
+        manager.send_request(self.event_system.clone(), target_plugin, request_obj).await
     }
 
     pub fn broadcast_manager(&self) -> BroadcastManager {
@@ -307,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_response_error() {
-        let response = Response::Error("test error".to_string());
+        let response: Response<()> = Response::Error("test error".to_string());
         assert!(!response.is_success());
         assert!(response.into_result().is_err());
     }

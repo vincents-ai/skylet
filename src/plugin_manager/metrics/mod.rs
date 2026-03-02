@@ -178,8 +178,8 @@ mod tests {
     fn test_metrics_config_default() {
         let config = MetricsConfig::default();
         assert!(config.enabled);
-        assert_eq!(config.collection_interval, Duration::from_secs(5));
-        assert_eq!(config.retention_period, Duration::from_hours(24));
+        assert_eq!(config.collection_interval, StdDuration::from_secs(5));
+        assert_eq!(config.retention_period, StdDuration::from_secs(86400));
         assert!(config.enable_prometheus);
         assert_eq!(config.prometheus_port, 9091);
         assert_eq!(config.sample_rate, 1.0);
@@ -189,6 +189,6 @@ mod tests {
     fn test_plugin_metrics_new() {
         let metrics = PluginMetrics::new("test_plugin".to_string());
         assert_eq!(metrics.plugin_name, "test_plugin");
-        assert!(metrics.performance_metrics.is_empty());
+        assert_eq!(metrics.performance_metrics.total_calls, 0);
     }
 }
