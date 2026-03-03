@@ -491,3 +491,265 @@ async fn run_maintenance(_config: AppConfig) -> Result<()> {
     tracing::info!("Maintenance: not implemented");
     Ok(())
 }
+
+// ============================================================================
+// Integration Tests for HTTP Endpoints
+// ============================================================================
+
+#[cfg(test)]
+mod endpoint_tests {
+    use super::*;
+    use axum::extract::{Path, State};
+
+    /// Build a test AppState with no plugins loaded.
+    fn test_state() -> State<Arc<AppState>> {
+        let lifecycle_config = LifecycleConfig::default();
+        let lifecycle_manager = Arc::new(PluginLifecycleManager::new(lifecycle_config));
+        let hot_reload_service = Arc::new(HotReloadService::new(
+            HotReloadConfig::default(),
+            lifecycle_manager.clone(),
+        ));
+        State(Arc::new(AppState::new(
+            lifecycle_manager,
+            hot_reload_service,
+        )))
+    }
+
+    // ========================================================================
+    // GET /health
+    // ========================================================================
+
+    #[tokio::test]
+    async fn health_returns_ok_with_expected_fields() {
+        let state = test_state();
+        let result = health_handler(state).await;
+        assert!(result.is_ok(), "health_handler returned Err");
+
+        let Json(json) = result.unwrap();
+        assert!(json.get("status").is_some(), "missing 'status' field");
+        assert!(json.get("timestamp").is_some(), "missing 'timestamp' field");
+        assert!(
+            json.get("started_at").is_some(),
+            "missing 'started_at' field"
+        );
+        assert!(
+            json.get("uptime_seconds").is_some(),
+            "missing 'uptime_seconds' field"
+        );
+        assert!(json.get("plugins").is_some(), "missing 'plugins' field");
+    }
+
+    #[tokio::test]
+    async fn health_reports_unhealthy_with_no_plugins() {
+        let state = test_state();
+        let Json(json) = health_handler(state).await.unwrap();
+
+        // With zero plugins: active=0, failed=0, so status should be "unhealthy"
+        assert_eq!(json["status"], "unhealthy");
+        assert_eq!(json["plugins"]["total"], 0);
+        assert_eq!(json["plugins"]["active"], 0);
+        assert_eq!(json["plugins"]["failed"], 0);
+    }
+
+    // ========================================================================
+    // GET /ready
+    // ========================================================================
+
+    #[tokio::test]
+    async fn ready_returns_unavailable_with_no_active_plugins() {
+        let state = test_state();
+        let result = ready_handler(state).await;
+        assert!(result.is_err(), "expected Err(SERVICE_UNAVAILABLE)");
+        assert_eq!(result.unwrap_err(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // ========================================================================
+    // GET /plugins
+    // ========================================================================
+
+    #[tokio::test]
+    async fn plugins_list_returns_empty_list() {
+        let state = test_state();
+        let Json(json) = plugins_list_handler(state).await;
+
+        assert_eq!(json["total"], 0);
+        assert!(json["plugins"].as_array().unwrap().is_empty());
+        assert!(json["loading_order"].as_array().unwrap().is_empty());
+    }
+
+    // ========================================================================
+    // GET /plugins/:name
+    // ========================================================================
+
+    #[tokio::test]
+    async fn plugin_detail_returns_not_found_for_nonexistent() {
+        let state = test_state();
+        let result = plugin_detail_handler(state, Path("nonexistent".to_string())).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::NOT_FOUND);
+    }
+
+    // ========================================================================
+    // GET /config/:plugin (Phase 3)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn config_returns_empty_config_for_unknown_plugin() {
+        let state = test_state();
+        let result = config_plugin_handler(state, Path("nonexistent".to_string())).await;
+
+        // Config backend returns Ok({}) for missing config files, so the handler succeeds
+        assert!(result.is_ok());
+        let Json(json) = result.unwrap();
+        assert_eq!(json["plugin"], "nonexistent");
+        assert!(json.get("config").is_some(), "missing 'config' field");
+        assert!(
+            json.get("environment").is_some(),
+            "missing 'environment' field"
+        );
+    }
+
+    // ========================================================================
+    // GET /metrics (Phase 4)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn metrics_returns_ok_with_empty_output() {
+        let state = test_state();
+        let result = metrics_handler(state).await;
+        assert!(result.is_ok(), "metrics_handler returned Err");
+
+        // With no exporters registered, export_metrics returns Ok(vec![]) → joined = ""
+        let text = result.unwrap();
+        assert!(text.is_empty(), "expected empty metrics with no exporters");
+    }
+
+    // ========================================================================
+    // GET /events/stats (Phase 5)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn events_stats_returns_expected_fields() {
+        let state = test_state();
+        let Json(json) = events_stats_handler(state).await;
+
+        assert!(
+            json.get("event_statistics").is_some(),
+            "missing 'event_statistics' field"
+        );
+        assert!(
+            json.get("storage_statistics").is_some(),
+            "missing 'storage_statistics' field"
+        );
+    }
+
+    #[tokio::test]
+    async fn events_stats_has_zero_counts_initially() {
+        let state = test_state();
+        let Json(json) = events_stats_handler(state).await;
+
+        let stats = &json["event_statistics"];
+        assert_eq!(stats["total_published"], 0);
+        assert_eq!(stats["high_priority_published"], 0);
+    }
+
+    // ========================================================================
+    // GET /circuit-breakers (Phase 6)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn circuit_breakers_returns_empty_list() {
+        let state = test_state();
+        let Json(json) = circuit_breakers_handler(state).await;
+
+        assert_eq!(json["total"], 0);
+        assert!(json["circuit_breakers"].as_array().unwrap().is_empty());
+    }
+
+    // ========================================================================
+    // POST /reload/:name (Phase 7)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn reload_returns_failure_for_unknown_plugin() {
+        let state = test_state();
+        let result = reload_plugin_handler(state, Path("nonexistent".to_string())).await;
+
+        // The handler catches errors and returns Ok with success: false
+        assert!(result.is_ok());
+        let Json(json) = result.unwrap();
+        assert_eq!(json["plugin_id"], "nonexistent");
+        assert_eq!(json["success"], false);
+        assert!(json.get("error").is_some(), "missing 'error' field");
+    }
+
+    // ========================================================================
+    // AppState construction
+    // ========================================================================
+
+    #[tokio::test]
+    async fn app_state_tracks_start_time() {
+        let before = chrono::Utc::now();
+        let State(state) = test_state();
+        let after = chrono::Utc::now();
+
+        assert!(state.started_at >= before);
+        assert!(state.started_at <= after);
+    }
+
+    #[tokio::test]
+    async fn app_state_debug_does_not_panic() {
+        let State(state) = test_state();
+        let debug_str = format!("{:?}", state);
+        assert!(debug_str.contains("AppState"));
+        assert!(debug_str.contains("started_at"));
+    }
+
+    // ========================================================================
+    // Lifecycle accessor integration
+    // ========================================================================
+
+    #[tokio::test]
+    async fn lifecycle_accessors_return_valid_instances() {
+        let State(state) = test_state();
+        let lifecycle = &state.lifecycle;
+
+        // Phase 3: config backend is accessible
+        let _config = lifecycle.config_backend();
+
+        // Phase 4: metrics manager is accessible
+        let _metrics = lifecycle.metrics_manager();
+
+        // Phase 5: event system is accessible
+        let _events = lifecycle.event_system();
+
+        // Phase 6: failover is accessible
+        let _failover = lifecycle.failover();
+
+        // All subsystems initialized without panic
+    }
+
+    #[tokio::test]
+    async fn lifecycle_starts_with_empty_plugin_list() {
+        let State(state) = test_state();
+
+        let plugins = state.lifecycle.list_plugins().await;
+        assert!(plugins.is_empty());
+
+        let order = state.lifecycle.loading_order().await;
+        assert!(order.is_empty());
+
+        let active = state.lifecycle.active_count().await;
+        assert_eq!(active, 0);
+    }
+
+    #[tokio::test]
+    async fn status_summary_empty_with_no_plugins() {
+        let State(state) = test_state();
+        let summary = state.lifecycle.status_summary().await;
+
+        // With no plugins, summary should be an empty map or have all zeros
+        let total: usize = summary.values().sum();
+        assert_eq!(total, 0);
+    }
+}
