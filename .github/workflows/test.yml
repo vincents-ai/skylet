@@ -57,13 +57,38 @@ jobs:
         continue-on-error: true  # Until clippy warnings are fully resolved
 
   test:
-    name: Tests
+    name: Tests (${{ matrix.os }})
     needs: check
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: nix develop --command cargo test --no-fail-fast
+        timeout-minutes: 15
+
+  docs:
+    name: Documentation
+    needs: check
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
