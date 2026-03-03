@@ -150,8 +150,8 @@ we have chosen to comply with the Apache 2.0 license terms.
 
 The following modifications have been made to this software:
 
-1. **Feature Flags**: Implemented `standalone` and `proprietary` feature flags to support
-   both open-source and proprietary deployments
+1. **Feature Flags**: Implemented `standalone` feature flag to support
+   open-source deployments
 2. **Dependency Cleanup**: Removed proprietary dependencies in standalone mode
 3. **RFC Integration**: Integrated RFC specifications for standardized interfaces
 4. **Security Hardening**: Added security-focused trait abstractions
@@ -180,4 +180,4 @@ cargo license
 ## Questions
 
 For questions about licensing or third-party compliance, please contact:
-`licensing@vincents-ai.com`
+`shift+licensing@someone.section.me`

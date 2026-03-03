@@ -32,7 +32,7 @@ assignees: ''
 - **OS**: [e.g., Linux, macOS, Windows]
 - **Rust Version**: [output of `rustc --version`]
 - **Execution Engine Version**: [e.g., v2.0.0]
-- **Feature Flags**: [e.g., standalone, proprietary]
+- **Feature Flags**: [e.g., standalone]
 
 ## Error Output
 

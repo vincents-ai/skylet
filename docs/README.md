@@ -70,8 +70,8 @@ New to Skylet? Start here:
 ## Support
 
 - [Full Documentation](index.html) (mdBook)
-- [Report Issues](https://github.com/vincents-ai/execution-engine/issues)
-- [Discussions](https://github.com/vincents-ai/execution-engine/discussions)
+- [Report Issues](https://github.com/vincents-ai/skylet/issues)
+- [Discussions](https://github.com/vincents-ai/skylet/discussions)
 
 ## License
 

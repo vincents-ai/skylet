@@ -401,17 +401,17 @@ pub fn load_config(path: &str, schema: &ConfigSchema) -> Result<Config> {
 ## Licensing
 
 ### License Headers
-All new files must include Apache 2.0 header:
+All new files must include the dual MIT OR Apache-2.0 license header:
 
 ```rust
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // ... rest of file
 ```
 
 ### Third-Party Code
-- Only use compatible licenses (Apache 2.0, MIT, BSD)
+- Only use compatible licenses (MIT, Apache 2.0, BSD)
 - Add to NOTICE file
 - Check with `cargo license`
 

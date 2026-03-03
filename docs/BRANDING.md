@@ -196,7 +196,7 @@ Secure, extensible plugin runtime for autonomous agents and microservices
 
 ### Badge Usage
 ```markdown
-[![Skylet Badge](logo.svg)](https://github.com/vincents-ai/execution-engine)
+[![Skylet Badge](logo.svg)](https://github.com/vincents-ai/skylet)
 ```
 
 ### Social Media Post
@@ -209,7 +209,7 @@ The open-source execution engine is now available as a beta release.
 - Zero compiler warnings
 - Apache 2.0 licensed
 
-🔗 [GitHub](https://github.com/vincents-ai/execution-engine)
+🔗 [GitHub](https://github.com/vincents-ai/skylet)
 📚 [Docs](https://docs.rs/skylet-abi)
 ```
 

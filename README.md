@@ -380,22 +380,17 @@ This project is dual-licensed under **MIT OR Apache-2.0**.
 
 ## Roadmap
 
-### v2.1 (Completed)
+### v1.0 (Planned)
+- API stabilization
+- Production-ready release
+- Comprehensive documentation
+
+### v2.0 (Future)
 - WebAssembly (WASM) plugin support
 - Enhanced metrics collection
-- Additional example plugins
-
-### v2.2 (Completed)
-- Distributed tracing defaults
 - Plugin registry integration
-- Performance optimizations
 
-### v2.3 (Completed)
-- Peer-to-peer plugin distribution
-- Cross-instance replication
-- Advanced security policies
-
-### v3.0 (Planned)
+### v3.0 (Future)
 - Breaking changes allowed
 - Next-generation ABI
 - Enhanced clustering
@@ -408,15 +403,6 @@ Special thanks to:
 - **Rust Community**: Excellent ecosystem and tooling
 - **Open Source Maintainers**: Libraries that make this possible
 - **Contributors**: Everyone who helps improve the project
-
-## 📊 Statistics
-
-- **213 source files** - All with MIT OR Apache-2.0 headers
-- **1,079+ tests** - Comprehensive coverage
-- **2,500+ lines** of documentation
-- **14+ configuration** field types
-- **7+ security** best practice guides
-- **Zero** external dependencies beyond open-source ecosystem
 
 ---
 
