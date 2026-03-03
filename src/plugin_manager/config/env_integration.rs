@@ -1,6 +1,8 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(dead_code)] // Infrastructure for env var integration - not yet wired into production
+
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
@@ -24,6 +26,7 @@ impl Default for EnvVarConfig {
     }
 }
 
+#[allow(dead_code)] // Future: env var integration not yet wired into config loading
 impl EnvVarConfig {
     pub fn new(prefix: String) -> Self {
         Self {
