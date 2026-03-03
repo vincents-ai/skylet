@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -59,7 +59,7 @@ enum PackageCommands {
     Publish {
         /// Path to the artifact file (.tar.gz)
         artifact: PathBuf,
-        /// Registry URL (e.g., https://marketplace.skylet.dev)
+        /// Registry URL (e.g., https://registry.example.com)
         #[arg(short, long)]
         registry: String,
         /// Authentication token

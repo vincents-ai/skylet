@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Advanced Configuration Management Module
 //!
@@ -30,6 +30,7 @@ pub enum ConfigEnvironment {
     Production,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl ConfigEnvironment {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
@@ -56,6 +57,7 @@ impl Default for ConfigEnvironment {
 }
 
 /// Advanced configuration backend with multi-environment support
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct AdvancedConfigBackend {
     base_dir: PathBuf,
     environment: ConfigEnvironment,
@@ -64,6 +66,7 @@ pub struct AdvancedConfigBackend {
     env_prefix: String,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl AdvancedConfigBackend {
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
@@ -187,6 +190,7 @@ impl AdvancedConfigBackend {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 fn toml_to_json(toml: toml::Value) -> serde_json::Value {
     match toml {
         toml::Value::String(s) => serde_json::Value::String(s),

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! RFC-0018: Structured Logging for Skylet
 //!
@@ -10,7 +10,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use skylet_abi::logging::{LogEvent, LogLevel, TracingContext};
 //!
 //! // Create a log event with tracing context

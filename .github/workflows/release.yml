@@ -13,126 +13,61 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+
       - name: Generate changelog
         id: changelog
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          CHANGELOG=$(git log $(git describe --tags --abbrev=0 @^)..@ --oneline || git log --oneline | head -20)
+          CHANGELOG=$(git log $(git describe --tags --abbrev=0 @^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..@ --oneline)
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      
+
       - name: Create release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: "Release ${{ github.ref_name }}"
           body: |
             ## Changelog
             ${{ steps.changelog.outputs.changelog }}
-            
-            ## Features & Updates
-            See [CHANGELOG.md](https://github.com/vincents-ai/execution-engine/blob/main/CHANGELOG.md) for detailed information.
-            
+
             ## Installation
-            
-            Add to your `Cargo.toml`:
-            ```toml
-            [dependencies]
-            execution-engine-abi = "${{ github.ref_name }}"
-            execution-engine = "${{ github.ref_name }}"
-            ```
-            
-            Or download pre-built binaries from the assets below.
+
+            Download pre-built binaries from the assets below.
+
+            See [README](https://github.com/vincents-ai/skylet/blob/main/README.md) for usage instructions.
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-alpha') || contains(github.ref, '-beta') }}
 
   build-artifacts:
-    name: Build Artifacts
+    name: Build (${{ matrix.os }})
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         include:
           - os: ubuntu-latest
-            artifact_name: execution-engine
-            asset_name: execution-engine-linux-x86_64
-          - os: macos-latest
-            artifact_name: execution-engine
-            asset_name: execution-engine-macos-x86_64
-          - os: windows-latest
-            artifact_name: execution-engine.exe
-            asset_name: execution-engine-windows-x86_64.exe
+            artifact_name: skylet
+            asset_name: skylet-linux-x86_64
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
+
       - name: Build release
-        run: cargo build --release --features standalone
-      
+        run: nix develop --command cargo build --release
+
       - name: Upload to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-
-  publish-crates:
-    name: Publish to crates.io
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref, '-rc') && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-      
-      - name: Publish abi crate
-        run: cargo publish --manifest-path abi/Cargo.toml --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
-      
-      - name: Wait for abi to be available
-        run: sleep 30
-      
-      - name: Publish core crate
-        run: cargo publish --manifest-path src/Cargo.toml --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
-
-  pages:
-    name: Publish Docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-      
-      - name: Generate docs
-        run: cargo doc --no-deps --features standalone
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: target/doc
-      
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v3

@@ -1,7 +1,7 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-// Integration tests for the complete marketplace system
+// Integration tests for the plugin execution engine
 #[cfg(test)]
 mod integration_tests {
     use crate::framework::TestFramework;

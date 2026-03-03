@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 #[async_trait]
 pub trait MetricsExporter: Send + Sync {
     async fn export(&self) -> Result<String>;
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     fn name(&self) -> &str;
 }
 
@@ -26,6 +27,7 @@ impl PrometheusExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }
@@ -132,11 +134,12 @@ impl Default for PrometheusExporter {
 /// OpenTelemetry metrics exporter
 pub struct OpenTelemetryExporter {
     metrics: Arc<RwLock<Vec<Metric>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for future OTel HTTP export endpoint
     endpoint: String,
 }
 
 impl OpenTelemetryExporter {
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn new(endpoint: String) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Vec::new())),
@@ -144,6 +147,7 @@ impl OpenTelemetryExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>, endpoint: String) -> Self {
         Self { metrics, endpoint }
     }
@@ -227,6 +231,7 @@ impl TextExporter {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }

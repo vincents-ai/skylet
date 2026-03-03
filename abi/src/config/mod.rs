@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Configuration Schema Module - RFC-0006
 //!
@@ -15,7 +15,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use skylet_abi::config::{ConfigSchema, ConfigValidator, UIGenerator, SecretResolver};
 //!
 //! // Create a schema

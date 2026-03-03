@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Dynamic Plugin Discovery Module (CQ-003)
 //!
@@ -13,7 +13,7 @@
 //! - Integrates with AppConfig for configurable plugin directories
 //!
 //! # Usage
-//! ```rust
+//! ```rust,ignore
 //! use plugin_manager::discovery::{PluginDiscovery, DiscoveryConfig};
 //!
 //! let config = DiscoveryConfig::default();
@@ -24,8 +24,6 @@
 //!     tracing::info!("Found: {} ({})", plugin.name, plugin.abi_version);
 //! }
 //! ```
-
-#![allow(dead_code)]
 
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -57,6 +55,7 @@ impl DiscoveredPlugin {
     }
 
     /// Check if this plugin matches a given name
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn matches_name(&self, pattern: &str) -> bool {
         if let Some(prefix) = pattern.strip_suffix('*') {
             self.name.starts_with(prefix)
@@ -125,6 +124,7 @@ impl DiscoveryConfig {
     }
 
     /// Create config with custom search paths
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_paths(paths: Vec<PathBuf>) -> Self {
         Self {
             search_paths: paths,
@@ -141,18 +141,21 @@ impl DiscoveryConfig {
     }
 
     /// Add an exclusion pattern
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn exclude(mut self, pattern: &str) -> Self {
         self.exclude_patterns.push(pattern.to_string());
         self
     }
 
     /// Add an inclusion pattern
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn include(mut self, pattern: &str) -> Self {
         self.include_patterns.push(pattern.to_string());
         self
     }
 
     /// Enable debug builds in discovery
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_debug_builds(mut self, include: bool) -> Self {
         self.include_debug_builds = include;
         self
@@ -161,9 +164,20 @@ impl DiscoveryConfig {
     /// Check if a plugin name matches any exclusion pattern
     pub fn is_excluded(&self, name: &str) -> bool {
         for pattern in &self.exclude_patterns {
-            if pattern.ends_with('*') {
+            if pattern.starts_with('*') && pattern.ends_with('*') {
+                // *infix* pattern
+                let infix = &pattern[1..pattern.len() - 1];
+                if name.contains(infix) {
+                    return true;
+                }
+            } else if pattern.ends_with('*') {
                 let prefix = &pattern[..pattern.len() - 1];
                 if name.starts_with(prefix) {
+                    return true;
+                }
+            } else if pattern.starts_with('*') {
+                let suffix = &pattern[1..];
+                if name.ends_with(suffix) {
                     return true;
                 }
             } else if name == pattern {
@@ -211,11 +225,13 @@ impl PluginDiscovery {
     }
 
     /// Create with a single plugin directory
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_directory(dir: PathBuf) -> Self {
         Self::new(DiscoveryConfig::with_plugin_directory(dir))
     }
 
     /// Get the configuration
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn config(&self) -> &DiscoveryConfig {
         &self.config
     }
@@ -285,6 +301,7 @@ impl PluginDiscovery {
     }
 
     /// Discover plugins and return as (name, abi_version) tuples for loading
+    #[allow(dead_code)] // Convenience wrapper; production uses discover_plugins() for full metadata
     pub fn discover_for_loading(&self) -> Result<Vec<(String, String)>> {
         let plugins = self.discover_plugins()?;
         Ok(plugins
@@ -303,6 +320,11 @@ impl PluginDiscovery {
         for entry in entries {
             let entry = entry.map_err(|e| anyhow!("Failed to read directory entry: {}", e))?;
             let path = entry.path();
+
+            // Must be a file (not a directory or symlink to directory)
+            if !path.is_file() {
+                continue;
+            }
 
             // Check if it's a shared library
             if !self.is_plugin_library(&path) {
@@ -355,11 +377,6 @@ impl PluginDiscovery {
 
     /// Check if a path is a valid plugin library
     fn is_plugin_library(&self, path: &Path) -> bool {
-        // Must be a file
-        if !path.is_file() {
-            return false;
-        }
-
         // Check extension
         let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
@@ -427,12 +444,14 @@ impl PluginDiscovery {
     }
 
     /// Get list of all discovered plugin names
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugin_names(&self) -> Result<Vec<String>> {
         let plugins = self.discover_plugins()?;
         Ok(plugins.into_iter().map(|p| p.name).collect())
     }
 
     /// Check if a specific plugin exists
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugin_exists(&self, name: &str) -> bool {
         for search_path in &self.config.search_paths {
             if !search_path.exists() {
@@ -457,6 +476,7 @@ impl PluginDiscovery {
     }
 
     /// Get the path to a specific plugin
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn find_plugin(&self, name: &str) -> Option<PathBuf> {
         for search_path in &self.config.search_paths {
             if !search_path.exists() {
@@ -593,9 +613,13 @@ mod tests {
     fn test_is_plugin_library() {
         let discovery = PluginDiscovery::with_defaults();
 
-        // Valid
-        assert!(discovery.is_plugin_library(Path::new("/path/to/libplugin.so")));
+        // Valid: platform-specific extension
+        #[cfg(target_os = "macos")]
         assert!(discovery.is_plugin_library(Path::new("/path/to/libplugin.dylib")));
+        #[cfg(target_os = "windows")]
+        assert!(discovery.is_plugin_library(Path::new("/path/to/libplugin.dll")));
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        assert!(discovery.is_plugin_library(Path::new("/path/to/libplugin.so")));
 
         // Invalid
         assert!(!discovery.is_plugin_library(Path::new("/path/to/plugin.so"))); // no lib prefix

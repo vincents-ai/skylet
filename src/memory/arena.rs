@@ -1,9 +1,18 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::alloc::{GlobalAlloc, Layout};
 use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::memory::MemoryTracker;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllocError {
+    OutOfMemory,
+    InvalidLayout,
+}
 
 pub struct PluginArena {
     total_capacity: usize,
@@ -24,15 +33,15 @@ impl PluginArena {
         }
     }
 
-    pub fn alloc(&self, layout: Layout) -> Result<NonNull<u8>, std::alloc::AllocError> {
+    pub fn alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
         let size = layout.size();
 
         if self.used.load(Ordering::Relaxed) + size > self.total_capacity {
-            return Err(std::alloc::AllocError);
+            return Err(AllocError::OutOfMemory);
         }
 
-        let ptr = std::alloc::alloc(layout);
-        let non_null = NonNull::new(ptr).ok_or(std::alloc::AllocError)?;
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        let non_null = NonNull::new(ptr).ok_or(AllocError::OutOfMemory)?;
 
         self.used.fetch_add(size, Ordering::Relaxed);
         self.allocations.fetch_add(1, Ordering::Relaxed);
@@ -48,7 +57,7 @@ impl PluginArena {
     pub fn dealloc(&self, ptr: NonNull<u8>, layout: Layout) {
         let size = layout.size();
 
-        std::alloc::dealloc(ptr.as_ptr(), layout);
+        unsafe { std::alloc::dealloc(ptr.as_ptr(), layout) };
 
         self.used.fetch_sub(size, Ordering::Relaxed);
         self.tracker.track_deallocation(size);
@@ -138,7 +147,7 @@ unsafe impl GlobalAlloc for PluginArenaAllocator {
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
 
-        if let Some(non_null) = NonNull::new(ptr) {
+        if let Some(_non_null) = NonNull::new(ptr) {
             let new_ptr = self.alloc(new_layout);
             if !new_ptr.is_null() {
                 std::ptr::copy_nonoverlapping(ptr, new_ptr, layout.size().min(new_size));

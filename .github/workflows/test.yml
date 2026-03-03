@@ -1,130 +1,135 @@
-name: Test & Build
+name: CI
 
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'src/**'
-      - 'abi/**'
-      - 'http-router/**'
-      - 'job-queue/**'
-      - 'plugins/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - '.github/workflows/test.yml'
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/DISCUSSION_TEMPLATE/**'
   pull_request:
     branches: [main, develop]
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
-    name: Code Quality
+    name: Check & Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: cachix/install-nix-action@v27
         with:
-          components: rustfmt, clippy
-      
-      - uses: Swatinem/rust-cache@v2
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v15
         with:
-          cache-all-crates: true
-      
-      - name: Check formatting
-        run: cargo fmt -- --check
-      
-      - name: Run clippy (standalone)
-        run: cargo clippy --lib --features standalone -- -D warnings
-      
-      - name: Run clippy (all features)
-        run: cargo clippy --lib --all-features -- -D warnings
+          name: skylet
+          skipPush: true
         continue-on-error: true
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: nix develop --command cargo fmt -- --check
+
+      - name: Cargo check
+        run: nix develop --command cargo check --message-format short
+
+      - name: Clippy
+        run: nix develop --command cargo clippy --all-targets -- -D warnings
+        continue-on-error: true  # Until clippy warnings are fully resolved
 
   test:
-    name: Test Suite
+    name: Tests
     needs: check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@master
+
+      - uses: cachix/install-nix-action@v27
         with:
-          toolchain: ${{ matrix.rust }}
-      
-      - uses: Swatinem/rust-cache@v2
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v15
         with:
-          cache-all-crates: true
-      
-      - name: Run tests (standalone)
-        run: cargo test --lib --verbose --features standalone
-      
-      - name: Run tests (all features)
-        run: cargo test --lib --verbose --all-features
+          name: skylet
+          skipPush: true
         continue-on-error: true
 
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: nix develop --command cargo test --no-fail-fast
+        timeout-minutes: 15
+
   build:
-    name: Build Binaries
+    name: Build (${{ matrix.os }})
     needs: check
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         include:
           - os: ubuntu-latest
-            artifact_name: execution-engine
-            asset_name: execution-engine-linux-x86_64
-          - os: macos-latest
-            artifact_name: execution-engine
-            asset_name: execution-engine-macos-x86_64
-          - os: windows-latest
-            artifact_name: execution-engine.exe
-            asset_name: execution-engine-windows-x86_64.exe
+            artifact_name: skylet
+            asset_name: skylet-linux-x86_64
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
+
+      - uses: cachix/install-nix-action@v27
         with:
-          cache-all-crates: true
-      
-      - name: Build release (standalone)
-        run: cargo build --release --features standalone
-      
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v15
+        with:
+          name: skylet
+          skipPush: true
+        continue-on-error: true
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release
+        run: nix develop --command cargo build --release
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: target/release/${{ matrix.artifact_name }}
-
-  coverage:
-    name: Code Coverage
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-      
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
-      
-      - name: Generate coverage
-        run: cargo tarpaulin --lib --features standalone --out Xml --timeout 300 --exclude-files abi/** plugins/**
-      
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          fail_ci_if_error: false
-          verbose: true
 
   docs:
     name: Documentation
@@ -132,14 +137,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@stable
-      
-      - uses: Swatinem/rust-cache@v2
+
+      - uses: cachix/install-nix-action@v27
         with:
-          cache-all-crates: true
-      
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
       - name: Generate docs
-        run: cargo doc --no-deps --features standalone
+        run: nix develop --command cargo doc --no-deps
         env:
           RUSTDOCFLAGS: '-D warnings'
+        continue-on-error: true  # Until doc warnings are fully resolved

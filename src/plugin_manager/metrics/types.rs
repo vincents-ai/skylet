@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -31,6 +31,7 @@ pub enum MetricValue {
 }
 
 impl MetricValue {
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             MetricValue::Counter(v) => Some(*v as f64),
@@ -78,6 +79,7 @@ impl Metric {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn histogram(name: String, values: Vec<f64>) -> Self {
         Self {
             name,
@@ -93,6 +95,7 @@ impl Metric {
         self
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn with_labels(mut self, labels: HashMap<String, String>) -> Self {
         self.labels.extend(labels);
         self
@@ -136,6 +139,7 @@ impl Default for PerformanceMetrics {
 }
 
 impl PerformanceMetrics {
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn record_call(&mut self, latency_ms: f64, success: bool) {
         self.total_calls += 1;
         self.total_latency_ms += latency_ms;
@@ -199,6 +203,7 @@ impl PluginMetrics {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn update_resource_metrics(&mut self, metrics: ResourceMetrics) {
         self.resource_metrics.push(metrics);
         self.last_update = Utc::now();
@@ -208,15 +213,18 @@ impl PluginMetrics {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn record_custom_metric(&mut self, metric: Metric) {
         self.custom_metrics.insert(metric.name.clone(), metric);
         self.last_update = Utc::now();
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn uptime(&self) -> chrono::Duration {
         Utc::now() - self.start_time
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn health_score(&self) -> f64 {
         if self.performance_metrics.total_calls == 0 {
             return 1.0;
@@ -246,6 +254,7 @@ pub struct MetricQuery {
     pub limit: Option<usize>,
 }
 
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 impl MetricQuery {
     pub fn new() -> Self {
         Self::default()
@@ -280,6 +289,7 @@ impl MetricQuery {
 
 /// Metrics error types
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub enum MetricsError {
     #[error("Storage error: {0}")]
     Storage(String),

@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Git client adapters for different Git implementations
 // Provides implementations for GitHub, GitLab, Bitbucket, and local Git operations
 use super::*;

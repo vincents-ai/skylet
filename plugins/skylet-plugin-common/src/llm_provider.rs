@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // LLM Provider abstraction for skylet-plugin-common v0.3.0
 use crate::PluginCommonError;
 use async_trait::async_trait;

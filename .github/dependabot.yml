@@ -1,0 +1,85 @@
+# Dependabot Configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "rust"
+    reviewers:
+      - "vincents-ai/core-team"
+    groups:
+      tokio:
+        patterns:
+          - "tokio"
+          - "tokio-*"
+      serde:
+        patterns:
+          - "serde"
+          - "serde_*"
+      crypto:
+        patterns:
+          - "ed25519-*"
+          - "aes-gcm"
+          - "sha2"
+          - "argon2"
+          - "zeroize"
+
+  # ABI crate
+  - package-ecosystem: "cargo"
+    directory: "/abi"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(abi)"
+    labels:
+      - "dependencies"
+      - "rust"
+      - "abi"
+
+  # Core crate
+  - package-ecosystem: "cargo"
+    directory: "/core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(core)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    reviewers:
+      - "vincents-ai/core-team"

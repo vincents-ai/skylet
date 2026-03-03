@@ -279,7 +279,7 @@ RegistryResult add_source(const PluginContext *context, const char *url);
 
 **Parameters:**
 - `context` (const PluginContext*): Plugin context
-- `url` (const char*): Registry source URL (e.g., "https://registry.skylet.ai")
+- `url` (const char*): Registry source URL (e.g., "https://registry.example.com")
 
 **Return Structure:**
 ```c
@@ -293,7 +293,7 @@ typedef struct {
 ```c
 RegistryResult result = registry_service->add_source(
     context,
-    "https://registry.skylet.ai"
+    "https://registry.example.com"
 );
 if (result.result != PluginResult_Success) {
     fprintf(stderr, "Error: %s\n", result.error_message);
@@ -315,7 +315,7 @@ def add_registry_source(registry_service, context, url):
 
 # Usage
 add_registry_source(service, context, "https://registry.example.com")
-add_registry_source(service, context, "https://community-registry.skylet.ai")
+add_registry_source(service, context, "https://community-registry.example.com")
 ```
 
 **Example - Rust:**
@@ -362,7 +362,7 @@ RegistryResult remove_source(const PluginContext *context, const char *url);
 ```c
 RegistryResult result = registry_service->remove_source(
     context,
-    "https://old-registry.skylet.ai"
+    "https://old-registry.example.com"
 );
 ```
 
@@ -380,7 +380,7 @@ def remove_registry_source(registry_service, context, url):
     return result.result == PluginResult.Success
 
 # Remove a source
-remove_registry_source(service, context, "https://old-registry.skylet.ai")
+remove_registry_source(service, context, "https://old-registry.example.com")
 ```
 
 **Example - Rust:**
@@ -733,8 +733,8 @@ Registry sources are configured via the Skylet configuration system:
 ```toml
 [registry]
 sources = [
-    "https://registry.skylet.ai",
-    "https://community-registry.skylet.ai",
+    "https://registry.example.com",
+    "https://community-registry.example.com",
     "https://vendor-registry.example.com"
 ]
 

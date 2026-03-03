@@ -1,7 +1,7 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Common types used across the autonomous marketplace
+//! Common types used across the Skylet execution engine
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -10,10 +10,7 @@ use std::net::SocketAddr;
 /// Network type for different network protocols
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NetworkType {
-    Tor,
-    I2P,
     Clearnet,
-    DHT,
 }
 
 /// Health status for service monitoring
@@ -67,10 +64,7 @@ impl ServiceEndpoint {
 impl fmt::Display for NetworkType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkType::Tor => write!(f, "tor")?,
-            NetworkType::I2P => write!(f, "i2p")?,
             NetworkType::Clearnet => write!(f, "clearnet")?,
-            NetworkType::DHT => write!(f, "dht")?,
         }
         Ok(())
     }

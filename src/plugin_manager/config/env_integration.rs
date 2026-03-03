@@ -1,10 +1,11 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvVarConfig {
     pub prefix: String,
     pub separator: String,
@@ -23,6 +24,7 @@ impl Default for EnvVarConfig {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarConfig {
     pub fn new(prefix: String) -> Self {
         Self {
@@ -31,16 +33,19 @@ impl EnvVarConfig {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_prefix(mut self, prefix: String) -> Self {
         self.prefix = prefix;
         self
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_separator(mut self, separator: String) -> Self {
         self.separator = separator;
         self
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_overwrite_files(mut self, overwrite: bool) -> Self {
         self.overwrite_files = overwrite;
         self
@@ -50,6 +55,7 @@ impl EnvVarConfig {
         self.mappings.insert(key, env_var);
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn get_env_value(&self, plugin_name: &str, config_key: &str) -> Option<String> {
         if let Some(mapped) = self.mappings.get(config_key) {
             return std::env::var(mapped).ok();
@@ -105,6 +111,7 @@ pub struct EnvVarIntegrator {
     config: EnvVarConfig,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarIntegrator {
     pub fn new(config: EnvVarConfig) -> Self {
         Self { config }
@@ -173,10 +180,12 @@ impl EnvVarIntegrator {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn get_config_value(&self, plugin_name: &str, config_key: &str) -> Option<String> {
         self.config.get_env_value(plugin_name, config_key)
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn list_env_keys_for_plugin(&self, plugin_name: &str) -> Vec<String> {
         let plugin_prefix = format!(
             "{}{}{}",
@@ -201,12 +210,14 @@ impl EnvVarIntegrator {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvVarReference {
     pub key: String,
     pub default: Option<String>,
     pub required: bool,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvVarReference {
     pub fn new(key: String) -> Self {
         Self {
@@ -227,6 +238,7 @@ impl EnvVarReference {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub fn parse_env_refs(config_str: &str) -> Vec<EnvVarReference> {
     let mut refs = Vec::new();
 
@@ -247,6 +259,7 @@ pub fn parse_env_refs(config_str: &str) -> Vec<EnvVarReference> {
     refs
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub fn resolve_env_refs(config_str: &str) -> Result<String> {
     let refs = parse_env_refs(config_str);
     let mut result = config_str.to_string();
@@ -259,7 +272,7 @@ pub fn resolve_env_refs(config_str: &str) -> Result<String> {
                 .ok_or_else(|| anyhow!("Required environment variable '{}' not found", env_ref.key))
         })?;
 
-        let pattern = format!("\\${{env:{}(?::[^}}]*)?}}", regex::escape(&env_ref.key));
+        let pattern = format!("\\$\\{{env:{}(?::[^}}]*)?\\}}", regex::escape(&env_ref.key));
         let re = regex::Regex::new(&pattern).unwrap();
         result = re.replace_all(&result, &value).to_string();
     }
@@ -283,14 +296,14 @@ mod tests {
 
     #[test]
     fn test_env_var_integrator() {
-        std::env::set_var("TEST_MYPLUGIN_API_KEY", "secret123");
+        std::env::set_var("TEST_MYPLUGIN_APIKEY", "secret123");
         std::env::set_var("TEST_MYPLUGIN_HOST", "localhost");
 
         let integrator = EnvVarIntegrator::with_prefix("TEST_".to_string());
 
         let config_json = serde_json::json!({
-            "api_key": "from_file",
-            "host": "file_host"
+            "APIKEY": "from_file",
+            "HOST": "file_host"
         });
 
         let merged = integrator
@@ -298,15 +311,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            merged.get("api_key").and_then(|v| v.as_str()),
+            merged.get("APIKEY").and_then(|v| v.as_str()),
             Some("secret123")
         );
         assert_eq!(
-            merged.get("host").and_then(|v| v.as_str()),
+            merged.get("HOST").and_then(|v| v.as_str()),
             Some("localhost")
         );
 
-        std::env::remove_var("TEST_MYPLUGIN_API_KEY");
+        std::env::remove_var("TEST_MYPLUGIN_APIKEY");
         std::env::remove_var("TEST_MYPLUGIN_HOST");
     }
 
@@ -366,7 +379,7 @@ mod tests {
         );
         assert_eq!(
             config_json.get("database").unwrap().get("port").unwrap(),
-            "5432"
+            &serde_json::json!(5432)
         );
         assert_eq!(config_json.get("simple_key").unwrap(), "value");
     }

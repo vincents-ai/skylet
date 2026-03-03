@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 /// Plugin Manager v2 - ABI v2 Integration
 ///
 /// This module handles loading, managing, and executing plugins using the
@@ -38,28 +37,11 @@ use skylet_abi::{
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-// Billing module removed - moved to plugin-distribution
-use serde::Serialize;
 use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
-
-// ============================================================================
-// Stub Types for Removed Billing Module
-// ============================================================================
-
-/// Stub for billing collector statistics
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct BillingCollectorStats {
-    pub collections_total: u64,
-    pub plugins_with_metrics: u64,
-    pub plugins_without_metrics: u64,
-    pub successful_collections: u64,
-    pub failed_collections: u64,
-    pub last_collection_at: Option<String>,
-}
 
 // ============================================================================
 // Plugin Services - Shared service backends for PluginContextV2
@@ -158,7 +140,7 @@ impl Default for PluginServiceRegistryBackend {
 /// Event subscription entry for tracking callbacks
 struct EventSubscriptionEntry {
     event_type: String,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained to keep FFI callback reference alive
     callback: extern "C" fn(*const EventV2),
     subscription: Subscription,
 }
@@ -290,7 +272,7 @@ pub struct PluginTracerBackend {
     /// Next span handle
     next_handle: Mutex<u64>,
     /// Optional OpenTelemetry tracer for export
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for future span export integration
     otel_tracer: Option<OtelTracer>,
 }
 
@@ -306,6 +288,7 @@ impl PluginTracerBackend {
     }
 
     /// Create a tracer backend with OpenTelemetry export enabled
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_otel(config: ExporterConfig) -> Self {
         let tracer_config = TracerConfig {
             service_name: config.service_name.clone(),
@@ -327,6 +310,7 @@ impl PluginTracerBackend {
     ///
     /// The span is created as a child of the current active span (if any).
     /// Returns a handle that must be used for subsequent operations on this span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn start_span(&self, name: &str) -> SpanHandle {
         // Get next handle
         let handle = {
@@ -352,6 +336,7 @@ impl PluginTracerBackend {
     ///
     /// Marks the span as ended and removes it from active tracking.
     /// The span data may still be exported after ending.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn end_span(&self, handle: SpanHandle) {
         let mut active = self.active_spans.lock().unwrap();
         if let Some(span) = active.remove(&handle) {
@@ -364,6 +349,7 @@ impl PluginTracerBackend {
     /// Add an event to a span
     ///
     /// Events are timestamped annotations on a span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn add_event(&self, handle: SpanHandle, name: &str) {
         let active = self.active_spans.lock().unwrap();
         if let Some(span) = active.get(&handle) {
@@ -374,6 +360,7 @@ impl PluginTracerBackend {
     /// Set an attribute on a span
     ///
     /// Attributes are key-value pairs that provide context about the span.
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn set_attribute(&self, handle: SpanHandle, key: &str, value: &str) {
         let active = self.active_spans.lock().unwrap();
         if let Some(span) = active.get(&handle) {
@@ -381,14 +368,8 @@ impl PluginTracerBackend {
         }
     }
 
-    /// Get a span by handle (for internal use)
-    #[allow(dead_code)]
-    pub fn get_span(&self, handle: SpanHandle) -> Option<Span> {
-        let active = self.active_spans.lock().unwrap();
-        active.get(&handle).cloned()
-    }
-
     /// Get the number of active spans
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn active_span_count(&self) -> usize {
         self.active_spans.lock().unwrap().len()
     }
@@ -428,6 +409,7 @@ impl PluginSecretsBackend {
     ///
     /// # Returns
     /// The secret value as a string, or None if not found
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get(&self, plugin_id: &str, secret_name: &str) -> Option<String> {
         self.provider
             .get_secret(plugin_id, secret_name)
@@ -444,6 +426,7 @@ impl PluginSecretsBackend {
     ///
     /// # Returns
     /// true on success, false on failure
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn put(&self, plugin_id: &str, secret_name: &str, value: &str) -> bool {
         self.provider
             .put_secret(plugin_id, secret_name, value.as_bytes(), None)
@@ -475,6 +458,7 @@ pub struct PluginHttpRouterBackend {
 }
 
 /// Internal route entry stored by the backend
+#[allow(dead_code)] // Fields stored for future HTTP routing dispatch and OpenAPI generation
 struct PluginRouteEntry {
     /// HTTP method (GET, POST, etc.)
     method: HttpMethod,
@@ -488,7 +472,7 @@ struct PluginRouteEntry {
     user_data: *mut std::ffi::c_void,
 }
 
-// Safety: PluginRouteEntry contains raw pointers but is only accessed behind a Mutex
+// SAFETY: PluginRouteEntry contains raw pointers but is only accessed behind a Mutex
 unsafe impl Send for PluginRouteEntry {}
 unsafe impl Sync for PluginRouteEntry {}
 
@@ -512,6 +496,7 @@ impl PluginHttpRouterBackend {
     ///
     /// # Returns
     /// true if registration succeeded, false if route already exists
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_route(
         &self,
         method: HttpMethod,
@@ -561,6 +546,7 @@ impl PluginHttpRouterBackend {
     ///
     /// # Returns
     /// true if route was removed, false if not found
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn unregister_route(&self, method: HttpMethod, path: &str) -> bool {
         let key = format!("{}:{}", Self::method_to_string(method), path);
 
@@ -576,12 +562,14 @@ impl PluginHttpRouterBackend {
     }
 
     /// Get all registered routes as JSON
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get_routes_json(&self) -> String {
         let meta = self.route_metadata.lock().unwrap();
         serde_json::to_string(&*meta).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Generate OpenAPI specification as JSON
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn get_openapi_spec_json(&self) -> String {
         let meta = self.route_metadata.lock().unwrap();
 
@@ -638,11 +626,13 @@ impl PluginHttpRouterBackend {
     }
 
     /// Get route count
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn route_count(&self) -> usize {
         self.routes.lock().unwrap().len()
     }
 
     /// Convert HttpMethod to string
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn method_to_string(method: HttpMethod) -> &'static str {
         match method {
             HttpMethod::Get => "GET",
@@ -672,8 +662,10 @@ pub struct PluginServices {
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
+    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
+    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,
@@ -695,6 +687,7 @@ impl PluginServices {
 
     /// Create services with OpenTelemetry-enabled tracing
     #[allow(clippy::arc_with_non_send_sync)]
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn with_tracing(exporter_config: ExporterConfig) -> Self {
         Self {
             config: Arc::new(PluginConfigBackend::new()),
@@ -733,7 +726,7 @@ struct PluginResources {
     http_router_ptr: *mut HttpRouterV2,
 }
 
-// Safety: PluginResources contains raw pointers but they are only accessed
+// SAFETY: PluginResources contains raw pointers but they are only accessed
 // through the PluginManager which ensures proper synchronization via RwLock
 unsafe impl Send for PluginResources {}
 unsafe impl Sync for PluginResources {}
@@ -813,7 +806,9 @@ impl PluginManager {
 
     // Issue #8: String length bounds validation
     const MAX_EVENT_NAME_LEN: usize = 256;
+    #[allow(dead_code)] // RFC-0003 security bounds for future FFI attribute validation
     const MAX_ATTRIBUTE_KEY_LEN: usize = 256;
+    #[allow(dead_code)] // RFC-0003 security bounds for future FFI attribute validation
     const MAX_ATTRIBUTE_VALUE_LEN: usize = 4096;
 
     /// Create a new plugin manager
@@ -842,6 +837,7 @@ impl PluginManager {
     }
 
     /// Load a plugin from a path using ABI v2
+    #[allow(dead_code)] // Simpler loading path without FFI context — used in tests
     pub async fn load_plugin(&self, name: &str, path: &PathBuf) -> Result<()> {
         info!("Loading plugin: {} from {:?}", name, path);
 
@@ -1916,83 +1912,29 @@ impl PluginManager {
         Ok(plugins_v2.keys().cloned().collect())
     }
 
-    // ========================================================================
-    // RFC-ARCH Section 10.3: Billing Metrics Collection
-    // ========================================================================
-
-    /// Collect billing metrics from all loaded plugins that support it
+    /// Shutdown all loaded plugins and clean up resources
     ///
-    /// This method iterates through all loaded v2 plugins and calls their
-    /// `plugin_get_billing_metrics_v2` function if available, then records
-    /// the metrics using the MeteringService.
-    ///
-    /// Returns statistics about the collection process.
-    /// Collect billing metrics from plugins
-    ///
-    /// Note: Billing collection functionality has been moved to the plugin-distribution plugin.
-    /// This is a stub that returns empty stats for backward compatibility.
-    pub async fn collect_billing_metrics(&self) -> Result<BillingCollectorStats> {
-        let plugins_v2 = self.loaded_plugins_v2.read().await;
-        let mut stats = BillingCollectorStats {
-            collections_total: 1,
-            ..Default::default()
+    /// Unloads every loaded plugin in reverse insertion order, cleaning up
+    /// FFI resources (Box'd service structs, Arc<PluginServices> refs) for each.
+    pub async fn shutdown_all(&self) {
+        let plugin_names: Vec<String> = {
+            let plugins = self.loaded_plugins_v2.read().await;
+            plugins.keys().cloned().collect()
         };
 
-        for (name, guarded) in plugins_v2.iter() {
-            // Access plugin via epoch guard for safe hot-reload
-            let Some(guard) = guarded.access() else {
-                stats.failed_collections += 1;
-                continue;
-            };
-            let loader = guard.plugin();
-
-            // Check if plugin supports billing metrics
-            if !loader.has_billing_metrics() {
-                stats.plugins_without_metrics += 1;
-                continue;
-            }
-
-            stats.plugins_with_metrics += 1;
-
-            // Create a temporary context for the plugin - resources are dropped after use
-            match self.create_plugin_context_v2(name) {
-                Ok((context, resources)) => {
-                    // Get billing metrics from the plugin
-                    if loader.get_billing_metrics(&context).is_some() {
-                        stats.successful_collections += 1;
-                        debug!("Found billing metrics from plugin: {}", name);
-                    } else {
-                        stats.failed_collections += 1;
-                    }
-                    // Resources are dropped here, cleaning up the temporary allocations
-                    drop(resources);
-                }
-                Err(_) => {
-                    stats.failed_collections += 1;
-                }
-            }
-        }
-
-        stats.last_collection_at = Some(chrono::Utc::now().to_rfc3339());
         info!(
-            "Billing collection stub executed: {} successful, {} failed, {} plugins with metrics support",
-            stats.successful_collections,
-            stats.failed_collections,
-            stats.plugins_with_metrics
+            "Shutting down {} application plugins...",
+            plugin_names.len()
         );
 
-        Ok(stats)
-    }
-
-    /// Check if a specific plugin supports billing metrics
-    pub async fn plugin_supports_billing(&self, plugin_name: &str) -> bool {
-        let plugins_v2 = self.loaded_plugins_v2.read().await;
-        if let Some(guarded) = plugins_v2.get(plugin_name) {
-            if let Some(guard) = guarded.access() {
-                return guard.plugin().has_billing_metrics();
+        for name in &plugin_names {
+            match self.unload_plugin(name).await {
+                Ok(()) => info!("Unloaded plugin: {}", name),
+                Err(e) => error!("Error unloading plugin '{}': {}", name, e),
             }
         }
-        false
+
+        info!("All application plugins shut down");
     }
 
     // ========================================================================
@@ -2006,6 +1948,7 @@ impl PluginManager {
     /// 2. `~/.config/skylet/plugins/{plugin_name}.toml`
     ///
     /// Returns the config as a JSON Value for schema validation.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub fn load_plugin_config_from_toml(plugin_name: &str) -> Result<Value> {
         let config_paths = vec![
             PathBuf::from(format!("data/{}.toml", plugin_name)),
@@ -2044,6 +1987,7 @@ impl PluginManager {
     /// Validate a plugin's configuration against its schema
     ///
     /// Returns validation result with any errors found.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn validate_plugin_config(
         &self,
         plugin_name: &str,
@@ -2109,6 +2053,7 @@ impl PluginManager {
     /// This is the main entry point for config loading during plugin initialization.
     /// It loads from TOML, validates against schema (if available), and populates
     /// the config backend with the values.
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn load_and_validate_config(&self, plugin_name: &str) -> Result<bool> {
         // Load config from TOML
         let config_json = Self::load_plugin_config_from_toml(plugin_name)?;
@@ -2148,6 +2093,7 @@ impl PluginManager {
     }
 
     /// Check if a plugin exports a configuration schema
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn plugin_has_config_schema(&self, plugin_name: &str) -> bool {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         if let Some(guarded) = plugins_v2.get(plugin_name) {
@@ -2159,6 +2105,7 @@ impl PluginManager {
     }
 
     /// Get the JSON schema for a plugin's configuration
+    #[allow(dead_code)] // RFC-0006 config schema validation — not yet wired into load path
     pub async fn get_plugin_config_schema(&self, plugin_name: &str) -> Option<String> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         if let Some(guarded) = plugins_v2.get(plugin_name) {
@@ -2171,6 +2118,7 @@ impl PluginManager {
 }
 
 /// Convert a TOML value to a JSON value
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 fn toml_to_json(toml: toml::Value) -> Value {
     match toml {
         toml::Value::String(s) => Value::String(s),

@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // User session management for chat platforms
 // Provides persistent user sessions, conversation state, and user preferences
 use super::*;

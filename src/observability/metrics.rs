@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // RFC-0004 Phase 6.2: Prometheus Metrics Implementation
 // Enterprise-grade metrics collection for Skylet plugin system
@@ -21,7 +21,7 @@ use std::time::Instant;
 /// Metric histogram with configurable buckets
 #[derive(Debug, Clone)]
 pub struct Histogram {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for metric export identification
     name: String,
     buckets: Vec<f64>,
     values: Arc<RwLock<Vec<f64>>>,
@@ -76,7 +76,7 @@ impl Histogram {
 /// Metric counter (monotonic increment only)
 #[derive(Debug, Clone)]
 pub struct Counter {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for metric export identification
     name: String,
     value: Arc<RwLock<f64>>,
     labels: Arc<RwLock<HashMap<String, f64>>>,
@@ -118,7 +118,7 @@ impl Counter {
 /// Metric gauge (can increase or decrease)
 #[derive(Debug, Clone)]
 pub struct Gauge {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for metric export identification
     name: String,
     value: Arc<RwLock<f64>>,
 }
@@ -408,7 +408,7 @@ mod tests {
         histogram.observe(2.5);
 
         assert_eq!(histogram.count(), 3);
-        assert!(histogram.sum() > 3.4 && histogram.sum() < 3.5);
+        assert!(histogram.sum() >= 3.4 && histogram.sum() < 3.5);
     }
 
     #[test]

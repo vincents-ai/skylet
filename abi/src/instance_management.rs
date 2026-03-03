@@ -1,11 +1,11 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Instance Management Abstraction - RFC-0100 (Phase 2.1)
 //!
 //! This module provides trait-based abstractions for instance identity and lifecycle
 //! management, allowing the execution engine to work with different instance backends
-//! without being tightly coupled to proprietary implementations.
+//! without being tightly coupled to any specific implementation.
 //!
 //! # Overview
 //!
@@ -18,13 +18,12 @@
 //! # Default Implementation
 //!
 //! A `StandaloneInstanceManager` implementation is provided for single-instance
-//! deployments without proprietary cluster or multi-instance management.
+//! deployments without external cluster management.
 //!
-//! # Feature-Gated Proprietary Support
+//! # Extensible Design
 //!
-//! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary instance management systems like Skylet's zone-based hierarchy and
-//! multi-instance orchestration.
+//! Custom implementations can be swapped in to use alternative instance management
+//! systems (e.g., zone-based hierarchies, multi-instance orchestration).
 //!
 //! # Example
 //!

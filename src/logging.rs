@@ -1,9 +1,9 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Structured logging module for RFC-0018 compliance
 //!
-//! Provides JSON-formatted logging output for the autonomous marketplace.
+//! Provides JSON-formatted logging output for the Skylet execution engine.
 
 use std::sync::Arc;
 use tracing::Subscriber;

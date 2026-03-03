@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 //! Plugin Dependency Resolution - CQ-004
 //!
 //! This module provides dependency ordering for plugin loading.
@@ -22,6 +21,7 @@ use tracing::{debug, info};
 
 /// Plugin manifest information extracted from plugin metadata
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub struct PluginManifest {
     /// Plugin name
     pub name: String,
@@ -51,6 +51,7 @@ impl PluginDependencyResolver {
     ///
     /// This is used for plugins where we can't easily extract the manifest
     /// (e.g., before the plugin is loaded).
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_plugin(
         &mut self,
         name: &str,
@@ -77,6 +78,7 @@ impl PluginDependencyResolver {
     ///
     /// Format: "plugin_name:abi_version:dep1,dep2,dep3"
     /// Example: "database:v2:config-manager,logging"
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn register_from_string(&mut self, manifest_str: &str) -> Result<()> {
         let parts: Vec<&str> = manifest_str.split(':').collect();
         if parts.len() < 2 {
@@ -101,6 +103,7 @@ impl PluginDependencyResolver {
     ///
     /// Returns a list of (plugin_name, abi_version) tuples in the order
     /// they should be loaded (dependencies first).
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn resolve_loading_order(&self) -> Result<Vec<(String, String)>> {
         let mut graph = DependencyGraph::new();
 
@@ -145,6 +148,7 @@ impl PluginDependencyResolver {
     }
 
     /// Build a PluginNode from a PluginManifest
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn build_plugin_node(&self, manifest: &PluginManifest) -> Result<PluginNode> {
         let mut node = PluginNode::new(&manifest.name, manifest.version.clone());
 
@@ -163,6 +167,7 @@ impl PluginDependencyResolver {
     /// - "plugin_name@1.0.0" -> exact version
     /// - "plugin_name@^1.0.0" -> caret constraint
     /// - "plugin_name@>=1.0.0,<2.0.0" -> range constraint
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     fn parse_dependency(&self, dep_str: &str) -> Result<Dependency> {
         let parts: Vec<&str> = dep_str.splitn(2, '@').collect();
         let name = parts[0].trim();
@@ -178,16 +183,19 @@ impl PluginDependencyResolver {
     }
 
     /// Get the number of registered plugins
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn len(&self) -> usize {
         self.manifests.len()
     }
 
     /// Check if no plugins are registered
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn is_empty(&self) -> bool {
         self.manifests.is_empty()
     }
 
     /// Get all registered plugins (unordered)
+    #[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
     pub fn plugins(&self) -> impl Iterator<Item = &PluginManifest> {
         self.manifests.values()
     }
@@ -221,6 +229,7 @@ impl Default for PluginDependencyResolver {
 ///     }
 /// });
 /// ```
+#[allow(dead_code)] // Phase 2 infrastructure — not yet wired up
 pub fn resolve_plugin_order<F>(
     plugins: Vec<(String, String)>,
     get_dependencies: F,
@@ -252,9 +261,17 @@ mod tests {
         resolver.register_plugin("api-server", "v2", vec!["database".to_string()], None);
 
         let order = resolver.resolve_loading_order().unwrap();
+        assert_eq!(order.len(), 3);
 
-        // config-manager should come before database
-        // database should come before api-server
+        // All plugins should be present in the resolved order
+        let names: Vec<&str> = order.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"config-manager"));
+        assert!(names.contains(&"database"));
+        assert!(names.contains(&"api-server"));
+
+        // The topological sort produces dependencies before their dependents
+        // (Kahn's algorithm starts with nodes that have no dependencies).
+        // Verify relative ordering: each dependency appears before its dependents.
         let config_idx = order
             .iter()
             .position(|(n, _)| n == "config-manager")
@@ -264,9 +281,12 @@ mod tests {
 
         assert!(
             config_idx < db_idx,
-            "config-manager should load before database"
+            "config-manager (dependency) should appear before database (dependent)"
         );
-        assert!(db_idx < api_idx, "database should load before api-server");
+        assert!(
+            db_idx < api_idx,
+            "database (dependency) should appear before api-server (dependent)"
+        );
     }
 
     #[test]
@@ -321,10 +341,13 @@ mod tests {
         let order = resolver.resolve_loading_order().unwrap();
         assert_eq!(order.len(), 2);
 
-        // core should come before plugin-a
+        // plugin-a depends on core; the topological sort emits dependencies before dependents
         let core_idx = order.iter().position(|(n, _)| n == "core").unwrap();
         let a_idx = order.iter().position(|(n, _)| n == "plugin-a").unwrap();
-        assert!(core_idx < a_idx);
+        assert!(
+            core_idx < a_idx,
+            "core (dependency) should appear before plugin-a (dependent)"
+        );
     }
 
     #[test]
@@ -343,18 +366,21 @@ mod tests {
         );
 
         let order = resolver.resolve_loading_order().unwrap();
+        assert_eq!(order.len(), 4);
 
-        // core should come before A and B
-        // A and B should come before app
+        // The topological sort emits dependencies before their dependents.
+        // Verify relative ordering constraints:
         let core_idx = order.iter().position(|(n, _)| n == "core").unwrap();
         let a_idx = order.iter().position(|(n, _)| n == "plugin-a").unwrap();
         let b_idx = order.iter().position(|(n, _)| n == "plugin-b").unwrap();
         let app_idx = order.iter().position(|(n, _)| n == "app").unwrap();
 
-        assert!(core_idx < a_idx);
-        assert!(core_idx < b_idx);
-        assert!(a_idx < app_idx);
-        assert!(b_idx < app_idx);
+        // core (dependency) before plugin-a and plugin-b (its dependents)
+        assert!(core_idx < a_idx, "core should appear before plugin-a");
+        assert!(core_idx < b_idx, "core should appear before plugin-b");
+        // plugin-a and plugin-b (dependencies) before app (their dependent)
+        assert!(a_idx < app_idx, "plugin-a should appear before app");
+        assert!(b_idx < app_idx, "plugin-b should appear before app");
     }
 
     #[test]
@@ -372,8 +398,14 @@ mod tests {
         let order = resolve_plugin_order(plugins, deps_fn).unwrap();
 
         assert_eq!(order.len(), 2);
-        assert_eq!(order[0].0, "config"); // config should load first
-        assert_eq!(order[1].0, "database");
+        // database depends on config; the topological sort emits dependencies
+        // before their dependents.
+        let db_idx = order.iter().position(|(n, _)| n == "database").unwrap();
+        let config_idx = order.iter().position(|(n, _)| n == "config").unwrap();
+        assert!(
+            config_idx < db_idx,
+            "config (dependency) should appear before database (dependent)"
+        );
     }
 
     #[test]

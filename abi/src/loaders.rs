@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Cross-Platform Plugin Loader Abstraction
 //!
@@ -121,14 +121,68 @@ pub type LoaderResult<T> = Result<T, PlatformLoaderError>;
 
 /// Helper function to extract capabilities from plugin info
 fn extract_capabilities(info: &PluginInfoV2) -> PluginCapabilities {
+    // Extract requires_services
+    let requires_services = if !info.requires_services.is_null() && info.num_requires_services > 0 {
+        let services = unsafe {
+            std::slice::from_raw_parts(info.requires_services, info.num_requires_services)
+        };
+        services
+            .iter()
+            .filter_map(|s| {
+                if s.name.is_null() {
+                    None
+                } else {
+                    Some(unsafe { CStr::from_ptr(s.name).to_string_lossy().into_owned() })
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Extract provides_services
+    let provides_services = if !info.provides_services.is_null() && info.num_provides_services > 0 {
+        let services = unsafe {
+            std::slice::from_raw_parts(info.provides_services, info.num_provides_services)
+        };
+        services
+            .iter()
+            .filter_map(|s| {
+                if s.name.is_null() {
+                    None
+                } else {
+                    Some(unsafe { CStr::from_ptr(s.name).to_string_lossy().into_owned() })
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Extract declared_capabilities
+    let declared_capabilities = if !info.capabilities.is_null() && info.num_capabilities > 0 {
+        let caps = unsafe { std::slice::from_raw_parts(info.capabilities, info.num_capabilities) };
+        caps.iter()
+            .filter_map(|c| {
+                if c.name.is_null() {
+                    None
+                } else {
+                    Some(unsafe { CStr::from_ptr(c.name).to_string_lossy().into_owned() })
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     PluginCapabilities {
         supports_hot_reload: info.supports_hot_reload,
         supports_async: info.supports_async,
         supports_streaming: info.supports_streaming,
         max_concurrency: info.max_concurrency,
-        requires_services: Vec::new(), // TODO: Extract from requires_services
-        provides_services: Vec::new(), // TODO: Extract from provides_services
-        declared_capabilities: Vec::new(), // TODO: Extract from capabilities
+        requires_services,
+        provides_services,
+        declared_capabilities,
     }
 }
 

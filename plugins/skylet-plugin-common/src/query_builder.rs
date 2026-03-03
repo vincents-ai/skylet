@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Query builder for database operations in skylet-plugin-common v0.3.0
 use crate::database::{DatabaseError, DatabaseValue, ToSql};
 use std::collections::HashMap;

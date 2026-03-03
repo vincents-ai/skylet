@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use signature::{Signer, Verifier};
@@ -272,8 +275,8 @@ mod tests {
     #[test]
     fn test_security_policy_defaults() {
         let policy = SecurityPolicy::new();
-        assert!(!policy.require_signature);
-        assert!(policy.allow_unsigned);
+        assert!(policy.require_signature);
+        assert!(!policy.allow_unsigned);
     }
 
     #[test]

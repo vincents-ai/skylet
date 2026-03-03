@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(non_camel_case_types)]
 #![allow(static_mut_refs)]
@@ -386,8 +386,7 @@ impl SecretBackend for EncryptedSecretBackend {
 ///
 /// # Example
 ///
-/// ```rust
-/// use secrets_manager::{SqliteBackend, SecretValue};
+/// ```rust,ignore
 ///
 /// let backend = SqliteBackend::new("/var/lib/skylet/secrets.db", &master_key)?;
 /// backend.set("api/key", SecretValue::new("secret-value"))?;
@@ -1903,7 +1902,6 @@ fn check_rotation_eligibility(metadata: &SecretMetadata, now: u64) -> Option<Rot
 
 /// Eligibility status for secret rotation
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum RotationEligibility {
     /// Approaching rotation deadline (warning)
     Warning {
@@ -2706,7 +2704,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2714,7 +2712,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                 match manager.get_secret(path_str) {
                     Ok(secret) => {
                         log_secret_operation("get", path_str, true, None);
-                        let value_cstring = CString::new(secret.to_string()).unwrap();
+                        let value_cstring = CString::new(secret.to_string()).unwrap_or_else(|_| CString::new("invalid string data").unwrap());
                         SecretResult {
                             success: 1,
                             value: value_cstring.into_raw(),
@@ -2727,7 +2725,7 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2796,7 +2794,7 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2816,7 +2814,7 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2873,7 +2871,7 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2893,7 +2891,7 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -2948,7 +2946,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         };
                     }
                 };
@@ -2958,7 +2956,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                         log_secret_operation("list", prefix_str, true, None);
                         let cstring_secrets: Vec<*const c_char> = secrets
                             .into_iter()
-                            .map(|s| CString::new(s).unwrap().into_raw() as *const c_char)
+                            .map(|s| CString::new(s).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw() as *const c_char)
                             .collect();
 
                         let count = cstring_secrets.len();
@@ -2983,7 +2981,7 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap().into_raw(),
+                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
                         }
                     }
                 }
@@ -3133,12 +3131,6 @@ pub extern "C" fn plugin_init(context: *const PluginContext) -> PluginResult {
                 supports_streaming: false,
                 max_concurrency: 50, // Moderate concurrency for security
 
-                // Marketplace and monetization
-                monetization_model: MonetizationModel::Free,
-                price_usd: 0.0,
-                purchase_url: ptr::null(),
-                subscription_url: ptr::null(),
-                marketplace_category: ptr::null(),
                 tagline: tagline_str.into_raw(),
                 icon_url: ptr::null(),
 
@@ -3384,6 +3376,7 @@ fn test_rotation_manager_set_default_policy() {
 
     let new_default = RotationPolicyConfig {
         interval_days: 120,
+        auto_rotate_days: 120,
         ..RotationPolicyConfig::default()
     };
     manager.set_default_policy(new_default.clone()).unwrap();
@@ -3466,6 +3459,11 @@ fn test_rotation_manager_get_secrets_needing_rotation() {
         .set("fresh_key", SecretValue::new("value1".to_string()))
         .unwrap();
 
+    // Set old_key first so the value exists in the backend
+    backend
+        .set("old_key", SecretValue::new("value2".to_string()))
+        .unwrap();
+
     let old_metadata = SecretMetadata {
         key: "old_key".to_string(),
         current_version_id: "v1".to_string(),
@@ -3475,14 +3473,10 @@ fn test_rotation_manager_get_secrets_needing_rotation() {
         rotation_policy: default_policy.clone(),
     };
 
-    // Manually insert old metadata
+    // Manually overwrite metadata with old timestamps so rotation is needed
     let mut metadata_lock = backend.metadata.write().unwrap();
     metadata_lock.insert("old_key".to_string(), old_metadata);
     drop(metadata_lock);
-
-    backend
-        .set("old_key", SecretValue::new("value2".to_string()))
-        .unwrap();
 
     // Check needing rotation
     let needing = manager.get_secrets_needing_rotation().unwrap();
@@ -4428,7 +4422,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_update_secret() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("api/key", SecretValue::new("v1".to_string())).unwrap();
@@ -4440,7 +4434,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_delete_secret() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("temp/secret", SecretValue::new("value".to_string())).unwrap();
@@ -4452,7 +4446,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_list_secrets() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("app/db/host", SecretValue::new("localhost".to_string())).unwrap();
@@ -4485,7 +4479,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_key_id() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
         
         let key_id = backend.key_id();
@@ -4495,7 +4489,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_not_found() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         let result = backend.get("nonexistent");

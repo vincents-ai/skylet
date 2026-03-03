@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Security utilities and validation functions for the Skylet ABI
 //! This module provides secure handling of plugin contexts, inputs, and FFI boundaries
@@ -2481,7 +2481,7 @@ impl PluginPermissions {
 pub struct PluginAuthenticator {
     credentials: Arc<Mutex<std::collections::HashMap<String, PluginCredential>>>,
     roles: Arc<Mutex<std::collections::HashMap<String, PluginRole>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for future credential encryption at rest
     secret_store: Arc<EncryptedSecretStore>,
     rotation_manager: Arc<CredentialRotationManager>,
     credential_versions: Arc<Mutex<std::collections::HashMap<String, Vec<CredentialVersion>>>>,
@@ -3297,9 +3297,10 @@ impl BackupCodeProvider {
     /// Get count of remaining backup codes
     pub fn remaining_codes(&self, plugin_id: &str) -> Result<u32, SecurityError> {
         let stored = self.codes.lock().unwrap();
-        let codes = stored
-            .get(plugin_id)
-            .ok_or(SecurityError::AuthenticationFailed)?;
+        let codes = match stored.get(plugin_id) {
+            Some(codes) => codes,
+            None => return Ok(0),
+        };
 
         let used = self.used_codes.lock().unwrap();
         let remaining = codes.len() as u32 - used.len() as u32;

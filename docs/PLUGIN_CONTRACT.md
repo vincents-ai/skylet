@@ -233,14 +233,6 @@ Returns a JSON Schema describing the plugin's configuration.
 - Pointer to a C-string containing valid JSON Schema
 - Must never return NULL (return empty schema `{}` if no config needed)
 
-### `plugin_get_billing_metrics() -> BillingMetrics`
-
-Returns information about resource usage for billing purposes.
-
-**Returns:**
-- Structure containing CPU, memory, network, and storage usage
-- Should be called periodically to get accurate metrics
-
 ### `plugin_mcp_tools() -> *const MCPToolSchema`
 
 Returns MCP (Model Context Protocol) tool definitions for AI agents.
@@ -452,7 +444,7 @@ Use the provided test framework in the `core` crate to test your plugin with a l
 
 ## See Also
 
-- [Plugin Development Guide](../PLUGIN_DEVELOPMENT.md)
-- [ABI Reference](../API_REFERENCE.md)
-- [Security Model](../SECURITY.md)
-- [Configuration Reference](../CONFIG_REFERENCE.md)
+- [Plugin Development Guide](./PLUGIN_DEVELOPMENT.md)
+- [ABI Reference](./API_REFERENCE.md)
+- [Security Model](./SECURITY.md)
+- [Configuration Reference](./CONFIG_REFERENCE.md)

@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Performance benchmarks for Skylet plugin execution engine
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};

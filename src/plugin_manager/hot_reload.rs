@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 //! Plugin Hot-Reload Service - RFC-0007
 //!
 //! This module implements hot-reload functionality for plugins:
@@ -25,6 +24,7 @@ use tracing::{debug, error, info, warn};
 use super::lifecycle::{PluginLifecycleManager, PluginStatus};
 
 /// Configuration for the hot-reload service
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 #[derive(Debug, Clone)]
 pub struct HotReloadConfig {
     /// Debounce interval for file changes (ms)
@@ -71,6 +71,7 @@ impl Default for HotReloadConfig {
 }
 
 /// State snapshot for hot-reload
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 #[derive(Debug, Clone)]
 pub struct PluginStateSnapshot {
     /// Plugin ID
@@ -86,6 +87,7 @@ pub struct PluginStateSnapshot {
 }
 
 /// Result of a hot-reload operation
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 #[derive(Debug, Clone)]
 pub struct HotReloadResult {
     /// Plugin ID
@@ -107,6 +109,7 @@ pub struct HotReloadResult {
 }
 
 /// Event emitted by the hot-reload service
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 #[derive(Debug, Clone)]
 pub enum HotReloadEvent {
     /// File change detected
@@ -131,16 +134,16 @@ pub enum HotReloadEvent {
 
 /// Pending file change for debouncing
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 struct PendingChange {
     plugin_id: String,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for diagnostics; not yet used in reload logic
     path: PathBuf,
-    #[allow(dead_code)]
-    first_seen: Instant,
     last_seen: Instant,
 }
 
 /// Main hot-reload service
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 pub struct HotReloadService {
     /// Configuration
     config: HotReloadConfig,
@@ -158,6 +161,7 @@ pub struct HotReloadService {
     running: Arc<RwLock<bool>>,
 }
 
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 impl HotReloadService {
     /// Create a new hot-reload service
     pub fn new(config: HotReloadConfig, lifecycle_manager: Arc<PluginLifecycleManager>) -> Self {
@@ -300,7 +304,6 @@ impl HotReloadService {
                 PendingChange {
                     plugin_id: plugin_id.to_string(),
                     path: path.to_path_buf(),
-                    first_seen: now,
                     last_seen: now,
                 },
             );
@@ -648,6 +651,7 @@ impl HotReloadService {
 }
 
 /// Simple MD5 hash for checksum (for state integrity verification)
+#[allow(dead_code)] // RFC-0007 hot-reload — not yet wired up
 fn md5_hash(data: &[u8]) -> u128 {
     // Simple hash for demonstration - in production use a proper hash function
     let mut hash: u128 = 0;
