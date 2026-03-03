@@ -57,13 +57,11 @@ impl EventStorage {
         Ok(())
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event(&self, event_id: &str) -> Option<Event> {
         let events = self.events.read().await;
         events.get(event_id).cloned()
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_events_for_type(&self, event_type: &str) -> Result<Vec<Event>> {
         let events = self.events.read().await;
         let filtered: Vec<Event> = events
@@ -129,13 +127,11 @@ impl EventStorage {
         Ok(())
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_dead_letters(&self) -> Vec<DeadLetterEvent> {
         let dead_letters = self.dead_letters.read().await;
         dead_letters.clone()
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn clear_dead_letters(&self) {
         let mut dead_letters = self.dead_letters.write().await;
         dead_letters.clear();
@@ -173,7 +169,6 @@ impl EventStorage {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_cached_events(&self, event_type: &str, limit: usize) -> Vec<Event> {
         let mut cache = self.cache.write().await;
 
@@ -184,13 +179,11 @@ impl EventStorage {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event_count(&self) -> usize {
         let events = self.events.read().await;
         events.len()
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event_count_for_type(&self, event_type: &str) -> usize {
         let events = self.events.read().await;
         events
@@ -199,7 +192,6 @@ impl EventStorage {
             .count()
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn clear(&self) {
         let mut events = self.events.write().await;
         let mut cache = self.cache.write().await;
@@ -210,7 +202,6 @@ impl EventStorage {
         dead_letters.clear();
     }
 
-    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_storage_stats(&self) -> StorageStats {
         let events = self.events.read().await;
         let dead_letters = self.dead_letters.read().await;
@@ -225,7 +216,6 @@ impl EventStorage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct StorageStats {
     pub total_events: usize,
     pub dead_letter_count: usize,

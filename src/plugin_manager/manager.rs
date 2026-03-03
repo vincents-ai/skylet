@@ -851,25 +851,24 @@ impl PluginManager {
     pub async fn load_plugin(&self, name: &str, path: &PathBuf) -> Result<()> {
         info!("Loading plugin: {} from {:?}", name, path);
 
-        // Load as v2
-        match AbiV2PluginLoader::load(path) {
+        // Load as v2 — non-Send types must be consumed before any .await
+        let guarded = match AbiV2PluginLoader::load(path) {
             Ok(loader_v2) => {
                 info!("Loaded plugin {} using ABI v2", name);
-
-                // Wrap in epoch guard for safe hot-reload
-                let guarded = EpochGuardedPlugin::new(name, loader_v2);
-
-                // Store the loader to keep it alive
-                let mut plugins = self.loaded_plugins_v2.write().await;
-                plugins.insert(name.to_string(), guarded);
-
-                Ok(())
+                // Wrap in epoch guard (consumes non-Send loader_v2)
+                EpochGuardedPlugin::new(name, loader_v2)
             }
             Err(e) => {
                 error!("Failed to load plugin {}: {}", name, e);
-                Err(anyhow!("Failed to load plugin {}: {}", name, e))
+                return Err(anyhow!("Failed to load plugin {}: {}", name, e));
             }
-        }
+        };
+
+        // Store the loader to keep it alive
+        let mut plugins = self.loaded_plugins_v2.write().await;
+        plugins.insert(name.to_string(), guarded);
+
+        Ok(())
     }
 
     /// Load and initialize a plugin with v2 ABI context
@@ -882,36 +881,44 @@ impl PluginManager {
     pub async fn load_plugin_instance_v2(&self, name: &str, path: &PathBuf) -> Result<()> {
         info!("Loading v2 plugin instance: {}", name);
 
-        // Load and validate the plugin
-        let loader = AbiV2PluginLoader::load(path)
-            .map_err(|e| anyhow!("Failed to load v2 plugin {}: {}", name, e))?;
+        // All non-Send types (AbiV2PluginLoader with raw pointers, PluginContextV2
+        // with raw pointers) must be consumed or dropped before any .await to keep
+        // the future Send-safe for axum handlers.
+        let (guarded, resources) = {
+            // Load and validate the plugin
+            let loader = AbiV2PluginLoader::load(path)
+                .map_err(|e| anyhow!("Failed to load v2 plugin {}: {}", name, e))?;
 
-        // Get plugin metadata for logging
-        let metadata = loader
-            .get_info()
-            .map_err(|e| anyhow!("Failed to get plugin info for {}: {}", name, e))?;
+            // Get plugin metadata for logging
+            let metadata = loader
+                .get_info()
+                .map_err(|e| anyhow!("Failed to get plugin info for {}: {}", name, e))?;
 
-        info!("Plugin metadata: {:?}", metadata);
+            info!("Plugin metadata: {:?}", metadata);
 
-        // Get plugin capabilities
-        let capabilities = loader
-            .get_capabilities()
-            .map_err(|e| anyhow!("Failed to get plugin capabilities for {}: {}", name, e))?;
+            // Get plugin capabilities
+            let capabilities = loader
+                .get_capabilities()
+                .map_err(|e| anyhow!("Failed to get plugin capabilities for {}: {}", name, e))?;
 
-        debug!("Plugin capabilities: {:?}", capabilities);
+            debug!("Plugin capabilities: {:?}", capabilities);
 
-        // Build PluginContextV2 and track resources
-        let (context_v2, resources) = self.create_plugin_context_v2(name)?;
+            // Build PluginContextV2 and track resources
+            let (context_v2, resources) = self.create_plugin_context_v2(name)?;
 
-        // Call plugin initialization
-        loader
-            .init(&context_v2)
-            .map_err(|e| anyhow!("Failed to initialize v2 plugin {}: {}", name, e))?;
+            // Call plugin initialization
+            loader
+                .init(&context_v2)
+                .map_err(|e| anyhow!("Failed to initialize v2 plugin {}: {}", name, e))?;
 
-        info!("Successfully initialized v2 plugin: {}", name);
+            info!("Successfully initialized v2 plugin: {}", name);
 
-        // Wrap in epoch guard for safe hot-reload
-        let guarded = EpochGuardedPlugin::new(name, loader);
+            // Wrap in epoch guard for safe hot-reload (consumes non-Send loader)
+            let guarded = EpochGuardedPlugin::new(name, loader);
+
+            // loader is consumed, context_v2 is dropped here — before any .await
+            (guarded, resources)
+        };
 
         // Store the loader and resources (resources will be freed on unload)
         let mut plugins = self.loaded_plugins_v2.write().await;

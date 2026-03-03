@@ -25,7 +25,6 @@ use types::*;
 
 /// Metrics configuration
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsConfig {
     pub enabled: bool,
     pub collection_interval: StdDuration,
@@ -53,7 +52,6 @@ impl Default for MetricsConfig {
 }
 
 /// Main metrics manager
-#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsManager {
     config: MetricsConfig,
     storage: Arc<storage::MetricsStorage>,
@@ -62,7 +60,6 @@ pub struct MetricsManager {
     plugin_metrics: Arc<RwLock<HashMap<String, PluginMetrics>>>,
 }
 
-#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 impl MetricsManager {
     pub fn new(config: MetricsConfig) -> Self {
         use chrono::TimeDelta;

@@ -11,7 +11,6 @@ use tokio::sync::RwLock;
 #[async_trait]
 pub trait MetricsExporter: Send + Sync {
     async fn export(&self) -> Result<String>;
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     fn name(&self) -> &str;
 }
 
@@ -27,12 +26,12 @@ impl PrometheusExporter {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Internal method for batch metric updates
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
@@ -149,7 +148,6 @@ pub struct OpenTelemetryExporter {
 }
 
 impl OpenTelemetryExporter {
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn new(endpoint: String) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Vec::new())),
@@ -157,12 +155,12 @@ impl OpenTelemetryExporter {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>, endpoint: String) -> Self {
         Self { metrics, endpoint }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Internal method for batch metric updates
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
@@ -247,12 +245,12 @@ impl TextExporter {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn with_metrics(metrics: Arc<RwLock<Vec<Metric>>>) -> Self {
         Self { metrics }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Internal method for batch metric updates
     async fn update_metrics(&self, metrics: Vec<Metric>) {
         let mut current = self.metrics.write().await;
         current.extend(metrics);
