@@ -17,11 +17,7 @@
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
 use skylet_abi::ffi_safe::{contains_sensitive_info, sanitize_error_for_external};
-#[allow(unused_imports)]
-use skylet_abi::security::{
-    generate_context_signature, validate_plugin_context, CredentialType, PluginAuthenticator,
-    PluginRole, PluginSandboxPolicy, RotationPolicy, SandboxEnforcer,
-};
+use skylet_abi::security::{PluginSandboxPolicy, SandboxEnforcer};
 #[allow(unused_imports)]
 use skylet_abi::v2_spec::{PluginContextV2, PluginInitFnV2, PluginResultV2, PluginShutdownFnV2};
 use std::ffi::{c_char, CStr};
@@ -203,7 +199,6 @@ pub struct BootstrapContext {
     logging_service: Option<Arc<dyn LoggingService>>,
     registry_service: Option<Arc<dyn RegistryService>>,
     secrets_service: Option<Arc<dyn SecretsService>>,
-    authenticator: Arc<PluginAuthenticator>,
     loaded_libraries: Vec<LoadedPlugin>,
 }
 
@@ -221,7 +216,6 @@ impl BootstrapContext {
             logging_service: None,
             registry_service: None,
             secrets_service: None,
-            authenticator: Arc::new(PluginAuthenticator::new()),
             loaded_libraries: Vec::new(),
         }
     }
@@ -266,12 +260,6 @@ impl BootstrapContext {
         self.secrets_service = Some(service);
     }
 
-    /// Get the authenticator
-    pub fn authenticator(&self) -> Arc<PluginAuthenticator> {
-        self.authenticator.clone()
-    }
-
-    /// Register a loaded plugin library
     fn register_loaded_plugin(&mut self, name: String, library: Box<Library>) {
         self.loaded_libraries.push(LoadedPlugin { name, library });
     }
@@ -696,90 +684,6 @@ unsafe fn call_plugin_get_info(library: &Library) -> Result<String> {
 }
 
 // ============================================================================
-// Credential Rotation Configuration
-// ============================================================================
-
-/// Configure credential rotation for the authenticator based on environment variables
-///
-/// # Environment Variables
-/// - `SKYLET_CREDENTIAL_ROTATION_ENABLED`: Enable/disable rotation (default: true)
-/// - `SKYLET_CREDENTIAL_ROTATION_POLICY`: Rotation policy (time-based, event-based, disabled)
-/// - `SKYLET_CREDENTIAL_ROTATION_INTERVAL`: Rotation interval in seconds (default: 2592000 = 30 days)
-/// - `SKYLET_CREDENTIAL_GRACE_PERIOD`: Grace period in seconds (default: 604800 = 7 days)
-/// - `SKYLET_CREDENTIAL_ROTATION_AUDIT`: Enable audit logging (default: true)
-fn configure_credential_rotation(authenticator: &PluginAuthenticator) -> Result<()> {
-    let rotation_enabled = std::env::var("SKYLET_CREDENTIAL_ROTATION_ENABLED")
-        .unwrap_or_else(|_| "true".to_string())
-        .to_lowercase()
-        == "true";
-
-    if !rotation_enabled {
-        debug!("Credential rotation disabled via SKYLET_CREDENTIAL_ROTATION_ENABLED=false");
-        return Ok(());
-    }
-
-    let policy_str = std::env::var("SKYLET_CREDENTIAL_ROTATION_POLICY")
-        .unwrap_or_else(|_| "time-based".to_string());
-
-    let _policy = match policy_str.as_str() {
-        "time-based" => RotationPolicy::TimeBased,
-        "event-based" => RotationPolicy::EventBased,
-        "disabled" => RotationPolicy::Disabled,
-        other => {
-            warn!(
-                "Unknown credential rotation policy: '{}', using time-based",
-                other
-            );
-            RotationPolicy::TimeBased
-        }
-    };
-
-    // Get configured intervals (for logging purposes)
-    let interval_secs = std::env::var("SKYLET_CREDENTIAL_ROTATION_INTERVAL")
-        .unwrap_or_else(|_| "2592000".to_string()) // 30 days default
-        .parse::<u64>()
-        .unwrap_or(2592000);
-
-    let grace_period_secs = std::env::var("SKYLET_CREDENTIAL_GRACE_PERIOD")
-        .unwrap_or_else(|_| "604800".to_string()) // 7 days default
-        .parse::<u64>()
-        .unwrap_or(604800);
-
-    // Note: The CredentialRotationManager is already initialized with default values
-    // in PluginAuthenticator::new() with:
-    // - Grace period: 7 days (604800 seconds)
-    // - Rotation interval: 30 days (2592000 seconds)
-    // - Policy: TimeBased
-    // For now, environment variables are read for configuration but the actual
-    // rotation manager uses built-in defaults. This is designed to be extended
-    // in future phases to allow dynamic policy configuration.
-
-    let rotation_manager = authenticator.rotation_manager();
-    let current_policy = rotation_manager.get_rotation_policy();
-    let current_grace = rotation_manager.grace_period();
-    let current_interval = rotation_manager.rotation_interval();
-
-    let audit_enabled = std::env::var("SKYLET_CREDENTIAL_ROTATION_AUDIT")
-        .unwrap_or_else(|_| "true".to_string())
-        .to_lowercase()
-        == "true";
-
-    info!(
-        "Credential rotation enabled: policy={:?} (configured: {}), \
-         grace_period={}s (configured: {}s), interval={}s (configured: {}s), audit={}",
-        current_policy,
-        policy_str,
-        current_grace,
-        grace_period_secs,
-        current_interval,
-        interval_secs,
-        audit_enabled
-    );
-
-    Ok(())
-}
-
-// ============================================================================
 // Bootstrap Functions
 // ============================================================================
 
@@ -802,17 +706,6 @@ pub fn load_bootstrap_plugins(_config_path: Option<&str>) -> Result<BootstrapCon
         Ok(lib) => {
             context.register_loaded_plugin("config-manager".to_string(), lib);
             context.set_config_service(Arc::new(StubConfigService::new()));
-
-            // Register plugin with authenticator
-            let authenticator = context.authenticator();
-            let _ = authenticator.register_plugin(
-                "config-manager",
-                CredentialType::Certificate,
-                b"config_manager_bootstrap".to_vec(),
-                PluginRole::System,
-                vec!["read_config".to_string(), "write_config".to_string()],
-            );
-
             info!("ConfigService loaded");
         }
         Err(e) => {
@@ -830,17 +723,6 @@ pub fn load_bootstrap_plugins(_config_path: Option<&str>) -> Result<BootstrapCon
         Ok(lib) => {
             context.register_loaded_plugin("logging".to_string(), lib);
             context.set_logging_service(Arc::new(StubLoggingService));
-
-            // Register plugin with authenticator
-            let authenticator = context.authenticator();
-            let _ = authenticator.register_plugin(
-                "logging",
-                CredentialType::Certificate,
-                b"logging_bootstrap".to_vec(),
-                PluginRole::System,
-                vec!["write_logs".to_string(), "read_logs".to_string()],
-            );
-
             info!("LoggingService loaded");
         }
         Err(e) => {
@@ -855,17 +737,6 @@ pub fn load_bootstrap_plugins(_config_path: Option<&str>) -> Result<BootstrapCon
         Ok(lib) => {
             context.register_loaded_plugin("registry".to_string(), lib);
             context.set_registry_service(Arc::new(StubRegistryService));
-
-            // Register plugin with authenticator
-            let authenticator = context.authenticator();
-            let _ = authenticator.register_plugin(
-                "registry",
-                CredentialType::Certificate,
-                b"registry_bootstrap".to_vec(),
-                PluginRole::System,
-                vec!["list_plugins".to_string(), "search_plugins".to_string()],
-            );
-
             info!("RegistryService loaded");
         }
         Err(e) => {
@@ -880,17 +751,6 @@ pub fn load_bootstrap_plugins(_config_path: Option<&str>) -> Result<BootstrapCon
         Ok(lib) => {
             context.register_loaded_plugin("secrets-manager".to_string(), lib);
             context.set_secrets_service(Arc::new(StubSecretsService::new()));
-
-            // Register plugin with authenticator
-            let authenticator = context.authenticator();
-            let _ = authenticator.register_plugin(
-                "secrets-manager",
-                CredentialType::Certificate,
-                b"secrets_manager_bootstrap".to_vec(),
-                PluginRole::System,
-                vec!["read_secrets".to_string(), "write_secrets".to_string()],
-            );
-
             info!("SecretsService loaded");
         }
         Err(e) => {
@@ -907,23 +767,6 @@ pub fn load_bootstrap_plugins(_config_path: Option<&str>) -> Result<BootstrapCon
 
     info!("Bootstrap plugin loading sequence completed successfully");
     info!("Loaded plugins: {:?}", context.loaded_plugin_names());
-
-    // Log authenticated plugins
-    let authenticator = context.authenticator();
-    if let Ok(plugins) = authenticator.list_plugins() {
-        info!("Authenticated plugins: {} registered", plugins.len());
-    }
-
-    // Configure credential rotation (Phase 3a)
-    info!("Configuring credential rotation for bootstrap plugins...");
-    if let Err(e) = configure_credential_rotation(&authenticator) {
-        warn!(
-            "Failed to configure credential rotation: {}. Continuing with defaults.",
-            e
-        );
-    } else {
-        info!("Credential rotation configured successfully");
-    }
 
     Ok(context)
 }

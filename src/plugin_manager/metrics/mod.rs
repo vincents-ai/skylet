@@ -16,12 +16,12 @@ pub mod plugin_integration;
 pub mod storage;
 pub mod types;
 
+pub use types::{Metric, MetricQuery, MetricsError, PluginMetrics};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
-
-use types::*;
 
 /// Metrics configuration
 #[derive(Debug, Clone)]
@@ -138,9 +138,36 @@ impl MetricsManager {
     }
 
     pub async fn export_metrics(&self) -> Result<Vec<String>, MetricsError> {
-        let exporters = self.exporters.read().await;
         let mut results = Vec::new();
 
+        // Query all metrics from storage and format as Prometheus
+        let metrics = self.storage.query(MetricQuery::default()).await;
+        if !metrics.is_empty() {
+            let mut output = String::new();
+            output.push_str("# HELP skylet_metrics Collected metrics from Skylet plugins\n");
+            output.push_str("# TYPE skylet_metrics gauge\n");
+
+            for metric in &metrics {
+                let labels: String = metric
+                    .labels
+                    .iter()
+                    .map(|(k, v)| format!("{}=\"{}\"", k, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                
+                let value = metric.value.as_f64().unwrap_or(0.0);
+
+                if labels.is_empty() {
+                    output.push_str(&format!("{} {}\n", metric.name, value));
+                } else {
+                    output.push_str(&format!("{}{{{}}} {}\n", metric.name, labels, value));
+                }
+            }
+            results.push(output);
+        }
+
+        // Also use registered exporters
+        let exporters = self.exporters.read().await;
         for exporter in exporters.iter() {
             match exporter.export().await {
                 Ok(data) => results.push(data),

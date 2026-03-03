@@ -33,7 +33,7 @@ use super::discovery::{DiscoveryConfig, PluginDiscovery};
 use super::events::{EventSystem, EventSystemConfig};
 use super::failover::FailoverStrategy;
 use super::manager::PluginManager;
-use super::metrics::{MetricsConfig, MetricsManager};
+use super::metrics::{MetricsConfig, MetricsError, MetricsManager};
 
 use skylet_abi::AbiV2PluginLoader;
 
@@ -843,6 +843,11 @@ impl PluginLifecycleManager {
     /// Get a reference to the failover strategy (Phase 6).
     pub fn failover(&self) -> &Arc<RwLock<FailoverStrategy>> {
         &self.failover
+    }
+
+    /// Start metrics collection (Phase 4).
+    pub async fn start_metrics(&self) -> Result<(), MetricsError> {
+        self.metrics_manager.start().await
     }
 }
 

@@ -342,6 +342,11 @@ async fn run_server(config: AppConfig) -> Result<()> {
     // (handles discovery → dependency resolution → ordered loading)
     let lifecycle_manager = Arc::new(PluginLifecycleManager::new(lifecycle_config));
 
+    // Start metrics collection
+    if let Err(e) = lifecycle_manager.start_metrics().await {
+        warn!("Failed to start metrics collection: {}", e);
+    }
+
     info!("Discovering and activating application plugins...");
     match lifecycle_manager.activate_all().await {
         Ok((loaded, failed)) => {
