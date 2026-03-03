@@ -269,9 +269,9 @@ mod tests {
         assert!(names.contains(&"database"));
         assert!(names.contains(&"api-server"));
 
-        // The topological sort produces dependents before their dependencies
-        // (the underlying graph edges go from dependent -> dependency).
-        // Verify relative ordering: each dependent appears before its dependencies.
+        // The topological sort produces dependencies before their dependents
+        // (Kahn's algorithm starts with nodes that have no dependencies).
+        // Verify relative ordering: each dependency appears before its dependents.
         let config_idx = order
             .iter()
             .position(|(n, _)| n == "config-manager")
@@ -280,12 +280,12 @@ mod tests {
         let api_idx = order.iter().position(|(n, _)| n == "api-server").unwrap();
 
         assert!(
-            db_idx < config_idx,
-            "database (dependent) should appear before config-manager (dependency)"
+            config_idx < db_idx,
+            "config-manager (dependency) should appear before database (dependent)"
         );
         assert!(
-            api_idx < db_idx,
-            "api-server (dependent) should appear before database (dependency)"
+            db_idx < api_idx,
+            "database (dependency) should appear before api-server (dependent)"
         );
     }
 
@@ -341,12 +341,12 @@ mod tests {
         let order = resolver.resolve_loading_order().unwrap();
         assert_eq!(order.len(), 2);
 
-        // plugin-a depends on core; the topological sort emits dependents before dependencies
+        // plugin-a depends on core; the topological sort emits dependencies before dependents
         let core_idx = order.iter().position(|(n, _)| n == "core").unwrap();
         let a_idx = order.iter().position(|(n, _)| n == "plugin-a").unwrap();
         assert!(
-            a_idx < core_idx,
-            "plugin-a (dependent) should appear before core (dependency)"
+            core_idx < a_idx,
+            "core (dependency) should appear before plugin-a (dependent)"
         );
     }
 
@@ -368,19 +368,19 @@ mod tests {
         let order = resolver.resolve_loading_order().unwrap();
         assert_eq!(order.len(), 4);
 
-        // The topological sort emits dependents before their dependencies.
+        // The topological sort emits dependencies before their dependents.
         // Verify relative ordering constraints:
         let core_idx = order.iter().position(|(n, _)| n == "core").unwrap();
         let a_idx = order.iter().position(|(n, _)| n == "plugin-a").unwrap();
         let b_idx = order.iter().position(|(n, _)| n == "plugin-b").unwrap();
         let app_idx = order.iter().position(|(n, _)| n == "app").unwrap();
 
-        // app (dependent) before plugin-a and plugin-b (its dependencies)
-        assert!(app_idx < a_idx, "app should appear before plugin-a");
-        assert!(app_idx < b_idx, "app should appear before plugin-b");
-        // plugin-a and plugin-b (dependents) before core (their dependency)
-        assert!(a_idx < core_idx, "plugin-a should appear before core");
-        assert!(b_idx < core_idx, "plugin-b should appear before core");
+        // core (dependency) before plugin-a and plugin-b (its dependents)
+        assert!(core_idx < a_idx, "core should appear before plugin-a");
+        assert!(core_idx < b_idx, "core should appear before plugin-b");
+        // plugin-a and plugin-b (dependencies) before app (their dependent)
+        assert!(a_idx < app_idx, "plugin-a should appear before app");
+        assert!(b_idx < app_idx, "plugin-b should appear before app");
     }
 
     #[test]
@@ -398,13 +398,13 @@ mod tests {
         let order = resolve_plugin_order(plugins, deps_fn).unwrap();
 
         assert_eq!(order.len(), 2);
-        // database depends on config; the topological sort emits dependents
-        // before their dependencies.
+        // database depends on config; the topological sort emits dependencies
+        // before their dependents.
         let db_idx = order.iter().position(|(n, _)| n == "database").unwrap();
         let config_idx = order.iter().position(|(n, _)| n == "config").unwrap();
         assert!(
-            db_idx < config_idx,
-            "database (dependent) should appear before config (dependency)"
+            config_idx < db_idx,
+            "config (dependency) should appear before database (dependent)"
         );
     }
 

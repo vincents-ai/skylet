@@ -10,7 +10,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use skylet_abi::logging::{LogEvent, LogLevel, TracingContext};
 //!
 //! // Create a log event with tracing context

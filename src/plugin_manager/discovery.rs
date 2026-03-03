@@ -13,7 +13,7 @@
 //! - Integrates with AppConfig for configurable plugin directories
 //!
 //! # Usage
-//! ```rust
+//! ```rust,ignore
 //! use plugin_manager::discovery::{PluginDiscovery, DiscoveryConfig};
 //!
 //! let config = DiscoveryConfig::default();

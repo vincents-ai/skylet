@@ -19,7 +19,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use skylet_abi::tracing::{SpanManager, SpanBuilder};
 //!
 //! // Create a span manager

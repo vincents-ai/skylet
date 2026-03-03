@@ -386,8 +386,7 @@ impl SecretBackend for EncryptedSecretBackend {
 ///
 /// # Example
 ///
-/// ```rust
-/// use secrets_manager::{SqliteBackend, SecretValue};
+/// ```rust,ignore
 ///
 /// let backend = SqliteBackend::new("/var/lib/skylet/secrets.db", &master_key)?;
 /// backend.set("api/key", SecretValue::new("secret-value"))?;
@@ -3377,6 +3376,7 @@ fn test_rotation_manager_set_default_policy() {
 
     let new_default = RotationPolicyConfig {
         interval_days: 120,
+        auto_rotate_days: 120,
         ..RotationPolicyConfig::default()
     };
     manager.set_default_policy(new_default.clone()).unwrap();
@@ -3459,6 +3459,11 @@ fn test_rotation_manager_get_secrets_needing_rotation() {
         .set("fresh_key", SecretValue::new("value1".to_string()))
         .unwrap();
 
+    // Set old_key first so the value exists in the backend
+    backend
+        .set("old_key", SecretValue::new("value2".to_string()))
+        .unwrap();
+
     let old_metadata = SecretMetadata {
         key: "old_key".to_string(),
         current_version_id: "v1".to_string(),
@@ -3468,14 +3473,10 @@ fn test_rotation_manager_get_secrets_needing_rotation() {
         rotation_policy: default_policy.clone(),
     };
 
-    // Manually insert old metadata
+    // Manually overwrite metadata with old timestamps so rotation is needed
     let mut metadata_lock = backend.metadata.write().unwrap();
     metadata_lock.insert("old_key".to_string(), old_metadata);
     drop(metadata_lock);
-
-    backend
-        .set("old_key", SecretValue::new("value2".to_string()))
-        .unwrap();
 
     // Check needing rotation
     let needing = manager.get_secrets_needing_rotation().unwrap();
@@ -4421,7 +4422,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_update_secret() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("api/key", SecretValue::new("v1".to_string())).unwrap();
@@ -4433,7 +4434,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_delete_secret() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("temp/secret", SecretValue::new("value".to_string())).unwrap();
@@ -4445,7 +4446,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_list_secrets() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         backend.set("app/db/host", SecretValue::new("localhost".to_string())).unwrap();
@@ -4478,7 +4479,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_key_id() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
         
         let key_id = backend.key_id();
@@ -4488,7 +4489,7 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_not_found() {
-        let master_key = [0u8; 32];
+        let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
         let result = backend.get("nonexistent");

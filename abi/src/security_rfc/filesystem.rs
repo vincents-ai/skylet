@@ -115,8 +115,9 @@ impl FilesystemEnforcer {
                     continue;
                 }
 
-                // Check if path matches
-                if self.path_matches(&resolved_path, &perm.path) {
+                // Check if path matches (resolve both the request path and the permission path)
+                let resolved_perm_path = self.resolve_vfs_path(&perm.path);
+                if self.path_matches(&resolved_path, &resolved_perm_path) {
                     // Check if mode is compatible
                     if self.mode_compatible(perm.mode, requested_mode) {
                         return Ok(());
@@ -148,7 +149,7 @@ impl FilesystemEnforcer {
         uri.to_string()
     }
 
-    /// Check if a path matches a pattern (supports * wildcard)
+    /// Check if a path matches a pattern (supports * wildcard and directory prefixes)
     fn path_matches(&self, path: &str, pattern: &str) -> bool {
         if pattern == "*" {
             return true;
@@ -162,7 +163,17 @@ impl FilesystemEnforcer {
             return path.starts_with(pattern);
         }
 
-        path == pattern
+        // Exact match
+        if path == pattern {
+            return true;
+        }
+
+        // Directory-like match: pattern "foo/bar" also matches "foo/bar/baz"
+        if path.starts_with(pattern) && path[pattern.len()..].starts_with('/') {
+            return true;
+        }
+
+        false
     }
 
     /// Check if a granted mode satisfies a requested mode

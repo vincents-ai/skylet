@@ -3297,9 +3297,10 @@ impl BackupCodeProvider {
     /// Get count of remaining backup codes
     pub fn remaining_codes(&self, plugin_id: &str) -> Result<u32, SecurityError> {
         let stored = self.codes.lock().unwrap();
-        let codes = stored
-            .get(plugin_id)
-            .ok_or(SecurityError::AuthenticationFailed)?;
+        let codes = match stored.get(plugin_id) {
+            Some(codes) => codes,
+            None => return Ok(0),
+        };
 
         let used = self.used_codes.lock().unwrap();
         let remaining = codes.len() as u32 - used.len() as u32;

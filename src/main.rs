@@ -271,12 +271,11 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
 
         match resolver.resolve_loading_order() {
-            Ok(mut order) => {
-                // resolve_loading_order() returns dependents-first order (via
-                // Kahn's algorithm where edges go from dependent to dependency).
-                // For plugin loading we need dependencies-first so that each
-                // plugin's prerequisites are already loaded when it initializes.
-                order.reverse();
+            Ok(order) => {
+                // resolve_loading_order() returns dependencies-first order (via
+                // Kahn's algorithm starting from nodes with zero dependencies).
+                // This is already the correct loading order: each plugin's
+                // prerequisites are loaded before the plugin itself.
 
                 info!(
                     "Resolved plugin loading order: {:?}",

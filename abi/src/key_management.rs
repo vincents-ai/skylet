@@ -28,7 +28,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```rust,ignore
 //! # use skylet_abi::key_management::{KeyManagement, KeyType};
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {

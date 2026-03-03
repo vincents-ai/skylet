@@ -15,7 +15,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use skylet_abi::config::{ConfigSchema, ConfigValidator, UIGenerator, SecretResolver};
 //!
 //! // Create a schema

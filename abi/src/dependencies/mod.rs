@@ -110,17 +110,17 @@ mod tests {
         // Verify no cycles
         assert!(!graph.has_cycles());
 
-        // Get activation order (dependents activated first)
+        // Get activation order (dependencies activated first, then dependents)
         let activation = graph.activation_order().unwrap();
-        assert_eq!(activation[0], "api");
+        assert_eq!(activation[0], "core");
         assert_eq!(activation[1], "database");
-        assert_eq!(activation[2], "core");
+        assert_eq!(activation[2], "api");
 
-        // Get deactivation order (dependencies deactivated first)
+        // Get deactivation order (dependents deactivated first, then dependencies)
         let deactivation = graph.deactivation_order().unwrap();
-        assert_eq!(deactivation[0], "core");
+        assert_eq!(deactivation[0], "api");
         assert_eq!(deactivation[1], "database");
-        assert_eq!(deactivation[2], "api");
+        assert_eq!(deactivation[2], "core");
     }
 
     #[test]
