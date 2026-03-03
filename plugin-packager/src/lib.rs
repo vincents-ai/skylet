@@ -37,8 +37,7 @@ pub use upgrade::{BackupManager, BackupRecord, SemanticVersion, UpgradeInfo, Upg
 pub mod abi_compat;
 pub use abi_compat::{
     ABICompatibleInfo, ABIValidationResult, ABIValidator, ABIVersion, CapabilityInfo,
-    DependencyInfo, MaturityLevel, PluginCategory,
-    ResourceRequirements,
+    DependencyInfo, MaturityLevel, PluginCategory, ResourceRequirements,
 };
 
 // Plugin signature verification and cryptographic signing module

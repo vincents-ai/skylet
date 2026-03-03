@@ -38,15 +38,18 @@ impl EventRouter {
         let mut matched_subscribers = Vec::new();
 
         if self.config.enable_pattern_matching {
-            self.route_by_pattern(&event, &mut matched_subscribers).await;
+            self.route_by_pattern(&event, &mut matched_subscribers)
+                .await;
         }
 
         if self.config.enable_wildcard_routing {
-            self.route_by_wildcard(&event, &mut matched_subscribers).await;
+            self.route_by_wildcard(&event, &mut matched_subscribers)
+                .await;
         }
 
         let count = matched_subscribers.len();
-        self.deliver_to_subscribers(event.clone(), matched_subscribers).await?;
+        self.deliver_to_subscribers(event.clone(), matched_subscribers)
+            .await?;
 
         Ok(count)
     }
@@ -73,7 +76,10 @@ impl EventRouter {
                     let wc_parts: Vec<&str> = wc.split('.').collect();
 
                     if event_parts.len() == wc_parts.len()
-                        && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| *w == "*" || w == e)
+                        && event_parts
+                            .iter()
+                            .zip(wc_parts.iter())
+                            .all(|(e, w)| *w == "*" || w == e)
                     {
                         if self.should_deliver(sub, event) {
                             subscribers.push(sub.clone());
@@ -106,7 +112,11 @@ impl EventRouter {
 
                 if self.config.enable_dead_letter_queue {
                     self.storage
-                        .store_dead_letter(event.clone(), subscriber.plugin_name.clone(), e.to_string())
+                        .store_dead_letter(
+                            event.clone(),
+                            subscriber.plugin_name.clone(),
+                            e.to_string(),
+                        )
                         .await
                         .ok();
                 }
@@ -170,7 +180,11 @@ impl EventRouter {
         let exact_count = patterns.get(event_type).map(|s| s.len()).unwrap_or(0);
         let wildcard_count = wildcards
             .iter()
-            .filter(|s| s.event_types.iter().any(|t| self.pattern_matches_wildcard(t, event_type)))
+            .filter(|s| {
+                s.event_types
+                    .iter()
+                    .any(|t| self.pattern_matches_wildcard(t, event_type))
+            })
             .count();
 
         exact_count + wildcard_count
@@ -182,7 +196,10 @@ impl EventRouter {
             let wc_parts: Vec<&str> = wc.split('.').collect();
 
             if event_parts.len() == wc_parts.len()
-                && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| *w == "*" || w == e)
+                && event_parts
+                    .iter()
+                    .zip(wc_parts.iter())
+                    .all(|(e, w)| *w == "*" || w == e)
             {
                 return true;
             }

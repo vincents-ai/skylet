@@ -268,7 +268,8 @@ pub trait ContainerRegistryClient: Send + Sync {
 
     // Repository operations
     async fn list_repositories(&self) -> Result<Vec<Repository>>;
-    async fn search_repositories(&self, query: &str, limit: Option<u32>) -> Result<Vec<Repository>>;
+    async fn search_repositories(&self, query: &str, limit: Option<u32>)
+        -> Result<Vec<Repository>>;
     async fn get_repository(&self, namespace: &str, name: &str) -> Result<Option<Repository>>;
     async fn delete_repository(&self, namespace: &str, name: &str) -> Result<()>;
 
@@ -281,7 +282,11 @@ pub trait ContainerRegistryClient: Send + Sync {
         tag: &str,
     ) -> Result<Option<ContainerImage>>;
     async fn pull_image(&self, namespace: &str, name: &str, tag: &str) -> Result<ImagePullResult>;
-    async fn push_image(&self, image: &ContainerImage, layers: Vec<LayerData>) -> Result<ImagePushResult>;
+    async fn push_image(
+        &self,
+        image: &ContainerImage,
+        layers: Vec<LayerData>,
+    ) -> Result<ImagePushResult>;
 
     // Tag operations
     async fn delete_tag(&self, namespace: &str, name: &str, tag: &str) -> Result<()>;
@@ -295,11 +300,21 @@ pub trait ContainerRegistryClient: Send + Sync {
         Ok(None)
     }
 
-    async fn get_image_manifest(&self, namespace: &str, name: &str, tag: &str) -> Result<Option<ImageManifest>> {
+    async fn get_image_manifest(
+        &self,
+        namespace: &str,
+        name: &str,
+        tag: &str,
+    ) -> Result<Option<ImageManifest>> {
         Ok(None)
     }
 
-    async fn get_image_config(&self, namespace: &str, name: &str, tag: &str) -> Result<Option<ImageConfig>> {
+    async fn get_image_config(
+        &self,
+        namespace: &str,
+        name: &str,
+        tag: &str,
+    ) -> Result<Option<ImageConfig>> {
         Ok(None)
     }
 }

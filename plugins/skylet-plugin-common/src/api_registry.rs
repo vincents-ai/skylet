@@ -143,24 +143,28 @@ impl ApiRegistry {
     /// Register an API definition
     pub async fn register_api(&self, api: ApiDefinition) -> Result<(), PluginCommonError> {
         let mut apis = self.apis.write().await;
-        
+
         // Validate API definition
         self.validate_api(&api)?;
-        
+
         apis.insert(api.name.clone(), api);
-        
+
         Ok(())
     }
 
     /// Update an existing API definition
-    pub async fn update_api(&self, name: &str, api: ApiDefinition) -> Result<(), PluginCommonError> {
+    pub async fn update_api(
+        &self,
+        name: &str,
+        api: ApiDefinition,
+    ) -> Result<(), PluginCommonError> {
         let mut apis = self.apis.write().await;
-        
+
         // Validate API definition
         self.validate_api(&api)?;
-        
+
         apis.insert(name.to_string(), api);
-        
+
         Ok(())
     }
 
@@ -189,20 +193,31 @@ impl ApiRegistry {
     pub async fn search_apis(&self, query: &str) -> Vec<ApiDefinition> {
         let apis = self.apis.read().await;
         let query_lower = query.to_lowercase();
-        
+
         apis.values()
             .filter(|api| {
-                api.name.to_lowercase().contains(&query_lower) ||
-                api.metadata.documentation.as_ref().map_or(false, |docs| docs.to_lowercase().contains(&query_lower)) ||
-                api.tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower)) ||
-                api.metadata.category.to_lowercase().contains(&query_lower)
+                api.name.to_lowercase().contains(&query_lower)
+                    || api
+                        .metadata
+                        .documentation
+                        .as_ref()
+                        .map_or(false, |docs| docs.to_lowercase().contains(&query_lower))
+                    || api
+                        .tags
+                        .iter()
+                        .any(|tag| tag.to_lowercase().contains(&query_lower))
+                    || api.metadata.category.to_lowercase().contains(&query_lower)
             })
             .cloned()
             .collect()
     }
 
     /// Set version constraints for an API
-    pub async fn set_version_constraint(&self, api_name: &str, constraint: VersionConstraint) -> Result<(), PluginCommonError> {
+    pub async fn set_version_constraint(
+        &self,
+        api_name: &str,
+        constraint: VersionConstraint,
+    ) -> Result<(), PluginCommonError> {
         let mut constraints = self.version_constraints.write().await;
         constraints.insert(api_name.to_string(), constraint);
         Ok(())
@@ -211,7 +226,7 @@ impl ApiRegistry {
     /// Check if an API version is compatible with constraints
     pub async fn is_version_compatible(&self, api_name: &str, version: &str) -> bool {
         let constraints = self.version_constraints.read().await;
-        
+
         if let Some(constraint) = constraints.get(api_name) {
             self.check_version_compatibility(version, constraint)
         } else {
@@ -224,12 +239,15 @@ impl ApiRegistry {
         // Verify API exists
         let apis = self.apis.read().await;
         if !apis.contains_key(api_name) {
-            return Err(PluginCommonError::SerializationFailed(format!("API '{}' not found", api_name)));
+            return Err(PluginCommonError::SerializationFailed(format!(
+                "API '{}' not found",
+                api_name
+            )));
         }
-        
+
         let mut default_api = self.default_api.write().await;
         *default_api = Some(api_name.to_string());
-        
+
         Ok(())
     }
 
@@ -242,13 +260,17 @@ impl ApiRegistry {
     pub async fn get_api_versions(&self, api_name: &str) -> Vec<String> {
         // This would typically connect to a package registry or version control
         // For now, return a simulated list
-        vec!["1.0.0".to_string(), "1.1.0".to_string(), "2.0.0".to_string()]
+        vec![
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "2.0.0".to_string(),
+        ]
     }
 
     /// Remove an API definition
     pub async fn unregister_api(&self, api_name: &str) -> Result<(), PluginCommonError> {
         let mut apis = self.apis.write().await;
-        
+
         // Check if API is set as default and remove it
         let mut default_api = self.default_api.write().await;
         if let Some(current_default) = default_api.as_ref() {
@@ -256,9 +278,9 @@ impl ApiRegistry {
                 *default_api = None;
             }
         }
-        
+
         apis.remove(api_name);
-        
+
         Ok(())
     }
 
@@ -266,28 +288,38 @@ impl ApiRegistry {
     fn validate_api(&self, api: &ApiDefinition) -> Result<(), PluginCommonError> {
         // Check required fields
         if api.name.is_empty() {
-            return Err(PluginCommonError::SerializationFailed("API name cannot be empty".to_string()));
+            return Err(PluginCommonError::SerializationFailed(
+                "API name cannot be empty".to_string(),
+            ));
         }
-        
+
         if api.base_url.is_empty() {
-            return Err(PluginCommonError::SerializationFailed("API base URL cannot be empty".to_string()));
+            return Err(PluginCommonError::SerializationFailed(
+                "API base URL cannot be empty".to_string(),
+            ));
         }
-        
+
         if !api.base_url.starts_with("http://") && !api.base_url.starts_with("https://") {
-            return Err(PluginCommonError::SerializationFailed("API base URL must start with http:// or https://".to_string()));
+            return Err(PluginCommonError::SerializationFailed(
+                "API base URL must start with http:// or https://".to_string(),
+            ));
         }
-        
+
         // Validate endpoints
         for endpoint in &api.endpoints {
             if endpoint.path.is_empty() {
-                return Err(PluginCommonError::SerializationFailed("Endpoint path cannot be empty".to_string()));
+                return Err(PluginCommonError::SerializationFailed(
+                    "Endpoint path cannot be empty".to_string(),
+                ));
             }
-            
+
             if !endpoint.path.starts_with('/') {
-                return Err(PluginCommonError::SerializationFailed("Endpoint path must start with /".to_string()));
+                return Err(PluginCommonError::SerializationFailed(
+                    "Endpoint path must start with /".to_string(),
+                ));
             }
         }
-        
+
         Ok(())
     }
 
@@ -297,7 +329,9 @@ impl ApiRegistry {
             VersionConstraint::Exact(v) => version == v,
             VersionConstraint::Minimum(v) => self.version_ge(version, v),
             VersionConstraint::Maximum(v) => self.version_le(version, v),
-            VersionConstraint::Range { min, max } => self.version_ge(version, min) && self.version_le(version, max),
+            VersionConstraint::Range { min, max } => {
+                self.version_ge(version, min) && self.version_le(version, max)
+            }
             VersionConstraint::CompatibleWith(v) => self.version_compatible_with(version, v),
         }
     }
@@ -307,15 +341,19 @@ impl ApiRegistry {
         // Simple version comparison - in production would use a proper version library
         let a_parts: Vec<&str> = a.split('.').collect();
         let b_parts: Vec<&str> = b.split('.').collect();
-        
+
         for i in 0..std::cmp::min(a_parts.len(), b_parts.len()) {
-            match a_parts.get(i).map_or("", |v| v).cmp(b_parts.get(i).map_or("", |v| v)) {
+            match a_parts
+                .get(i)
+                .map_or("", |v| v)
+                .cmp(b_parts.get(i).map_or("", |v| v))
+            {
                 std::cmp::Ordering::Less => return false,
                 std::cmp::Ordering::Greater => return true,
                 std::cmp::Ordering::Equal => continue,
             }
         }
-        
+
         // If all compared parts are equal or a is greater, a >= b
         a_parts.len() >= b_parts.len()
     }
@@ -324,15 +362,19 @@ impl ApiRegistry {
     fn version_le(&self, a: &str, b: &str) -> bool {
         let a_parts: Vec<&str> = a.split('.').collect();
         let b_parts: Vec<&str> = b.split('.').collect();
-        
+
         for i in 0..std::cmp::min(a_parts.len(), b_parts.len()) {
-            match a_parts.get(i).map_or("", |v| v).cmp(b_parts.get(i).map_or("", |v| v)) {
+            match a_parts
+                .get(i)
+                .map_or("", |v| v)
+                .cmp(b_parts.get(i).map_or("", |v| v))
+            {
                 std::cmp::Ordering::Greater => return false,
                 std::cmp::Ordering::Less => return true,
                 std::cmp::Ordering::Equal => continue,
             }
         }
-        
+
         // If all compared parts are equal or a is less, a <= b
         a_parts.len() <= b_parts.len()
     }
@@ -456,7 +498,7 @@ mod tests {
             "1.0.0",
             AuthType::Bearer,
         );
-        
+
         assert_eq!(api.name, "test-api");
         assert_eq!(api.base_url, "https://api.example.com");
         assert_eq!(api.version, "1.0.0");
@@ -465,13 +507,9 @@ mod tests {
 
     #[test]
     fn test_endpoint_definition_creation() {
-        let endpoint = create_endpoint_definition(
-            "/users",
-            HttpMethod::Get,
-            "Get user information",
-            true,
-        );
-        
+        let endpoint =
+            create_endpoint_definition("/users", HttpMethod::Get, "Get user information", true);
+
         assert_eq!(endpoint.path, "/users");
         assert_eq!(endpoint.method, HttpMethod::Get);
         assert_eq!(endpoint.description, "Get user information");
@@ -481,57 +519,57 @@ mod tests {
     #[test]
     fn test_version_constraints() {
         let registry = create_api_registry();
-        
+
         // Test exact version constraint
         assert!(registry.version_ge("1.2.0", "1.2.0"));
         assert!(!registry.version_ge("1.1.0", "1.2.0"));
-        
+
         // Test minimum version constraint
         assert!(registry.version_ge("1.2.0", "1.0.0"));
         assert!(!registry.version_ge("0.9.0", "1.0.0"));
-        
+
         // Test compatible with constraint
         assert!(registry.version_compatible_with("1.2.0", "1.x"));
         assert!(!registry.version_compatible_with("2.0.0", "1.x"));
     }
 
-     #[tokio::test]
-     async fn test_api_registry_operations() {
-         let registry = create_api_registry();
-         let api = create_api_definition(
-             "test-api",
-             "https://api.example.com",
-             "1.0.0",
-             AuthType::Bearer,
-         );
-         
-         // Test registration
-         let result = registry.register_api(api).await;
-         assert!(result.is_ok());
-         
-         // Test retrieval
-         let retrieved = registry.get_api("test-api").await;
-         assert!(retrieved.is_some());
-         assert_eq!(retrieved.unwrap().name, "test-api");
-         
-         // Test search
-         let search_results = registry.search_apis("test").await;
-         assert!(!search_results.is_empty());
-     }
+    #[tokio::test]
+    async fn test_api_registry_operations() {
+        let registry = create_api_registry();
+        let api = create_api_definition(
+            "test-api",
+            "https://api.example.com",
+            "1.0.0",
+            AuthType::Bearer,
+        );
+
+        // Test registration
+        let result = registry.register_api(api).await;
+        assert!(result.is_ok());
+
+        // Test retrieval
+        let retrieved = registry.get_api("test-api").await;
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().name, "test-api");
+
+        // Test search
+        let search_results = registry.search_apis("test").await;
+        assert!(!search_results.is_empty());
+    }
 
     #[test]
     fn test_api_validation() {
         let registry = create_api_registry();
-        
+
         // Valid API should pass
         let valid_api = create_api_definition("valid", "https://api.com", "1.0.0", AuthType::None);
         assert!(registry.validate_api(&valid_api).is_ok());
-        
+
         // Invalid API with empty name should fail
         let mut invalid_api = valid_api.clone();
         invalid_api.name = String::new();
         assert!(registry.validate_api(&invalid_api).is_err());
-        
+
         // Invalid API with invalid URL should fail
         invalid_api.name = "invalid".to_string();
         invalid_api.base_url = "not-a-url".to_string();

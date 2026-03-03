@@ -3,1069 +3,800 @@
 
 //! Plugin Lifecycle Automation - RFC-0002
 //!
-//! This module implements the complete plugin management workflow with:
-//! - Installation (download, verify, unpack)
-//! - Activation (resolve deps, load, init)
-//! - Deactivation (shutdown, unload)
-//! - Uninstallation (cleanup, unregister)
+//! This module implements the top-level plugin lifecycle orchestrator that
+//! coordinates discovery, dependency resolution, loading, health tracking,
+//! and shutdown of plugins.
+//!
+//! The `PluginLifecycleManager` wraps the lower-level `PluginManager` (which
+//! handles FFI context creation and ABI loading) and adds:
+//! - State machine tracking per plugin (Discovered → Loading → Active → Failed)
+//! - Dependency-ordered activation via `PluginDependencyResolver`
+//! - Health check tracking and status queries
+//! - Graceful ordered shutdown (reverse dependency order)
 //!
 //! Integration with:
-//! - RFC-0001: Registry for plugin discovery
-//! - RFC-0003: Package handling (artifact verification, extraction)
-//! - RFC-0004: ABI loading
-//! - RFC-0005: Dependency resolution
-//! - RFC-0006: Configuration management
+//! - `PluginManager` (manager.rs): ABI v2 loading with FFI service wiring
+//! - `PluginDiscovery` (discovery.rs): Filesystem plugin scanning
+//! - `PluginDependencyResolver` (dependency_resolver.rs): Topological sort
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
+use serde::Serialize;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
-// Integration with RFC-0003 (Package handling)
-use plugin_packager::{
-    extract_artifact, verify_artifact, DependencyResolver, LocalRegistry, PluginHealthChecker,
-    PluginRegistryEntry, SignatureManager,
-};
+use super::dependency_resolver::PluginDependencyResolver;
+use super::discovery::{DiscoveryConfig, PluginDiscovery};
+use super::manager::PluginManager;
 
-// Integration with RFC-0004 (ABI loading)
-use skylet_abi::{PluginLoadConfig, PluginLoadPipeline};
+use skylet_abi::AbiV2PluginLoader;
 
-/// Plugin status for tracking in the lifecycle manager
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone, PartialEq, Eq)]
+// ============================================================================
+// Plugin State Machine
+// ============================================================================
+
+/// Plugin lifecycle status
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum PluginStatus {
-    /// Plugin is discovered but not installed
+    /// Plugin discovered on disk but not yet loaded
     Discovered,
-    /// Plugin artifact is being downloaded
-    Downloading,
-    /// Plugin artifact is downloaded and ready for installation
-    Downloaded,
-    /// Plugin is being installed
-    Installing,
-    /// Plugin is installed but not active
-    Installed,
-    /// Plugin is being activated
-    Activating,
+    /// Plugin is currently being loaded and initialized
+    Loading,
     /// Plugin is active and running
     Active,
-    /// Plugin is being deactivated
-    Deactivating,
-    /// Plugin is deactivated
-    Deactivated,
-    /// Plugin is being uninstalled
-    Uninstalling,
-    /// Plugin encountered an error
-    Error(String),
+    /// Plugin failed to load or crashed
+    Failed(String),
+    /// Plugin is shutting down
+    ShuttingDown,
+    /// Plugin has been shut down
+    Stopped,
 }
 
 impl std::fmt::Display for PluginStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PluginStatus::Discovered => write!(f, "Discovered"),
-            PluginStatus::Downloading => write!(f, "Downloading"),
-            PluginStatus::Downloaded => write!(f, "Downloaded"),
-            PluginStatus::Installing => write!(f, "Installing"),
-            PluginStatus::Installed => write!(f, "Installed"),
-            PluginStatus::Activating => write!(f, "Activating"),
+            PluginStatus::Loading => write!(f, "Loading"),
             PluginStatus::Active => write!(f, "Active"),
-            PluginStatus::Deactivating => write!(f, "Deactivating"),
-            PluginStatus::Deactivated => write!(f, "Deactivated"),
-            PluginStatus::Uninstalling => write!(f, "Uninstalling"),
-            PluginStatus::Error(msg) => write!(f, "Error: {}", msg),
+            PluginStatus::Failed(msg) => write!(f, "Failed: {}", msg),
+            PluginStatus::ShuttingDown => write!(f, "ShuttingDown"),
+            PluginStatus::Stopped => write!(f, "Stopped"),
         }
     }
 }
 
-/// Detailed plugin state tracked by the lifecycle manager
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone)]
+/// Tracked state for a single plugin
+#[derive(Debug, Clone, Serialize)]
 pub struct PluginState {
-    /// Unique plugin identifier
-    pub id: String,
     /// Plugin name
     pub name: String,
-    /// Plugin version
-    pub version: String,
-    /// Current status
+    /// Detected ABI version
+    pub abi_version: String,
+    /// Path to the plugin shared library
+    pub path: PathBuf,
+    /// Current lifecycle status
     pub status: PluginStatus,
-    /// Path to the plugin artifact (if downloaded)
-    pub artifact_path: Option<PathBuf>,
-    /// Path to the installed plugin directory
-    pub install_path: Option<PathBuf>,
-    /// List of dependency plugin IDs
+    /// Declared dependencies (plugin names)
     pub dependencies: Vec<String>,
-    /// Health check result (if active)
-    pub health_status: Option<String>,
-    /// Last status change timestamp
-    pub last_status_change: chrono::DateTime<chrono::Utc>,
-    /// Error message if status is Error
-    pub error_message: Option<String>,
+    /// When the plugin was loaded (if active)
+    pub loaded_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Last error message (if failed)
+    pub error: Option<String>,
 }
 
 /// Configuration for the lifecycle manager
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
 #[derive(Debug, Clone)]
 pub struct LifecycleConfig {
-    /// Directory for installed plugins
-    pub plugins_dir: PathBuf,
-    /// Directory for downloaded artifacts
-    pub artifacts_dir: PathBuf,
-    /// Directory for plugin data
-    pub data_dir: PathBuf,
-    /// Whether to auto-activate plugins after installation
-    pub auto_activate: bool,
-    /// Whether to verify signatures before installation
-    pub verify_signatures: bool,
-    /// Maximum concurrent installations
-    pub max_concurrent_installs: usize,
+    /// Plugin discovery configuration
+    pub discovery: DiscoveryConfig,
+    /// Whether to continue loading remaining plugins if one fails
+    pub continue_on_failure: bool,
     /// Health check interval in seconds (0 = disabled)
     pub health_check_interval_secs: u64,
-    /// Whether to check dependencies before activation
-    pub check_dependencies: bool,
 }
 
 impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
-            plugins_dir: PathBuf::from("./plugins"),
-            artifacts_dir: PathBuf::from("./artifacts"),
-            data_dir: PathBuf::from("./data"),
-            auto_activate: false,
-            verify_signatures: true,
-            max_concurrent_installs: 3,
-            health_check_interval_secs: 60,
-            check_dependencies: true,
+            discovery: DiscoveryConfig::default(),
+            continue_on_failure: true,
+            health_check_interval_secs: 0,
         }
     }
 }
 
-impl LifecycleConfig {
-    /// Create a new configuration with custom paths
-    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-    pub fn new(plugins_dir: impl Into<PathBuf>) -> Self {
-        let plugins_dir = plugins_dir.into();
-        Self {
-            plugins_dir: plugins_dir.clone(),
-            artifacts_dir: plugins_dir.join("../artifacts"),
-            data_dir: plugins_dir.join("../data"),
-            ..Default::default()
-        }
-    }
+// ============================================================================
+// Lifecycle Manager
+// ============================================================================
 
-    /// Enable auto-activation after installation
-    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-    pub fn with_auto_activate(mut self) -> Self {
-        self.auto_activate = true;
-        self
-    }
-
-    /// Disable signature verification
-    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-    pub fn without_signature_verification(mut self) -> Self {
-        self.verify_signatures = false;
-        self
-    }
-
-    /// Set health check interval
-    #[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-    pub fn with_health_check_interval(mut self, secs: u64) -> Self {
-        self.health_check_interval_secs = secs;
-        self
-    }
-}
-
-/// Result of an installation operation
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone)]
-pub struct InstallationResult {
-    /// Plugin ID
-    pub plugin_id: String,
-    /// Whether installation was successful
-    pub success: bool,
-    /// Path where plugin was installed
-    pub install_path: Option<PathBuf>,
-    /// Error message if failed
-    pub error: Option<String>,
-    /// Duration in milliseconds
-    pub duration_ms: u64,
-}
-
-/// Result of an activation operation
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone)]
-pub struct ActivationResult {
-    /// Plugin ID
-    pub plugin_id: String,
-    /// Whether activation was successful
-    pub success: bool,
-    /// Resolved dependencies
-    pub resolved_dependencies: Vec<String>,
-    /// Error message if failed
-    pub error: Option<String>,
-    /// Duration in milliseconds
-    pub duration_ms: u64,
-}
-
-/// Result of a deactivation operation
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone)]
-pub struct DeactivationResult {
-    /// Plugin ID
-    pub plugin_id: String,
-    /// Whether deactivation was successful
-    pub success: bool,
-    /// Error message if failed
-    pub error: Option<String>,
-    /// Duration in milliseconds
-    pub duration_ms: u64,
-}
-
-/// Result of an uninstallation operation
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
-#[derive(Debug, Clone)]
-pub struct UninstallationResult {
-    /// Plugin ID
-    pub plugin_id: String,
-    /// Whether uninstallation was successful
-    pub success: bool,
-    /// Error message if failed
-    pub error: Option<String>,
-    /// Duration in milliseconds
-    pub duration_ms: u64,
-}
-
-/// Main lifecycle manager for plugin automation
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
+/// Top-level plugin lifecycle orchestrator.
+///
+/// Coordinates the full lifecycle: discovery → dependency resolution →
+/// ordered loading → health tracking → ordered shutdown.
+///
+/// Wraps `PluginManager` for the actual FFI loading and context creation.
 pub struct PluginLifecycleManager {
+    /// Lower-level plugin manager that handles ABI loading and FFI services
+    plugin_manager: PluginManager,
+    /// Tracked plugin states
+    plugins: Arc<RwLock<HashMap<String, PluginState>>>,
+    /// Plugin loading order (dependencies first)
+    loading_order: Arc<RwLock<Vec<String>>>,
     /// Configuration
     config: LifecycleConfig,
-    /// Plugin states indexed by plugin ID
-    plugins: Arc<RwLock<HashMap<String, PluginState>>>,
-    /// Local registry for plugin discovery
-    registry: Arc<RwLock<LocalRegistry>>,
-    /// Dependency resolver
-    _dependency_resolver: DependencyResolver,
-    /// Health checker
-    health_checker: PluginHealthChecker,
-    /// Signature manager (optional)
-    _signature_manager: Option<SignatureManager>,
-    /// Load pipeline for ABI loading
-    load_pipeline: PluginLoadPipeline,
 }
 
-#[allow(dead_code)] // RFC-0002 lifecycle — not yet wired up
+impl std::fmt::Debug for PluginLifecycleManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginLifecycleManager")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
 impl PluginLifecycleManager {
-    /// Create a new lifecycle manager
-    pub fn new(config: LifecycleConfig) -> Result<Self> {
-        // Ensure directories exist
-        std::fs::create_dir_all(&config.plugins_dir)
-            .with_context(|| format!("Creating plugins directory: {:?}", config.plugins_dir))?;
-        std::fs::create_dir_all(&config.artifacts_dir)
-            .with_context(|| format!("Creating artifacts directory: {:?}", config.artifacts_dir))?;
-        std::fs::create_dir_all(&config.data_dir)
-            .with_context(|| format!("Creating data directory: {:?}", config.data_dir))?;
-
-        // Initialize local registry
-        let registry = LocalRegistry::new();
-
-        // Initialize dependency resolver with a separate registry instance
-        // (DependencyResolver takes ownership)
-        let dependency_resolver = DependencyResolver::new(LocalRegistry::new());
-
-        // Initialize health checker
-        let health_checker = PluginHealthChecker::new();
-
-        // Initialize signature manager (optional)
-        let signature_manager = if config.verify_signatures {
-            Some(SignatureManager::new())
-        } else {
-            None
-        };
-
-        // Initialize load pipeline
-        let load_config = PluginLoadConfig::default();
-        let load_pipeline = PluginLoadPipeline::new(load_config)?;
-
-        Ok(Self {
-            config,
+    /// Create a new lifecycle manager with the given configuration.
+    ///
+    /// The `PluginManager` is created internally with default services.
+    pub fn new(config: LifecycleConfig) -> Self {
+        Self {
+            plugin_manager: PluginManager::new(),
             plugins: Arc::new(RwLock::new(HashMap::new())),
-            registry: Arc::new(RwLock::new(registry)),
-            _dependency_resolver: dependency_resolver,
-            health_checker,
-            _signature_manager: signature_manager,
-            load_pipeline,
-        })
-    }
-
-    /// Install a plugin from an artifact
-    ///
-    /// This performs the complete installation workflow:
-    /// 1. Verify artifact signature (if enabled)
-    /// 2. Verify artifact integrity (SHA-256)
-    /// 3. Extract artifact to plugin directory
-    /// 4. Register plugin in local registry
-    pub async fn install(&self, artifact_path: &Path) -> Result<InstallationResult> {
-        let start = std::time::Instant::now();
-        let artifact_path = artifact_path.to_path_buf();
-
-        info!("Starting installation from: {:?}", artifact_path);
-
-        // Step 1: Verify artifact integrity
-        debug!("Verifying artifact integrity");
-        if let Err(e) = verify_artifact(&artifact_path, None) {
-            let error = format!("Artifact verification failed: {}", e);
-            warn!("{}", error);
-            return Ok(InstallationResult {
-                plugin_id: String::new(),
-                success: false,
-                install_path: None,
-                error: Some(error),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
+            loading_order: Arc::new(RwLock::new(Vec::new())),
+            config,
         }
-
-        // Step 2: Extract artifact
-        debug!("Extracting artifact");
-        let extract_result = extract_artifact(&artifact_path, &self.config.plugins_dir)
-            .with_context(|| "Extracting artifact")?;
-
-        let plugin_id = extract_result.plugin_name.clone();
-        let install_path = extract_result.plugin_dir.clone();
-
-        info!("Extracted plugin '{}' to {:?}", plugin_id, install_path);
-
-        // Step 3: Register in local registry
-        let registry_entry = PluginRegistryEntry {
-            plugin_id: plugin_id.clone(),
-            name: plugin_id.clone(),
-            version: extract_result.plugin_version.clone(),
-            abi_version: "2.0".to_string(),
-            description: Some(format!("Plugin {}", plugin_id)),
-            author: None,
-            license: None,
-            keywords: None,
-            dependencies: None,
-        };
-
-        let mut registry = self.registry.write().await;
-        registry.register(registry_entry)?;
-
-        // Step 4: Update plugin state
-        let mut plugins = self.plugins.write().await;
-        let state = PluginState {
-            id: plugin_id.clone(),
-            name: plugin_id.clone(),
-            version: extract_result.plugin_version.clone(),
-            status: PluginStatus::Installed,
-            artifact_path: Some(artifact_path),
-            install_path: Some(install_path.clone()),
-            dependencies: vec![],
-            health_status: None,
-            last_status_change: chrono::Utc::now(),
-            error_message: None,
-        };
-        plugins.insert(plugin_id.clone(), state);
-
-        let duration_ms = start.elapsed().as_millis() as u64;
-        info!(
-            "Installation complete for '{}' in {}ms",
-            plugin_id, duration_ms
-        );
-
-        Ok(InstallationResult {
-            plugin_id,
-            success: true,
-            install_path: Some(install_path),
-            error: None,
-            duration_ms,
-        })
     }
 
-    /// Install a plugin from a URL
+    /// Create a lifecycle manager wrapping an existing `PluginManager`.
     ///
-    /// This downloads the artifact first, then performs installation
-    pub async fn install_from_url(&self, url: &str) -> Result<InstallationResult> {
-        let start = std::time::Instant::now();
+    /// Useful when you need custom `PluginServices` configuration.
+    pub fn with_plugin_manager(config: LifecycleConfig, plugin_manager: PluginManager) -> Self {
+        Self {
+            plugin_manager,
+            plugins: Arc::new(RwLock::new(HashMap::new())),
+            loading_order: Arc::new(RwLock::new(Vec::new())),
+            config,
+        }
+    }
 
-        info!("Downloading plugin from: {}", url);
+    /// Get a reference to the underlying `PluginManager`.
+    pub fn plugin_manager(&self) -> &PluginManager {
+        &self.plugin_manager
+    }
 
-        // Extract filename from URL
-        let filename = url.rsplit('/').next().unwrap_or("plugin.tar.gz");
-        let artifact_path = self.config.artifacts_dir.join(filename);
+    // ========================================================================
+    // Discovery
+    // ========================================================================
 
-        // Update state to downloading
-        let temp_id = format!("download-{}", chrono::Utc::now().timestamp());
-        {
-            let mut plugins = self.plugins.write().await;
+    /// Discover plugins from the configured search paths.
+    ///
+    /// Scans the filesystem for plugin shared libraries and registers them
+    /// as `Discovered` in the plugin state map.
+    ///
+    /// Returns the number of plugins discovered.
+    pub async fn discover(&self) -> Result<usize> {
+        info!("Discovering plugins...");
+
+        let discovery = PluginDiscovery::new(self.config.discovery.clone());
+        let discovered = discovery.discover_plugins()?;
+
+        info!("Discovered {} plugins", discovered.len());
+
+        let mut plugins = self.plugins.write().await;
+        for dp in &discovered {
             plugins.insert(
-                temp_id.clone(),
+                dp.name.clone(),
                 PluginState {
-                    id: temp_id.clone(),
-                    name: temp_id.clone(),
-                    version: String::new(),
-                    status: PluginStatus::Downloading,
-                    artifact_path: Some(artifact_path.clone()),
-                    install_path: None,
-                    dependencies: vec![],
-                    health_status: None,
-                    last_status_change: chrono::Utc::now(),
-                    error_message: None,
+                    name: dp.name.clone(),
+                    abi_version: dp.abi_version.clone(),
+                    path: dp.path.clone(),
+                    status: PluginStatus::Discovered,
+                    dependencies: Vec::new(),
+                    loaded_at: None,
+                    error: None,
                 },
             );
         }
 
-        // Download the artifact
-        let client = reqwest::Client::new();
-        let response = client
-            .get(url)
-            .send()
-            .await
-            .with_context(|| format!("Downloading from {}", url))?;
-
-        if !response.status().is_success() {
-            let error = format!("Download failed with status: {}", response.status());
-            return Ok(InstallationResult {
-                plugin_id: String::new(),
-                success: false,
-                install_path: None,
-                error: Some(error),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
-
-        let bytes = response
-            .bytes()
-            .await
-            .with_context(|| "Reading download content")?;
-
-        std::fs::write(&artifact_path, &bytes)
-            .with_context(|| format!("Writing artifact to {:?}", artifact_path))?;
-
-        info!("Downloaded {} bytes to {:?}", bytes.len(), artifact_path);
-
-        // Now install from the downloaded artifact
-        self.install(&artifact_path).await
+        Ok(discovered.len())
     }
 
-    /// Activate a plugin
+    // ========================================================================
+    // Dependency Resolution
+    // ========================================================================
+
+    /// Resolve the loading order by probing plugin dependencies.
     ///
-    /// This performs the activation workflow:
-    /// 1. Check dependencies are satisfied
-    /// 2. Load plugin binary
-    /// 3. Initialize plugin
-    /// 4. Mark as active
-    pub async fn activate(&self, plugin_id: &str) -> Result<ActivationResult> {
-        let start = std::time::Instant::now();
+    /// For each discovered plugin, probes the shared library to extract
+    /// dependency metadata, then performs a topological sort to determine
+    /// the correct loading order (dependencies before dependents).
+    ///
+    /// Returns the ordered list of plugin names.
+    pub async fn resolve_dependencies(&self) -> Result<Vec<String>> {
+        info!("Resolving plugin dependencies...");
 
-        info!("Activating plugin: {}", plugin_id);
+        let plugins = self.plugins.read().await;
+        let mut resolver = PluginDependencyResolver::new();
+        let mut dep_map: HashMap<String, Vec<String>> = HashMap::new();
 
-        // Get current state and install path
-        let (install_path, dependencies) = {
-            let plugins = self.plugins.read().await;
-            let state = plugins
-                .get(plugin_id)
-                .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
-
-            // Check if already active
-            if state.status == PluginStatus::Active {
-                return Ok(ActivationResult {
-                    plugin_id: plugin_id.to_string(),
-                    success: true,
-                    resolved_dependencies: state.dependencies.clone(),
-                    error: None,
-                    duration_ms: 0,
-                });
+        for (name, state) in plugins.iter() {
+            if state.status != PluginStatus::Discovered {
+                continue;
             }
 
-            let install_path = state
-                .install_path
-                .clone()
-                .ok_or_else(|| anyhow!("Plugin '{}' not installed", plugin_id))?;
-
-            (install_path, state.dependencies.clone())
-        };
-
-        // Update status to activating
-        {
-            let mut plugins = self.plugins.write().await;
-            if let Some(state) = plugins.get_mut(plugin_id) {
-                state.status = PluginStatus::Activating;
-                state.last_status_change = chrono::Utc::now();
-            }
-        }
-
-        // Resolve dependencies
-        let mut resolved_deps = Vec::new();
-        if self.config.check_dependencies && !dependencies.is_empty() {
-            debug!("Checking dependencies for {}", plugin_id);
-            let plugins = self.plugins.read().await;
-            for dep_id in &dependencies {
-                if let Some(dep_state) = plugins.get(dep_id) {
-                    if dep_state.status != PluginStatus::Active {
-                        let error = format!("Dependency '{}' is not active", dep_id);
-                        drop(plugins);
-                        {
-                            let mut plugins = self.plugins.write().await;
-                            if let Some(state) = plugins.get_mut(plugin_id) {
-                                state.status = PluginStatus::Error(error.clone());
-                                state.error_message = Some(error.clone());
-                            }
+            let (deps, version) = match AbiV2PluginLoader::load(&state.path) {
+                Ok(loader) => {
+                    let deps: Vec<String> = match loader.get_dependencies() {
+                        Ok(entries) => entries
+                            .into_iter()
+                            .filter(|d| d.required)
+                            .map(|d| match d.version_range {
+                                Some(ver) => format!("{}@{}", d.name, ver),
+                                None => d.name,
+                            })
+                            .collect(),
+                        Err(e) => {
+                            warn!("Could not read dependencies for plugin '{}': {}", name, e);
+                            vec![]
                         }
-                        return Ok(ActivationResult {
-                            plugin_id: plugin_id.to_string(),
-                            success: false,
-                            resolved_dependencies: vec![],
-                            error: Some(error),
-                            duration_ms: start.elapsed().as_millis() as u64,
-                        });
-                    }
-                    resolved_deps.push(dep_id.clone());
-                } else {
-                    let error = format!("Dependency '{}' not found", dep_id);
-                    drop(plugins);
-                    {
-                        let mut plugins = self.plugins.write().await;
-                        if let Some(state) = plugins.get_mut(plugin_id) {
-                            state.status = PluginStatus::Error(error.clone());
-                            state.error_message = Some(error.clone());
-                        }
-                    }
-                    return Ok(ActivationResult {
-                        plugin_id: plugin_id.to_string(),
-                        success: false,
-                        resolved_dependencies: vec![],
-                        error: Some(error),
-                        duration_ms: start.elapsed().as_millis() as u64,
-                    });
+                    };
+                    let version = loader.get_info().ok().map(|m| m.version);
+                    (deps, version)
                 }
-            }
+                Err(e) => {
+                    warn!("Could not probe plugin '{}' for dependencies: {}", name, e);
+                    (vec![], None)
+                }
+            };
+
+            dep_map.insert(name.clone(), deps.clone());
+            resolver.register_plugin(name, &state.abi_version, deps, version.as_deref());
         }
+        drop(plugins);
 
-        // Find plugin binary
-        let binary_path = self.find_plugin_binary(&install_path)?;
-
-        // Load plugin using ABI loader
-        debug!("Loading plugin binary: {:?}", binary_path);
-        match self.load_pipeline.load(&binary_path) {
-            Ok(load_result) => {
-                if load_result.success {
-                    info!("Plugin '{}' loaded successfully", plugin_id);
-
-                    // Update state
-                    let mut plugins = self.plugins.write().await;
-                    if let Some(state) = plugins.get_mut(plugin_id) {
-                        state.status = PluginStatus::Active;
-                        state.last_status_change = chrono::Utc::now();
-                    }
-
-                    let duration_ms = start.elapsed().as_millis() as u64;
-                    info!(
-                        "Activation complete for '{}' in {}ms",
-                        plugin_id, duration_ms
-                    );
-
-                    Ok(ActivationResult {
-                        plugin_id: plugin_id.to_string(),
-                        success: true,
-                        resolved_dependencies: resolved_deps,
-                        error: None,
-                        duration_ms,
-                    })
-                } else {
-                    let error = format!("Load failed: {:?}", load_result.failed_stage());
-                    error!("{}", error);
-
-                    let mut plugins = self.plugins.write().await;
-                    if let Some(state) = plugins.get_mut(plugin_id) {
-                        state.status = PluginStatus::Error(error.clone());
-                        state.error_message = Some(error.clone());
-                    }
-
-                    Ok(ActivationResult {
-                        plugin_id: plugin_id.to_string(),
-                        success: false,
-                        resolved_dependencies: vec![],
-                        error: Some("Load failed".to_string()),
-                        duration_ms: start.elapsed().as_millis() as u64,
-                    })
-                }
+        let ordered = match resolver.resolve_loading_order() {
+            Ok(order) => {
+                let names: Vec<String> = order.into_iter().map(|(name, _)| name).collect();
+                info!(
+                    "Resolved loading order: {:?}",
+                    names.iter().map(|n| n.as_str()).collect::<Vec<_>>()
+                );
+                names
             }
             Err(e) => {
-                let error = format!("Load error: {}", e);
-                error!("{}", error);
+                warn!("Dependency resolution failed, using discovery order: {}", e);
+                let plugins = self.plugins.read().await;
+                plugins.keys().cloned().collect()
+            }
+        };
 
+        // Store dependencies on each plugin state
+        {
+            let mut plugins = self.plugins.write().await;
+            for (name, deps) in &dep_map {
+                if let Some(state) = plugins.get_mut(name) {
+                    state.dependencies = deps.clone();
+                }
+            }
+        }
+
+        // Store the loading order
+        {
+            let mut order = self.loading_order.write().await;
+            *order = ordered.clone();
+        }
+
+        Ok(ordered)
+    }
+
+    // ========================================================================
+    // Activation (Loading)
+    // ========================================================================
+
+    /// Activate all discovered plugins in dependency order.
+    ///
+    /// Calls `discover()` and `resolve_dependencies()` if not already done,
+    /// then loads each plugin via `PluginManager::load_plugin_instance_v2()`.
+    ///
+    /// Returns a summary of (loaded_count, failed_count).
+    pub async fn activate_all(&self) -> Result<(usize, usize)> {
+        // Discover if not done yet
+        {
+            let plugins = self.plugins.read().await;
+            if plugins.is_empty() {
+                drop(plugins);
+                self.discover().await?;
+            }
+        }
+
+        // Resolve dependencies if not done yet
+        let order = {
+            let current_order = self.loading_order.read().await;
+            if current_order.is_empty() {
+                drop(current_order);
+                self.resolve_dependencies().await?
+            } else {
+                current_order.clone()
+            }
+        };
+
+        info!("Activating {} plugins...", order.len());
+
+        let mut loaded = 0;
+        let mut failed = 0;
+
+        for name in &order {
+            let path = {
+                let plugins = self.plugins.read().await;
+                match plugins.get(name) {
+                    Some(state) => state.path.clone(),
+                    None => {
+                        warn!("Plugin '{}' in loading order but not in state map", name);
+                        continue;
+                    }
+                }
+            };
+
+            // Mark as loading
+            {
                 let mut plugins = self.plugins.write().await;
-                if let Some(state) = plugins.get_mut(plugin_id) {
-                    state.status = PluginStatus::Error(error.clone());
-                    state.error_message = Some(error.clone());
-                }
-
-                Ok(ActivationResult {
-                    plugin_id: plugin_id.to_string(),
-                    success: false,
-                    resolved_dependencies: vec![],
-                    error: Some(e.to_string()),
-                    duration_ms: start.elapsed().as_millis() as u64,
-                })
-            }
-        }
-    }
-
-    /// Deactivate a plugin
-    ///
-    /// This performs the deactivation workflow:
-    /// 1. Check if other plugins depend on this one
-    /// 2. Shutdown plugin
-    /// 3. Unload plugin
-    /// 4. Mark as deactivated
-    pub async fn deactivate(&self, plugin_id: &str) -> Result<DeactivationResult> {
-        let start = std::time::Instant::now();
-
-        info!("Deactivating plugin: {}", plugin_id);
-
-        // Check current status and get dependencies info
-        let dependents = {
-            let plugins = self.plugins.read().await;
-            let state = plugins
-                .get(plugin_id)
-                .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
-
-            // Check if already deactivated
-            if state.status != PluginStatus::Active {
-                return Ok(DeactivationResult {
-                    plugin_id: plugin_id.to_string(),
-                    success: true,
-                    error: None,
-                    duration_ms: 0,
-                });
-            }
-
-            // Check for dependents
-            plugins
-                .iter()
-                .filter(|(_, s)| {
-                    s.dependencies.contains(&plugin_id.to_string())
-                        && s.status == PluginStatus::Active
-                })
-                .map(|(id, _)| id.clone())
-                .collect::<Vec<String>>()
-        };
-
-        // Update status to deactivating
-        {
-            let mut plugins = self.plugins.write().await;
-            if let Some(state) = plugins.get_mut(plugin_id) {
-                state.status = PluginStatus::Deactivating;
-                state.last_status_change = chrono::Utc::now();
-            }
-        }
-
-        if !dependents.is_empty() {
-            let error = format!("Cannot deactivate: plugins {:?} depend on it", dependents);
-            let mut plugins = self.plugins.write().await;
-            if let Some(state) = plugins.get_mut(plugin_id) {
-                state.status = PluginStatus::Error(error.clone());
-                state.error_message = Some(error.clone());
-            }
-
-            return Ok(DeactivationResult {
-                plugin_id: plugin_id.to_string(),
-                success: false,
-                error: Some(format!("Dependent plugins: {:?}", dependents)),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
-
-        // Perform shutdown (would call plugin_shutdown in real implementation)
-        debug!("Shutting down plugin: {}", plugin_id);
-
-        // Update state
-        {
-            let mut plugins = self.plugins.write().await;
-            if let Some(state) = plugins.get_mut(plugin_id) {
-                state.status = PluginStatus::Deactivated;
-                state.health_status = None;
-                state.last_status_change = chrono::Utc::now();
-            }
-        }
-
-        let duration_ms = start.elapsed().as_millis() as u64;
-        info!(
-            "Deactivation complete for '{}' in {}ms",
-            plugin_id, duration_ms
-        );
-
-        Ok(DeactivationResult {
-            plugin_id: plugin_id.to_string(),
-            success: true,
-            error: None,
-            duration_ms,
-        })
-    }
-
-    /// Uninstall a plugin
-    ///
-    /// This performs the uninstallation workflow:
-    /// 1. Deactivate if active
-    /// 2. Remove plugin files
-    /// 3. Unregister from registry
-    /// 4. Remove state
-    pub async fn uninstall(&self, plugin_id: &str) -> Result<UninstallationResult> {
-        let start = std::time::Instant::now();
-
-        info!("Uninstalling plugin: {}", plugin_id);
-
-        // Deactivate first if needed
-        {
-            let plugins = self.plugins.read().await;
-            if let Some(state) = plugins.get(plugin_id) {
-                if state.status == PluginStatus::Active {
-                    drop(plugins);
-                    self.deactivate(plugin_id).await?;
+                if let Some(state) = plugins.get_mut(name) {
+                    state.status = PluginStatus::Loading;
                 }
             }
-        }
 
-        // Get install path before removing
-        let (install_path, version) = {
-            let mut plugins = self.plugins.write().await;
-            let state = plugins
-                .get_mut(plugin_id)
-                .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
+            match self
+                .plugin_manager
+                .load_plugin_instance_v2(name, &path)
+                .await
+            {
+                Ok(()) => {
+                    info!("Activated plugin: {}", name);
+                    let mut plugins = self.plugins.write().await;
+                    if let Some(state) = plugins.get_mut(name) {
+                        state.status = PluginStatus::Active;
+                        state.loaded_at = Some(chrono::Utc::now());
+                        state.error = None;
+                    }
+                    loaded += 1;
+                }
+                Err(e) => {
+                    let error_msg = format!("{}", e);
+                    warn!("Failed to activate plugin '{}': {}", name, error_msg);
+                    let mut plugins = self.plugins.write().await;
+                    if let Some(state) = plugins.get_mut(name) {
+                        state.status = PluginStatus::Failed(error_msg.clone());
+                        state.error = Some(error_msg);
+                    }
+                    failed += 1;
 
-            state.status = PluginStatus::Uninstalling;
-            state.last_status_change = chrono::Utc::now();
-
-            (state.install_path.clone(), state.version.clone())
-        };
-
-        // Remove plugin files
-        if let Some(ref path) = install_path {
-            debug!("Removing plugin directory: {:?}", path);
-            if path.exists() {
-                std::fs::remove_dir_all(path)
-                    .with_context(|| format!("Removing plugin directory: {:?}", path))?;
-            }
-        }
-
-        // Unregister from registry
-        {
-            let mut registry = self.registry.write().await;
-            registry.remove(plugin_id, &version)?;
-        }
-
-        // Remove state
-        {
-            let mut plugins = self.plugins.write().await;
-            plugins.remove(plugin_id);
-        }
-
-        let duration_ms = start.elapsed().as_millis() as u64;
-        info!(
-            "Uninstallation complete for '{}' in {}ms",
-            plugin_id, duration_ms
-        );
-
-        Ok(UninstallationResult {
-            plugin_id: plugin_id.to_string(),
-            success: true,
-            error: None,
-            duration_ms,
-        })
-    }
-
-    /// Run health check on all active plugins
-    pub async fn health_check_all(&self) -> Result<HashMap<String, String>> {
-        let mut results = HashMap::new();
-
-        let plugins = self.plugins.read().await;
-        for (plugin_id, state) in plugins.iter() {
-            if state.status == PluginStatus::Active {
-                if let Some(ref install_path) = state.install_path {
-                    if let Ok(binary_path) = self.find_plugin_binary(install_path) {
-                        let check_result = self.health_checker.check_binary_exists(&binary_path);
-                        results.insert(plugin_id.clone(), format!("{:?}", check_result));
+                    if !self.config.continue_on_failure {
+                        return Err(anyhow!(
+                            "Plugin '{}' failed to activate and continue_on_failure is false",
+                            name
+                        ));
                     }
                 }
             }
         }
 
-        Ok(results)
+        info!(
+            "Plugin activation complete: {} loaded, {} failed",
+            loaded, failed
+        );
+
+        Ok((loaded, failed))
     }
 
-    /// Get plugin state
-    pub async fn get_state(&self, plugin_id: &str) -> Option<PluginState> {
+    /// Activate a single plugin by name.
+    ///
+    /// The plugin must already be in `Discovered` state (via `discover()`).
+    /// Does NOT check dependencies -- use `activate_all()` for dependency ordering.
+    pub async fn activate(&self, plugin_name: &str) -> Result<()> {
+        let path = {
+            let plugins = self.plugins.read().await;
+            let state = plugins
+                .get(plugin_name)
+                .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_name))?;
+
+            if state.status == PluginStatus::Active {
+                return Ok(()); // Already active
+            }
+
+            state.path.clone()
+        };
+
+        // Mark as loading
+        {
+            let mut plugins = self.plugins.write().await;
+            if let Some(state) = plugins.get_mut(plugin_name) {
+                state.status = PluginStatus::Loading;
+            }
+        }
+
+        match self
+            .plugin_manager
+            .load_plugin_instance_v2(plugin_name, &path)
+            .await
+        {
+            Ok(()) => {
+                let mut plugins = self.plugins.write().await;
+                if let Some(state) = plugins.get_mut(plugin_name) {
+                    state.status = PluginStatus::Active;
+                    state.loaded_at = Some(chrono::Utc::now());
+                    state.error = None;
+                }
+                info!("Activated plugin: {}", plugin_name);
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("{}", e);
+                let mut plugins = self.plugins.write().await;
+                if let Some(state) = plugins.get_mut(plugin_name) {
+                    state.status = PluginStatus::Failed(error_msg.clone());
+                    state.error = Some(error_msg.clone());
+                }
+                Err(anyhow!(
+                    "Failed to activate plugin '{}': {}",
+                    plugin_name,
+                    error_msg
+                ))
+            }
+        }
+    }
+
+    // ========================================================================
+    // Deactivation (Shutdown)
+    // ========================================================================
+
+    /// Shut down all active plugins in reverse dependency order.
+    ///
+    /// Plugins that depend on others are shut down first, then their
+    /// dependencies.
+    pub async fn shutdown_all(&self) {
+        let order = {
+            let order = self.loading_order.read().await;
+            let mut reversed = order.clone();
+            reversed.reverse(); // Dependents before dependencies
+            reversed
+        };
+
+        info!("Shutting down {} plugins...", order.len());
+
+        for name in &order {
+            let should_shutdown = {
+                let plugins = self.plugins.read().await;
+                matches!(
+                    plugins.get(name).map(|s| &s.status),
+                    Some(PluginStatus::Active)
+                )
+            };
+
+            if should_shutdown {
+                // Mark as shutting down
+                {
+                    let mut plugins = self.plugins.write().await;
+                    if let Some(state) = plugins.get_mut(name) {
+                        state.status = PluginStatus::ShuttingDown;
+                    }
+                }
+
+                match self.plugin_manager.unload_plugin(name).await {
+                    Ok(()) => {
+                        info!("Shut down plugin: {}", name);
+                        let mut plugins = self.plugins.write().await;
+                        if let Some(state) = plugins.get_mut(name) {
+                            state.status = PluginStatus::Stopped;
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error shutting down plugin '{}': {}", name, e);
+                        let mut plugins = self.plugins.write().await;
+                        if let Some(state) = plugins.get_mut(name) {
+                            state.status = PluginStatus::Failed(format!("Shutdown error: {}", e));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also shut down any plugins not in the loading order (shouldn't happen,
+        // but be defensive)
+        self.plugin_manager.shutdown_all().await;
+
+        info!("All plugins shut down");
+    }
+
+    /// Deactivate a single plugin by name.
+    ///
+    /// Does NOT check for active dependents -- the caller must ensure
+    /// no other active plugin depends on this one.
+    pub async fn deactivate(&self, plugin_name: &str) -> Result<()> {
+        {
+            let plugins = self.plugins.read().await;
+            let state = plugins
+                .get(plugin_name)
+                .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_name))?;
+
+            if state.status != PluginStatus::Active {
+                return Ok(()); // Not active, nothing to do
+            }
+        }
+
+        // Check if any active plugin depends on this one
+        {
+            let plugins = self.plugins.read().await;
+            let dependents: Vec<String> = plugins
+                .iter()
+                .filter(|(_, s)| {
+                    s.status == PluginStatus::Active
+                        && s.dependencies.iter().any(|d| {
+                            // Dependencies may include version suffixes like "foo@1.0"
+                            d == plugin_name || d.starts_with(&format!("{}@", plugin_name))
+                        })
+                })
+                .map(|(name, _)| name.clone())
+                .collect();
+
+            if !dependents.is_empty() {
+                return Err(anyhow!(
+                    "Cannot deactivate '{}': active plugins depend on it: {:?}",
+                    plugin_name,
+                    dependents
+                ));
+            }
+        }
+
+        // Mark as shutting down
+        {
+            let mut plugins = self.plugins.write().await;
+            if let Some(state) = plugins.get_mut(plugin_name) {
+                state.status = PluginStatus::ShuttingDown;
+            }
+        }
+
+        match self.plugin_manager.unload_plugin(plugin_name).await {
+            Ok(()) => {
+                let mut plugins = self.plugins.write().await;
+                if let Some(state) = plugins.get_mut(plugin_name) {
+                    state.status = PluginStatus::Stopped;
+                }
+                info!("Deactivated plugin: {}", plugin_name);
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("{}", e);
+                let mut plugins = self.plugins.write().await;
+                if let Some(state) = plugins.get_mut(plugin_name) {
+                    state.status = PluginStatus::Failed(format!("Shutdown error: {}", error_msg));
+                }
+                Err(anyhow!(
+                    "Failed to deactivate plugin '{}': {}",
+                    plugin_name,
+                    error_msg
+                ))
+            }
+        }
+    }
+
+    // ========================================================================
+    // Status Queries
+    // ========================================================================
+
+    /// Get the state of a specific plugin.
+    pub async fn get_state(&self, plugin_name: &str) -> Option<PluginState> {
         let plugins = self.plugins.read().await;
-        plugins.get(plugin_id).cloned()
+        plugins.get(plugin_name).cloned()
     }
 
-    /// List all plugins with their states
+    /// List all tracked plugins with their states.
     pub async fn list_plugins(&self) -> Vec<PluginState> {
         let plugins = self.plugins.read().await;
         plugins.values().cloned().collect()
     }
 
-    /// Get plugins by status
-    pub async fn get_plugins_by_status(&self, status: PluginStatus) -> Vec<PluginState> {
+    /// Get all plugins with a specific status.
+    pub async fn get_plugins_by_status(&self, status: &PluginStatus) -> Vec<PluginState> {
         let plugins = self.plugins.read().await;
         plugins
             .values()
-            .filter(|s| s.status == status)
+            .filter(|s| &s.status == status)
             .cloned()
             .collect()
     }
 
-    /// Find the plugin binary in the install directory
-    fn find_plugin_binary(&self, install_path: &Path) -> Result<PathBuf> {
-        // Common plugin binary names
-        let binary_names = ["plugin.so", "plugin.dylib", "plugin.dll", "libplugin.so"];
-
-        for name in &binary_names {
-            let binary_path = install_path.join(name);
-            if binary_path.exists() {
-                return Ok(binary_path);
-            }
+    /// Get a summary of plugin counts by status.
+    pub async fn status_summary(&self) -> HashMap<String, usize> {
+        let plugins = self.plugins.read().await;
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for state in plugins.values() {
+            let key = match &state.status {
+                PluginStatus::Discovered => "discovered",
+                PluginStatus::Loading => "loading",
+                PluginStatus::Active => "active",
+                PluginStatus::Failed(_) => "failed",
+                PluginStatus::ShuttingDown => "shutting_down",
+                PluginStatus::Stopped => "stopped",
+            };
+            *counts.entry(key.to_string()).or_insert(0) += 1;
         }
+        counts
+    }
 
-        // Look for any .so/.dylib/.dll file
-        for entry in std::fs::read_dir(install_path)? {
-            let entry = entry?;
-            let path = entry.path();
-            if let Some(ext) = path.extension() {
-                if ext == "so" || ext == "dylib" || ext == "dll" {
-                    return Ok(path);
-                }
-            }
-        }
+    /// Get the loading order (dependencies first).
+    pub async fn loading_order(&self) -> Vec<String> {
+        self.loading_order.read().await.clone()
+    }
 
-        Err(anyhow!("No plugin binary found in {:?}", install_path))
+    /// Get the count of active plugins.
+    pub async fn active_count(&self) -> usize {
+        let plugins = self.plugins.read().await;
+        plugins
+            .values()
+            .filter(|s| s.status == PluginStatus::Active)
+            .count()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_lifecycle_config_default() {
         let config = LifecycleConfig::default();
-        assert!(config.plugins_dir.to_str().unwrap().contains("plugins"));
-        assert!(!config.auto_activate);
-        assert!(config.verify_signatures);
-    }
-
-    #[tokio::test]
-    async fn test_lifecycle_config_builder() {
-        let config = LifecycleConfig::new("/custom/plugins")
-            .with_auto_activate()
-            .without_signature_verification()
-            .with_health_check_interval(120);
-
-        assert_eq!(config.plugins_dir, PathBuf::from("/custom/plugins"));
-        assert!(config.auto_activate);
-        assert!(!config.verify_signatures);
-        assert_eq!(config.health_check_interval_secs, 120);
-    }
-
-    #[tokio::test]
-    async fn test_plugin_status_display() {
-        assert_eq!(format!("{}", PluginStatus::Active), "Active");
-        assert_eq!(format!("{}", PluginStatus::Installed), "Installed");
-        assert!(format!("{}", PluginStatus::Error("test".to_string())).contains("test"));
+        assert!(config.continue_on_failure);
+        assert_eq!(config.health_check_interval_secs, 0);
     }
 
     #[tokio::test]
     async fn test_lifecycle_manager_creation() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
+        let config = LifecycleConfig::default();
         let manager = PluginLifecycleManager::new(config);
-        assert!(manager.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_list_plugins_empty() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
-
         let plugins = manager.list_plugins().await;
         assert!(plugins.is_empty());
     }
 
     #[tokio::test]
-    async fn test_get_nonexistent_plugin() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
+    async fn test_lifecycle_manager_with_plugin_manager() {
+        let config = LifecycleConfig::default();
+        let pm = PluginManager::new();
+        let manager = PluginLifecycleManager::with_plugin_manager(config, pm);
+        let plugins = manager.list_plugins().await;
+        assert!(plugins.is_empty());
+    }
 
+    #[tokio::test]
+    async fn test_plugin_status_display() {
+        assert_eq!(format!("{}", PluginStatus::Active), "Active");
+        assert_eq!(format!("{}", PluginStatus::Discovered), "Discovered");
+        assert_eq!(format!("{}", PluginStatus::Loading), "Loading");
+        assert_eq!(format!("{}", PluginStatus::Stopped), "Stopped");
+        assert_eq!(format!("{}", PluginStatus::ShuttingDown), "ShuttingDown");
+        assert!(format!("{}", PluginStatus::Failed("test".to_string())).contains("test"));
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent_plugin() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
         let state = manager.get_state("nonexistent").await;
         assert!(state.is_none());
     }
 
     #[tokio::test]
-    async fn test_activate_nonexistent_plugin() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
-
-        let result = manager.activate("nonexistent").await;
-        assert!(result.is_err());
+    async fn test_status_summary_empty() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
+        let summary = manager.status_summary().await;
+        assert!(summary.is_empty());
     }
 
     #[tokio::test]
-    async fn test_deactivate_nonexistent_plugin() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
+    async fn test_active_count_empty() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
+        assert_eq!(manager.active_count().await, 0);
+    }
 
+    #[tokio::test]
+    async fn test_loading_order_empty() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
+        let order = manager.loading_order().await;
+        assert!(order.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_all_empty() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
+        // Should not panic on empty
+        manager.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn test_deactivate_nonexistent() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
         let result = manager.deactivate("nonexistent").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
-    async fn test_uninstall_nonexistent_plugin() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
-
-        let result = manager.uninstall("nonexistent").await;
+    async fn test_activate_nonexistent() {
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
+        let result = manager.activate("nonexistent").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
-    async fn test_plugin_state_timestamp() {
-        let before = chrono::Utc::now();
-        let state = PluginState {
-            id: "test".to_string(),
-            name: "test".to_string(),
-            version: "1.0.0".to_string(),
-            status: PluginStatus::Installed,
-            artifact_path: None,
-            install_path: None,
-            dependencies: vec![],
-            health_status: None,
-            last_status_change: chrono::Utc::now(),
-            error_message: None,
-        };
-        let after = chrono::Utc::now();
-
-        assert!(state.last_status_change >= before);
-        assert!(state.last_status_change <= after);
-    }
-
-    #[tokio::test]
     async fn test_get_plugins_by_status() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
+        let config = LifecycleConfig::default();
+        let manager = PluginLifecycleManager::new(config);
 
-        // Manually insert some plugins
+        // Manually insert some plugins for testing
         {
             let mut plugins = manager.plugins.write().await;
             plugins.insert(
                 "plugin1".to_string(),
                 PluginState {
-                    id: "plugin1".to_string(),
                     name: "plugin1".to_string(),
-                    version: "1.0.0".to_string(),
+                    abi_version: "v2".to_string(),
+                    path: PathBuf::from("/tmp/plugin1.so"),
                     status: PluginStatus::Active,
-                    artifact_path: None,
-                    install_path: None,
                     dependencies: vec![],
-                    health_status: None,
-                    last_status_change: chrono::Utc::now(),
-                    error_message: None,
+                    loaded_at: Some(chrono::Utc::now()),
+                    error: None,
                 },
             );
             plugins.insert(
                 "plugin2".to_string(),
                 PluginState {
-                    id: "plugin2".to_string(),
                     name: "plugin2".to_string(),
-                    version: "1.0.0".to_string(),
-                    status: PluginStatus::Installed,
-                    artifact_path: None,
-                    install_path: None,
+                    abi_version: "v2".to_string(),
+                    path: PathBuf::from("/tmp/plugin2.so"),
+                    status: PluginStatus::Discovered,
                     dependencies: vec![],
-                    health_status: None,
-                    last_status_change: chrono::Utc::now(),
-                    error_message: None,
+                    loaded_at: None,
+                    error: None,
+                },
+            );
+            plugins.insert(
+                "plugin3".to_string(),
+                PluginState {
+                    name: "plugin3".to_string(),
+                    abi_version: "v2".to_string(),
+                    path: PathBuf::from("/tmp/plugin3.so"),
+                    status: PluginStatus::Failed("load error".to_string()),
+                    dependencies: vec![],
+                    loaded_at: None,
+                    error: Some("load error".to_string()),
                 },
             );
         }
 
-        let active = manager.get_plugins_by_status(PluginStatus::Active).await;
+        let active = manager.get_plugins_by_status(&PluginStatus::Active).await;
         assert_eq!(active.len(), 1);
-        assert_eq!(active[0].id, "plugin1");
+        assert_eq!(active[0].name, "plugin1");
 
-        let installed = manager.get_plugins_by_status(PluginStatus::Installed).await;
-        assert_eq!(installed.len(), 1);
-        assert_eq!(installed[0].id, "plugin2");
-    }
+        let discovered = manager
+            .get_plugins_by_status(&PluginStatus::Discovered)
+            .await;
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(discovered[0].name, "plugin2");
 
-    #[tokio::test]
-    async fn test_installation_result_success() {
-        let result = InstallationResult {
-            plugin_id: "test".to_string(),
-            success: true,
-            install_path: Some(PathBuf::from("/plugins/test")),
-            error: None,
-            duration_ms: 100,
-        };
+        let all = manager.list_plugins().await;
+        assert_eq!(all.len(), 3);
 
-        assert!(result.success);
-        assert!(result.install_path.is_some());
-        assert!(result.error.is_none());
-    }
+        let summary = manager.status_summary().await;
+        assert_eq!(summary.get("active"), Some(&1));
+        assert_eq!(summary.get("discovered"), Some(&1));
+        assert_eq!(summary.get("failed"), Some(&1));
 
-    #[tokio::test]
-    async fn test_activation_result_success() {
-        let result = ActivationResult {
-            plugin_id: "test".to_string(),
-            success: true,
-            resolved_dependencies: vec!["dep1".to_string()],
-            error: None,
-            duration_ms: 50,
-        };
-
-        assert!(result.success);
-        assert_eq!(result.resolved_dependencies.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_deactivation_result_success() {
-        let result = DeactivationResult {
-            plugin_id: "test".to_string(),
-            success: true,
-            error: None,
-            duration_ms: 30,
-        };
-
-        assert!(result.success);
-    }
-
-    #[tokio::test]
-    async fn test_uninstallation_result_success() {
-        let result = UninstallationResult {
-            plugin_id: "test".to_string(),
-            success: true,
-            error: None,
-            duration_ms: 20,
-        };
-
-        assert!(result.success);
-    }
-
-    #[tokio::test]
-    async fn test_health_check_all_empty() {
-        let temp_dir = tempdir().unwrap();
-        let config = LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = PluginLifecycleManager::new(config).unwrap();
-
-        let results = manager.health_check_all().await;
-        assert!(results.expect("health check should succeed").is_empty());
+        assert_eq!(manager.active_count().await, 1);
     }
 }

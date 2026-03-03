@@ -107,8 +107,12 @@ pub struct ToolParameters {
 impl ToolParameters {
     /// Create tool parameters from JSON schema
     pub fn json_schema(schema: &str) -> Result<Self, PluginCommonError> {
-        serde_json::from_str(schema)
-            .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to parse tool parameters: {}", e)))
+        serde_json::from_str(schema).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!(
+                "Failed to parse tool parameters: {}",
+                e
+            ))
+        })
     }
 
     /// Create simple tool parameters
@@ -227,15 +231,20 @@ impl FunctionCall {
     pub fn new(name: &str, arguments: &serde_json::Value) -> Result<Self, PluginCommonError> {
         Ok(Self {
             name: name.to_string(),
-            arguments: serde_json::to_string(arguments)
-                .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to serialize arguments: {}", e)))?,
+            arguments: serde_json::to_string(arguments).map_err(|e| {
+                PluginCommonError::SerializationFailed(format!(
+                    "Failed to serialize arguments: {}",
+                    e
+                ))
+            })?,
         })
     }
 
     /// Parse arguments to a specific type
     pub fn parse_arguments<T: for<'de> Deserialize<'de>>(&self) -> Result<T, PluginCommonError> {
-        serde_json::from_str(&self.arguments)
-            .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to parse arguments: {}", e)))
+        serde_json::from_str(&self.arguments).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!("Failed to parse arguments: {}", e))
+        })
     }
 }
 
@@ -423,7 +432,10 @@ pub trait LLMProvider: Send + Sync {
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, LLMError>;
 
     /// Generate a streaming completion response
-    async fn complete_stream(&self, request: CompletionRequest) -> Result<BoxStream<CompletionChunk>, LLMError>;
+    async fn complete_stream(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<BoxStream<CompletionChunk>, LLMError>;
 
     /// List available models
     async fn list_models(&self) -> Result<Vec<ModelInfo>, LLMError>;
@@ -433,7 +445,8 @@ pub trait LLMProvider: Send + Sync {
 
     /// Check if a model is available
     async fn is_model_available(&self, model_id: &str) -> bool {
-        self.list_models().await
+        self.list_models()
+            .await
             .map(|models| models.iter().any(|m| m.id == model_id))
             .unwrap_or(false)
     }
@@ -580,7 +593,9 @@ impl LLMRegistry {
     pub async fn get_default_provider(&self) -> Result<Arc<dyn LLMProvider>, LLMError> {
         let default_name = self.default_provider.read().await;
         if let Some(name) = default_name.as_ref() {
-            self.get_provider(name).await.ok_or_else(|| LLMError::provider(format!("Default provider '{}' unavailable", name)))
+            self.get_provider(name).await.ok_or_else(|| {
+                LLMError::provider(format!("Default provider '{}' unavailable", name))
+            })
         } else {
             Err(LLMError::provider("No default provider set".to_string()))
         }
@@ -652,17 +667,19 @@ mod tests {
         let parameters = ToolParameters::simple(
             "object",
             HashMap::from([
-                ("query".to_string(), ToolProperty::string(Some("Search query"))),
-                ("limit".to_string(), ToolProperty::integer(Some("Result limit")))
+                (
+                    "query".to_string(),
+                    ToolProperty::string(Some("Search query")),
+                ),
+                (
+                    "limit".to_string(),
+                    ToolProperty::integer(Some("Result limit")),
+                ),
             ]),
             vec!["query".to_string()],
         );
 
-        let tool = create_tool_definition(
-            "search",
-            "Search for information",
-            parameters,
-        );
+        let tool = create_tool_definition("search", "Search for information", parameters);
 
         assert_eq!(tool.name, "search");
         assert_eq!(tool.description, "Search for information");
@@ -708,7 +725,9 @@ mod tests {
         assert_eq!(string_prop.property_type, "string");
         assert_eq!(string_prop.description, Some("A string input".to_string()));
 
-        let int_prop = ToolProperty::integer(None).with_minimum(0.0).with_maximum(100.0);
+        let int_prop = ToolProperty::integer(None)
+            .with_minimum(0.0)
+            .with_maximum(100.0);
         assert_eq!(int_prop.property_type, "integer");
         assert_eq!(int_prop.minimum, Some(0.0));
         assert_eq!(int_prop.maximum, Some(100.0));
@@ -717,13 +736,20 @@ mod tests {
             vec!["low".to_string(), "medium".to_string(), "high".to_string()],
             Some("Priority level"),
         );
-        assert_eq!(enum_prop.enum_values, Some(vec!["low".to_string(), "medium".to_string(), "high".to_string()]));
+        assert_eq!(
+            enum_prop.enum_values,
+            Some(vec![
+                "low".to_string(),
+                "medium".to_string(),
+                "high".to_string()
+            ])
+        );
     }
 
     #[tokio::test]
     async fn test_llm_registry() {
         let registry = LLMRegistry::new();
-        
+
         // Test listing providers (should be empty)
         let providers = registry.list_providers().await;
         assert!(providers.is_empty());

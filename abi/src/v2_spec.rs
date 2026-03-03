@@ -659,7 +659,6 @@ pub struct PluginApiV2 {
     // ========================================================================
     // State Transfer for Epoch-Based Hot Reload
     // ========================================================================
-
     /// Serialize plugin state for hot-reload - Optional
     ///
     /// If implemented, the engine will call this before unloading the plugin

@@ -40,9 +40,10 @@ impl MockKubernetesClient {
             metadata: KubernetesMetadata {
                 name: "node-1".to_string(),
                 namespace: None,
-                labels: Some(HashMap::from([
-                    ("kubernetes.io/hostname".to_string(), "node-1".to_string()),
-                ])),
+                labels: Some(HashMap::from([(
+                    "kubernetes.io/hostname".to_string(),
+                    "node-1".to_string(),
+                )])),
                 annotations: None,
                 creation_timestamp: Some(Utc::now()),
                 generation: None,
@@ -191,7 +192,10 @@ impl KubernetesClient for MockKubernetesClient {
 
     async fn exec_in_pod(&self, _namespace: &str, name: &str, command: &str) -> Result<String> {
         // Mock exec result
-        Ok(format!("Mock exec result for pod {} with command: {}", name, command))
+        Ok(format!(
+            "Mock exec result for pod {} with command: {}",
+            name, command
+        ))
     }
 
     async fn get_deployments(&self, _namespace: &str) -> Result<Vec<Deployment>> {
@@ -201,10 +205,17 @@ impl KubernetesClient for MockKubernetesClient {
 
     async fn get_deployment(&self, _namespace: &str, name: &str) -> Result<Option<Deployment>> {
         let deployments = self.deployments.read().await;
-        Ok(deployments.iter().find(|d| d.metadata.name == name).cloned())
+        Ok(deployments
+            .iter()
+            .find(|d| d.metadata.name == name)
+            .cloned())
     }
 
-    async fn create_deployment(&self, _namespace: &str, deployment: &Deployment) -> Result<Deployment> {
+    async fn create_deployment(
+        &self,
+        _namespace: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment> {
         let mut deployments = self.deployments.write().await;
         let mut new_deployment = deployment.clone();
         new_deployment.metadata.creation_timestamp = Some(Utc::now());
@@ -212,7 +223,12 @@ impl KubernetesClient for MockKubernetesClient {
         Ok(new_deployment)
     }
 
-    async fn update_deployment(&self, _namespace: &str, name: &str, deployment: &Deployment) -> Result<Deployment> {
+    async fn update_deployment(
+        &self,
+        _namespace: &str,
+        name: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment> {
         let mut deployments = self.deployments.write().await;
         if let Some(index) = deployments.iter().position(|d| d.metadata.name == name) {
             let mut updated_deployment = deployment.clone();
@@ -229,7 +245,12 @@ impl KubernetesClient for MockKubernetesClient {
         Ok(())
     }
 
-    async fn scale_deployment(&self, namespace: &str, name: &str, replicas: i32) -> Result<Deployment> {
+    async fn scale_deployment(
+        &self,
+        namespace: &str,
+        name: &str,
+        replicas: i32,
+    ) -> Result<Deployment> {
         let deployments = self.deployments.read().await;
         if let Some(deployment) = deployments.iter().find(|d| d.metadata.name == name) {
             let mut updated_deployment = deployment.clone();
@@ -237,8 +258,10 @@ impl KubernetesClient for MockKubernetesClient {
                 spec.replicas = Some(replicas);
             }
             drop(deployments);
-            
-            return self.update_deployment(namespace, name, &updated_deployment).await;
+
+            return self
+                .update_deployment(namespace, name, &updated_deployment)
+                .await;
         }
         Err(KubernetesError::not_found(format!("deployment {} not found", name)).into())
     }
@@ -261,7 +284,12 @@ impl KubernetesClient for MockKubernetesClient {
         Ok(new_service)
     }
 
-    async fn update_service(&self, _namespace: &str, name: &str, service: &Service) -> Result<Service> {
+    async fn update_service(
+        &self,
+        _namespace: &str,
+        name: &str,
+        service: &Service,
+    ) -> Result<Service> {
         let mut services = self.services.write().await;
         if let Some(index) = services.iter().position(|s| s.metadata.name == name) {
             let mut updated_service = service.clone();
@@ -296,7 +324,12 @@ impl KubernetesClient for MockKubernetesClient {
         Ok(new_configmap)
     }
 
-    async fn update_configmap(&self, _namespace: &str, name: &str, configmap: &ConfigMap) -> Result<ConfigMap> {
+    async fn update_configmap(
+        &self,
+        _namespace: &str,
+        name: &str,
+        configmap: &ConfigMap,
+    ) -> Result<ConfigMap> {
         let mut configmaps = self.configmaps.write().await;
         if let Some(index) = configmaps.iter().position(|c| c.metadata.name == name) {
             let mut updated_configmap = configmap.clone();
@@ -348,7 +381,11 @@ impl KubernetesClient for MockKubernetesClient {
         Ok(())
     }
 
-    async fn apply_resource(&self, _namespace: &str, resource: &KubernetesResource) -> Result<KubernetesResource> {
+    async fn apply_resource(
+        &self,
+        _namespace: &str,
+        resource: &KubernetesResource,
+    ) -> Result<KubernetesResource> {
         // Mock apply - return the resource with updated metadata
         let mut applied_resource = resource.clone();
         applied_resource.metadata.creation_timestamp = Some(Utc::now());
@@ -392,46 +429,68 @@ impl HttpKubernetesClient {
         }
     }
 
-    fn make_request(&self, method: &str, path: &str, body: Option<&serde_json::Value>) -> Result<serde_json::Value, KubernetesError> {
-        let base = self.base_url.as_ref().ok_or_else(|| KubernetesError::configuration("Base URL not set"))?;
-        let token = self.token.as_ref().ok_or_else(|| KubernetesError::configuration("Token not set"))?;
-        
+    fn make_request(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value, KubernetesError> {
+        let base = self
+            .base_url
+            .as_ref()
+            .ok_or_else(|| KubernetesError::configuration("Base URL not set"))?;
+        let token = self
+            .token
+            .as_ref()
+            .ok_or_else(|| KubernetesError::configuration("Token not set"))?;
+
         let url = format!("{}{}", base, path);
         let agent = ureq::AgentBuilder::new().build();
-        
+
         let response = match method {
-            "GET" => agent.get(&url)
+            "GET" => agent
+                .get(&url)
                 .set("Authorization", &format!("Bearer {}", token))
                 .call()?,
             "POST" => {
-                let body = body.ok_or_else(|| KubernetesError::configuration("Request body required"))?;
-                agent.post(&url)
+                let body =
+                    body.ok_or_else(|| KubernetesError::configuration("Request body required"))?;
+                agent
+                    .post(&url)
                     .set("Authorization", &format!("Bearer {}", token))
                     .set("Content-Type", "application/json")
                     .send_string(&body.to_string())?
             }
             "PUT" => {
-                let body = body.ok_or_else(|| KubernetesError::configuration("Request body required"))?;
-                agent.put(&url)
+                let body =
+                    body.ok_or_else(|| KubernetesError::configuration("Request body required"))?;
+                agent
+                    .put(&url)
                     .set("Authorization", &format!("Bearer {}", token))
                     .set("Content-Type", "application/json")
                     .send_string(&body.to_string())?
             }
-            "DELETE" => agent.delete(&url)
+            "DELETE" => agent
+                .delete(&url)
                 .set("Authorization", &format!("Bearer {}", token))
                 .call()?,
-            _ => return Err(KubernetesError::configuration(format!("Unsupported method: {}", method))),
+            _ => {
+                return Err(KubernetesError::configuration(format!(
+                    "Unsupported method: {}",
+                    method
+                )))
+            }
         };
-        
-        let body = response.into_string().map_err(|e| KubernetesError::api(format!("Failed to read response: {}", e)))?;
-        serde_json::from_str::<serde_json::Value>(&body).map_err(|e| KubernetesError::api(format!("Failed to parse response: {}", e)))
+
+        let body = response
+            .into_string()
+            .map_err(|e| KubernetesError::api(format!("Failed to read response: {}", e)))?;
+        serde_json::from_str::<serde_json::Value>(&body)
+            .map_err(|e| KubernetesError::api(format!("Failed to parse response: {}", e)))
     }
 
     fn get_items_array(response: &serde_json::Value) -> Vec<serde_json::Value> {
-        response["items"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        response["items"].as_array().cloned().unwrap_or_default()
     }
 }
 
@@ -439,14 +498,15 @@ impl HttpKubernetesClient {
 impl KubernetesClient for HttpKubernetesClient {
     async fn initialize(&mut self, config: KubernetesConfig) -> Result<()> {
         self.config = Some(config.clone());
-        
+
         // Build base URL from config
-        let api_server = config.api_server
+        let api_server = config
+            .api_server
             .unwrap_or_else(|| "https://kubernetes.default.svc".to_string());
-        
+
         self.base_url = Some(format!("{}/api/v1", api_server));
         self.token = config.token;
-        
+
         Ok(())
     }
 
@@ -490,7 +550,8 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", "/namespaces", None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                Ok(items.iter()
+                Ok(items
+                    .iter()
                     .filter_map(|item| item["metadata"]["name"].as_str())
                     .map(|s| s.to_string())
                     .collect())
@@ -504,9 +565,14 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", "/nodes", None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let nodes: Result<Vec<Node>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize node: {}", e)).into()))
+                let nodes: Result<Vec<Node>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize node: {}", e))
+                                .into()
+                        })
+                    })
                     .collect();
                 nodes
             }
@@ -519,9 +585,13 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", &path, None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let pods: Result<Vec<Pod>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize pod: {}", e)).into()))
+                let pods: Result<Vec<Pod>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize pod: {}", e)).into()
+                        })
+                    })
                     .collect();
                 pods
             }
@@ -533,8 +603,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let path = format!("/namespaces/{}/pods/{}", namespace, name);
         match self.make_request("GET", &path, None) {
             Ok(response) => {
-                let pod: Pod = serde_json::from_value(response)
-                    .map_err(|e| KubernetesError::api(format!("Failed to deserialize pod: {}", e)))?;
+                let pod: Pod = serde_json::from_value(response).map_err(|e| {
+                    KubernetesError::api(format!("Failed to deserialize pod: {}", e))
+                })?;
                 Ok(Some(pod))
             }
             Err(e) => {
@@ -552,8 +623,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(pod)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize pod: {}", e)))?;
         match self.make_request("POST", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize pod response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize pod response: {}", e)).into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -563,8 +635,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(pod)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize pod: {}", e)))?;
         match self.make_request("PUT", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize pod response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize pod response: {}", e)).into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -602,9 +675,14 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", &path, None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let deployments: Result<Vec<Deployment>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize deployment: {}", e)).into()))
+                let deployments: Result<Vec<Deployment>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize deployment: {}", e))
+                                .into()
+                        })
+                    })
                     .collect();
                 deployments
             }
@@ -613,11 +691,15 @@ impl KubernetesClient for HttpKubernetesClient {
     }
 
     async fn get_deployment(&self, namespace: &str, name: &str) -> Result<Option<Deployment>> {
-        let path = format!("/apis/apps/v1/namespaces/{}/deployments/{}", namespace, name);
+        let path = format!(
+            "/apis/apps/v1/namespaces/{}/deployments/{}",
+            namespace, name
+        );
         match self.make_request("GET", &path, None) {
             Ok(response) => {
-                let deployment: Deployment = serde_json::from_value(response)
-                    .map_err(|e| KubernetesError::api(format!("Failed to deserialize deployment: {}", e)))?;
+                let deployment: Deployment = serde_json::from_value(response).map_err(|e| {
+                    KubernetesError::api(format!("Failed to deserialize deployment: {}", e))
+                })?;
                 Ok(Some(deployment))
             }
             Err(e) => {
@@ -630,35 +712,59 @@ impl KubernetesClient for HttpKubernetesClient {
         }
     }
 
-    async fn create_deployment(&self, namespace: &str, deployment: &Deployment) -> Result<Deployment> {
+    async fn create_deployment(
+        &self,
+        namespace: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment> {
         let path = format!("/apis/apps/v1/namespaces/{}/deployments", namespace);
         let body = serde_json::to_value(deployment)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize deployment: {}", e)))?;
         match self.make_request("POST", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize deployment response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize deployment response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
 
-    async fn update_deployment(&self, namespace: &str, name: &str, deployment: &Deployment) -> Result<Deployment> {
-        let path = format!("/apis/apps/v1/namespaces/{}/deployments/{}", namespace, name);
+    async fn update_deployment(
+        &self,
+        namespace: &str,
+        name: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment> {
+        let path = format!(
+            "/apis/apps/v1/namespaces/{}/deployments/{}",
+            namespace, name
+        );
         let body = serde_json::to_value(deployment)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize deployment: {}", e)))?;
         match self.make_request("PUT", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize deployment response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize deployment response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
 
     async fn delete_deployment(&self, namespace: &str, name: &str) -> Result<()> {
-        let path = format!("/apis/apps/v1/namespaces/{}/deployments/{}", namespace, name);
+        let path = format!(
+            "/apis/apps/v1/namespaces/{}/deployments/{}",
+            namespace, name
+        );
         self.make_request("DELETE", &path, None)?;
         Ok(())
     }
 
-    async fn scale_deployment(&self, namespace: &str, name: &str, replicas: i32) -> Result<Deployment> {
+    async fn scale_deployment(
+        &self,
+        namespace: &str,
+        name: &str,
+        replicas: i32,
+    ) -> Result<Deployment> {
         // Get current deployment
         if let Some(mut deployment) = self.get_deployment(namespace, name).await? {
             // Update replica count
@@ -668,7 +774,11 @@ impl KubernetesClient for HttpKubernetesClient {
             // Update deployment
             self.update_deployment(namespace, name, &deployment).await
         } else {
-            Err(KubernetesError::not_found(format!("Deployment {} not found in namespace {}", name, namespace)).into())
+            Err(KubernetesError::not_found(format!(
+                "Deployment {} not found in namespace {}",
+                name, namespace
+            ))
+            .into())
         }
     }
 
@@ -677,9 +787,14 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", &path, None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let services: Result<Vec<Service>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize service: {}", e)).into()))
+                let services: Result<Vec<Service>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize service: {}", e))
+                                .into()
+                        })
+                    })
                     .collect();
                 services
             }
@@ -691,8 +806,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let path = format!("/namespaces/{}/services/{}", namespace, name);
         match self.make_request("GET", &path, None) {
             Ok(response) => {
-                let service: Service = serde_json::from_value(response)
-                    .map_err(|e| KubernetesError::api(format!("Failed to deserialize service: {}", e)))?;
+                let service: Service = serde_json::from_value(response).map_err(|e| {
+                    KubernetesError::api(format!("Failed to deserialize service: {}", e))
+                })?;
                 Ok(Some(service))
             }
             Err(e) => {
@@ -710,19 +826,28 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(service)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize service: {}", e)))?;
         match self.make_request("POST", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize service response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize service response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
 
-    async fn update_service(&self, namespace: &str, name: &str, service: &Service) -> Result<Service> {
+    async fn update_service(
+        &self,
+        namespace: &str,
+        name: &str,
+        service: &Service,
+    ) -> Result<Service> {
         let path = format!("/namespaces/{}/services/{}", namespace, name);
         let body = serde_json::to_value(service)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize service: {}", e)))?;
         match self.make_request("PUT", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize service response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize service response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -738,9 +863,14 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", &path, None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let configmaps: Result<Vec<ConfigMap>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize configmap: {}", e)).into()))
+                let configmaps: Result<Vec<ConfigMap>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize configmap: {}", e))
+                                .into()
+                        })
+                    })
                     .collect();
                 configmaps
             }
@@ -752,8 +882,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let path = format!("/namespaces/{}/configmaps/{}", namespace, name);
         match self.make_request("GET", &path, None) {
             Ok(response) => {
-                let configmap: ConfigMap = serde_json::from_value(response)
-                    .map_err(|e| KubernetesError::api(format!("Failed to deserialize configmap: {}", e)))?;
+                let configmap: ConfigMap = serde_json::from_value(response).map_err(|e| {
+                    KubernetesError::api(format!("Failed to deserialize configmap: {}", e))
+                })?;
                 Ok(Some(configmap))
             }
             Err(e) => {
@@ -771,19 +902,28 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(configmap)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize configmap: {}", e)))?;
         match self.make_request("POST", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize configmap response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize configmap response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
 
-    async fn update_configmap(&self, namespace: &str, name: &str, configmap: &ConfigMap) -> Result<ConfigMap> {
+    async fn update_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+        configmap: &ConfigMap,
+    ) -> Result<ConfigMap> {
         let path = format!("/namespaces/{}/configmaps/{}", namespace, name);
         let body = serde_json::to_value(configmap)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize configmap: {}", e)))?;
         match self.make_request("PUT", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize configmap response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize configmap response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -799,9 +939,14 @@ impl KubernetesClient for HttpKubernetesClient {
         match self.make_request("GET", &path, None) {
             Ok(response) => {
                 let items = Self::get_items_array(&response);
-                let secrets: Result<Vec<Secret>, _> = items.iter()
-                    .map(|item| serde_json::from_value(item.clone())
-                        .map_err(|e| KubernetesError::api(format!("Failed to deserialize secret: {}", e)).into()))
+                let secrets: Result<Vec<Secret>, _> = items
+                    .iter()
+                    .map(|item| {
+                        serde_json::from_value(item.clone()).map_err(|e| {
+                            KubernetesError::api(format!("Failed to deserialize secret: {}", e))
+                                .into()
+                        })
+                    })
                     .collect();
                 secrets
             }
@@ -813,8 +958,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let path = format!("/namespaces/{}/secrets/{}", namespace, name);
         match self.make_request("GET", &path, None) {
             Ok(response) => {
-                let secret: Secret = serde_json::from_value(response)
-                    .map_err(|e| KubernetesError::api(format!("Failed to deserialize secret: {}", e)))?;
+                let secret: Secret = serde_json::from_value(response).map_err(|e| {
+                    KubernetesError::api(format!("Failed to deserialize secret: {}", e))
+                })?;
                 Ok(Some(secret))
             }
             Err(e) => {
@@ -832,8 +978,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(secret)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize secret: {}", e)))?;
         match self.make_request("POST", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize secret response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize secret response: {}", e)).into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -843,8 +990,9 @@ impl KubernetesClient for HttpKubernetesClient {
         let body = serde_json::to_value(secret)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize secret: {}", e)))?;
         match self.make_request("PUT", &path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize secret response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize secret response: {}", e)).into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -855,20 +1003,30 @@ impl KubernetesClient for HttpKubernetesClient {
         Ok(())
     }
 
-    async fn apply_resource(&self, namespace: &str, resource: &KubernetesResource) -> Result<KubernetesResource> {
+    async fn apply_resource(
+        &self,
+        namespace: &str,
+        resource: &KubernetesResource,
+    ) -> Result<KubernetesResource> {
         // Determine the appropriate API path based on kind
         let api_path = match resource.kind.as_str() {
-            "Deployment" | "DaemonSet" | "StatefulSet" => format!("/apis/apps/v1/namespaces/{}/{}", namespace, resource.kind.to_lowercase()),
+            "Deployment" | "DaemonSet" | "StatefulSet" => format!(
+                "/apis/apps/v1/namespaces/{}/{}",
+                namespace,
+                resource.kind.to_lowercase()
+            ),
             _ => format!("/namespaces/{}/{}", namespace, resource.kind.to_lowercase()),
         };
-        
+
         let body = serde_json::to_value(resource)
             .map_err(|e| KubernetesError::api(format!("Failed to serialize resource: {}", e)))?;
-        
+
         // Apply is essentially a POST/PUT operation
         match self.make_request("POST", &api_path, Some(&body)) {
-            Ok(response) => serde_json::from_value(response)
-                .map_err(|e| KubernetesError::api(format!("Failed to deserialize resource response: {}", e)).into()),
+            Ok(response) => serde_json::from_value(response).map_err(|e| {
+                KubernetesError::api(format!("Failed to deserialize resource response: {}", e))
+                    .into()
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -876,10 +1034,15 @@ impl KubernetesClient for HttpKubernetesClient {
     async fn delete_resource(&self, namespace: &str, kind: &str, name: &str) -> Result<()> {
         // Determine the appropriate API path based on kind
         let api_path = match kind {
-            "Deployment" | "DaemonSet" | "StatefulSet" => format!("/apis/apps/v1/namespaces/{}/{}/{}", namespace, kind.to_lowercase(), name),
+            "Deployment" | "DaemonSet" | "StatefulSet" => format!(
+                "/apis/apps/v1/namespaces/{}/{}/{}",
+                namespace,
+                kind.to_lowercase(),
+                name
+            ),
             _ => format!("/namespaces/{}/{}/{}", namespace, kind.to_lowercase(), name),
         };
-        
+
         self.make_request("DELETE", &api_path, None)?;
         Ok(())
     }
@@ -887,10 +1050,18 @@ impl KubernetesClient for HttpKubernetesClient {
     async fn watch_resources(&self, namespace: &str, kind: &str) -> Result<WatchStream> {
         // Determine the appropriate API path based on kind
         let api_path = match kind {
-            "Deployment" | "DaemonSet" | "StatefulSet" => format!("/apis/apps/v1/namespaces/{}/{}?watch=true", namespace, kind.to_lowercase()),
-            _ => format!("/namespaces/{}/{}?watch=true", namespace, kind.to_lowercase()),
+            "Deployment" | "DaemonSet" | "StatefulSet" => format!(
+                "/apis/apps/v1/namespaces/{}/{}?watch=true",
+                namespace,
+                kind.to_lowercase()
+            ),
+            _ => format!(
+                "/namespaces/{}/{}?watch=true",
+                namespace,
+                kind.to_lowercase()
+            ),
         };
-        
+
         match self.make_request("GET", &api_path, None) {
             Ok(response) => {
                 let items = response["items"].as_array().cloned().unwrap_or_default();

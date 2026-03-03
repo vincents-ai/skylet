@@ -12,8 +12,8 @@ use std::collections::HashMap;
 // Re-export types from submodules
 pub use adapters::{DiscordAdapter, SlackAdapter, TelegramAdapter};
 pub use bot_framework::{
-    BotFramework, Command, CommandContext, CommandInfo, HelpCommand, LoggingMiddleware,
-    Middleware, MiddlewareResult, PermissionMiddleware, PingCommand, RateLimitMiddleware,
+    BotFramework, Command, CommandContext, CommandInfo, HelpCommand, LoggingMiddleware, Middleware,
+    MiddlewareResult, PermissionMiddleware, PingCommand, RateLimitMiddleware,
 };
 pub use session_management::{
     ConversationContext, ConversationFlow, ConversationState, ConversationStep,
@@ -225,21 +225,56 @@ pub struct Message {
 #[derive(Debug, Clone)]
 pub enum MessageContent {
     Text(String),
-    Photo { file_id: String, caption: Option<String> },
-    Video { file_id: String, caption: Option<String> },
-    Audio { file_id: String, caption: Option<String> },
-    Document { file_id: String, caption: Option<String> },
-    Voice { file_id: String },
-    VideoNote { file_id: String },
-    Sticker { file_id: String },
-    Animation { file_id: String, caption: Option<String> },
-    Location { latitude: f64, longitude: f64 },
-    Contact { phone_number: String, name: String },
-    Poll { question: String, options: Vec<String> },
+    Photo {
+        file_id: String,
+        caption: Option<String>,
+    },
+    Video {
+        file_id: String,
+        caption: Option<String>,
+    },
+    Audio {
+        file_id: String,
+        caption: Option<String>,
+    },
+    Document {
+        file_id: String,
+        caption: Option<String>,
+    },
+    Voice {
+        file_id: String,
+    },
+    VideoNote {
+        file_id: String,
+    },
+    Sticker {
+        file_id: String,
+    },
+    Animation {
+        file_id: String,
+        caption: Option<String>,
+    },
+    Location {
+        latitude: f64,
+        longitude: f64,
+    },
+    Contact {
+        phone_number: String,
+        name: String,
+    },
+    Poll {
+        question: String,
+        options: Vec<String>,
+    },
 }
 
 impl Message {
-    pub fn text(id: impl Into<String>, sender_id: impl Into<String>, chat_id: impl Into<String>, text: impl Into<String>) -> Self {
+    pub fn text(
+        id: impl Into<String>,
+        sender_id: impl Into<String>,
+        chat_id: impl Into<String>,
+        text: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             sender_id: sender_id.into(),

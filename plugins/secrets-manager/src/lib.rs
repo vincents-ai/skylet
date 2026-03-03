@@ -6,6 +6,7 @@
 
 mod v2_ffi;
 
+use aes_gcm::aead::Aead;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use skylet_abi::audit::{
@@ -14,7 +15,6 @@ use skylet_abi::audit::{
 use skylet_abi::security::EncryptedSecretStore;
 use skylet_abi::*;
 use skylet_plugin_common::config_paths;
-use aes_gcm::aead::Aead;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::path::Path;
@@ -196,7 +196,10 @@ pub struct FileBackend {
 
 impl FileBackend {
     pub fn new(store_path: std::path::PathBuf, master_key: [u8; 32]) -> Self {
-        Self { store_path, master_key }
+        Self {
+            store_path,
+            master_key,
+        }
     }
 
     fn load_secrets(&self) -> Result<HashMap<String, Vec<u8>>> {
@@ -217,7 +220,7 @@ impl FileBackend {
         let data = serde_json::to_vec(secrets)
             .map_err(|e| anyhow!("Failed to serialize secrets: {}", e))?;
         let encrypted = self.encrypt(&data)?;
-        
+
         if let Some(parent) = self.store_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -231,12 +234,13 @@ impl FileBackend {
 
         let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&self.master_key);
         let cipher = Aes256Gcm::new(key);
-        
+
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext = cipher.encrypt(nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| anyhow!("Encryption failed: {}", e))?;
 
         let mut result = nonce_bytes.to_vec();
@@ -253,13 +257,14 @@ impl FileBackend {
 
         let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&self.master_key);
         let cipher = Aes256Gcm::new(key);
-        
+
         let nonce = Nonce::from_slice(&data[..12]);
         let ciphertext = &data[12..];
 
-        let plaintext = cipher.decrypt(nonce, ciphertext)
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| anyhow!("Decryption failed: {}", e))?;
-        
+
         Ok(plaintext)
     }
 }
@@ -534,9 +539,7 @@ impl SecretBackend for SqliteBackend {
         let conn = self.conn.lock().map_err(|_| anyhow!("Lock error"))?;
 
         let mut stmt = conn
-            .prepare_cached(
-                "SELECT encrypted_value, nonce FROM secrets WHERE key = ?1",
-            )
+            .prepare_cached("SELECT encrypted_value, nonce FROM secrets WHERE key = ?1")
             .map_err(|_| anyhow!("Failed to prepare statement"))?;
 
         let result = stmt.query_row([key], |row| {
@@ -747,15 +750,13 @@ mod kubernetes_backend {
                     .data
                     .ok_or_else(|| anyhow!("Secret '{}' has no data", secret_name))?;
 
-                let value = data
-                    .get(&field_name)
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Field '{}' not found in secret '{}'",
-                            field_name,
-                            secret_name
-                        )
-                    })?;
+                let value = data.get(&field_name).ok_or_else(|| {
+                    anyhow!(
+                        "Field '{}' not found in secret '{}'",
+                        field_name,
+                        secret_name
+                    )
+                })?;
 
                 String::from_utf8(value.0.clone())
                     .map(SecretValue::new)
@@ -775,13 +776,16 @@ mod kubernetes_backend {
 
             rt.block_on(async {
                 use k8s_openapi::ByteString;
-                use kube::api::{ObjectMeta, PostParams, Patch, PatchParams};
+                use kube::api::{ObjectMeta, Patch, PatchParams, PostParams};
                 use std::collections::BTreeMap;
 
                 let secrets: Api<Secret> = Api::namespaced(self.client.clone(), &self.namespace);
 
                 let mut data = BTreeMap::new();
-                data.insert(field_name.clone(), ByteString(value.as_str().as_bytes().to_vec()));
+                data.insert(
+                    field_name.clone(),
+                    ByteString(value.as_str().as_bytes().to_vec()),
+                );
 
                 let patch = Secret {
                     metadata: ObjectMeta {
@@ -795,7 +799,11 @@ mod kubernetes_backend {
 
                 let patch = Patch::Merge(&patch);
                 secrets
-                    .patch(&secret_name, &PatchParams::apply("skylet-secrets-manager"), &patch)
+                    .patch(
+                        &secret_name,
+                        &PatchParams::apply("skylet-secrets-manager"),
+                        &patch,
+                    )
                     .await
                     .map_err(|e| anyhow!("Failed to set secret '{}': {}", secret_name, e))?;
 
@@ -1110,16 +1118,13 @@ impl RotationPolicyConfig {
             );
             return Self::from_file(Path::new(&config_path));
         }
-        
+
         // Then check RFC-0006 compliant config paths
         if let Some(path) = config_paths::find_config("secrets-manager") {
-            debug!(
-                "Loading rotation policy configuration from: {:?}",
-                path
-            );
+            debug!("Loading rotation policy configuration from: {:?}", path);
             return Self::from_file(&path);
         }
-        
+
         debug!("Using default rotation policy configuration");
         Ok(Self::default())
     }
@@ -2704,7 +2709,9 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         };
                     }
                 };
@@ -2712,7 +2719,8 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                 match manager.get_secret(path_str) {
                     Ok(secret) => {
                         log_secret_operation("get", path_str, true, None);
-                        let value_cstring = CString::new(secret.to_string()).unwrap_or_else(|_| CString::new("invalid string data").unwrap());
+                        let value_cstring = CString::new(secret.to_string())
+                            .unwrap_or_else(|_| CString::new("invalid string data").unwrap());
                         SecretResult {
                             success: 1,
                             value: value_cstring.into_raw(),
@@ -2725,7 +2733,9 @@ extern "C" fn secrets_get_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         }
                     }
                 }
@@ -2794,7 +2804,9 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         };
                     }
                 };
@@ -2814,7 +2826,9 @@ extern "C" fn secrets_set_secret(path: *const c_char, value: *const c_char) -> S
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         }
                     }
                 }
@@ -2871,7 +2885,9 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         return SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         };
                     }
                 };
@@ -2891,7 +2907,9 @@ extern "C" fn secrets_delete_secret(path: *const c_char) -> SecretResult {
                         SecretResult {
                             success: 0,
                             value: std::ptr::null(),
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         }
                     }
                 }
@@ -2946,7 +2964,9 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         };
                     }
                 };
@@ -2956,7 +2976,13 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                         log_secret_operation("list", prefix_str, true, None);
                         let cstring_secrets: Vec<*const c_char> = secrets
                             .into_iter()
-                            .map(|s| CString::new(s).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw() as *const c_char)
+                            .map(|s| {
+                                CString::new(s)
+                                    .unwrap_or_else(|_| {
+                                        CString::new("invalid string data").unwrap()
+                                    })
+                                    .into_raw() as *const c_char
+                            })
                             .collect();
 
                         let count = cstring_secrets.len();
@@ -2981,7 +3007,9 @@ extern "C" fn secrets_list_secrets(prefix: *const c_char) -> SecretListResult {
                             success: 0,
                             secrets: std::ptr::null_mut(),
                             count: 0,
-                            error_message: CString::new(error_msg).unwrap_or_else(|_| CString::new("invalid string data").unwrap()).into_raw(),
+                            error_message: CString::new(error_msg)
+                                .unwrap_or_else(|_| CString::new("invalid string data").unwrap())
+                                .into_raw(),
                         }
                     }
                 }
@@ -4401,7 +4429,9 @@ key_overlap_days = 14
         let backend = SqliteBackend::in_memory(&master_key).expect("Failed to create backend");
 
         let secret = SecretValue::new("my_secret_value".to_string());
-        backend.set("test/key", secret).expect("Failed to set secret");
+        backend
+            .set("test/key", secret)
+            .expect("Failed to set secret");
 
         let retrieved = backend.get("test/key").expect("Failed to get secret");
         assert_eq!(retrieved.as_str(), "my_secret_value");
@@ -4409,12 +4439,16 @@ key_overlap_days = 14
 
     #[test]
     fn test_sqlite_backend_encryption_decryption() {
-        let master_key = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-                         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+        let master_key = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32,
+        ];
         let backend = SqliteBackend::in_memory(&master_key).expect("Failed to create backend");
 
         let sensitive_data = "password123!@#$%^&*()";
-        backend.set("db/password", SecretValue::new(sensitive_data.to_string())).unwrap();
+        backend
+            .set("db/password", SecretValue::new(sensitive_data.to_string()))
+            .unwrap();
 
         let retrieved = backend.get("db/password").unwrap();
         assert_eq!(retrieved.as_str(), sensitive_data);
@@ -4425,8 +4459,12 @@ key_overlap_days = 14
         let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
-        backend.set("api/key", SecretValue::new("v1".to_string())).unwrap();
-        backend.set("api/key", SecretValue::new("v2".to_string())).unwrap();
+        backend
+            .set("api/key", SecretValue::new("v1".to_string()))
+            .unwrap();
+        backend
+            .set("api/key", SecretValue::new("v2".to_string()))
+            .unwrap();
 
         let retrieved = backend.get("api/key").unwrap();
         assert_eq!(retrieved.as_str(), "v2");
@@ -4437,7 +4475,9 @@ key_overlap_days = 14
         let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
-        backend.set("temp/secret", SecretValue::new("value".to_string())).unwrap();
+        backend
+            .set("temp/secret", SecretValue::new("value".to_string()))
+            .unwrap();
         assert!(backend.get("temp/secret").is_ok());
 
         backend.delete("temp/secret").unwrap();
@@ -4449,10 +4489,18 @@ key_overlap_days = 14
         let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
 
-        backend.set("app/db/host", SecretValue::new("localhost".to_string())).unwrap();
-        backend.set("app/db/port", SecretValue::new("5432".to_string())).unwrap();
-        backend.set("app/api/key", SecretValue::new("secret".to_string())).unwrap();
-        backend.set("other/thing", SecretValue::new("value".to_string())).unwrap();
+        backend
+            .set("app/db/host", SecretValue::new("localhost".to_string()))
+            .unwrap();
+        backend
+            .set("app/db/port", SecretValue::new("5432".to_string()))
+            .unwrap();
+        backend
+            .set("app/api/key", SecretValue::new("secret".to_string()))
+            .unwrap();
+        backend
+            .set("other/thing", SecretValue::new("value".to_string()))
+            .unwrap();
 
         let app_secrets = backend.list("app/").unwrap();
         assert_eq!(app_secrets.len(), 3);
@@ -4470,18 +4518,34 @@ key_overlap_days = 14
         let backend1 = SqliteBackend::in_memory(&key1).unwrap();
         let backend2 = SqliteBackend::in_memory(&key2).unwrap();
 
-        backend1.set("secret", SecretValue::new("encrypted_with_key1".to_string())).unwrap();
-        backend2.set("secret", SecretValue::new("encrypted_with_key2".to_string())).unwrap();
+        backend1
+            .set(
+                "secret",
+                SecretValue::new("encrypted_with_key1".to_string()),
+            )
+            .unwrap();
+        backend2
+            .set(
+                "secret",
+                SecretValue::new("encrypted_with_key2".to_string()),
+            )
+            .unwrap();
 
-        assert_eq!(backend1.get("secret").unwrap().as_str(), "encrypted_with_key1");
-        assert_eq!(backend2.get("secret").unwrap().as_str(), "encrypted_with_key2");
+        assert_eq!(
+            backend1.get("secret").unwrap().as_str(),
+            "encrypted_with_key1"
+        );
+        assert_eq!(
+            backend2.get("secret").unwrap().as_str(),
+            "encrypted_with_key2"
+        );
     }
 
     #[test]
     fn test_sqlite_backend_key_id() {
         let master_key = [42u8; 32];
         let backend = SqliteBackend::in_memory(&master_key).unwrap();
-        
+
         let key_id = backend.key_id();
         assert_eq!(key_id.len(), 16);
         assert!(key_id.chars().all(|c| c.is_ascii_hexdigit()));
@@ -4503,8 +4567,13 @@ key_overlap_days = 14
         let manager = SecretsManager::with_sqlite_in_memory(&master_key)
             .expect("Failed to create SQLite secrets manager");
 
-        manager.set_secret("config/api_url", SecretValue::new("https://api.example.com".to_string())).unwrap();
-        
+        manager
+            .set_secret(
+                "config/api_url",
+                SecretValue::new("https://api.example.com".to_string()),
+            )
+            .unwrap();
+
         let value = manager.get_secret("config/api_url").unwrap();
         assert_eq!(value.as_str(), "https://api.example.com");
     }

@@ -24,6 +24,7 @@ use std::sync::Arc;
 use super::epoch_guard::EpochGuardedPlugin;
 
 // ABI v2 imports
+use serde_json::Value;
 #[allow(unused_imports)]
 use skylet_abi::{
     config_schema::{ConfigSchemaValidator, ConfigValidationResult},
@@ -37,7 +38,6 @@ use skylet_abi::{
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
@@ -130,6 +130,12 @@ impl PluginServiceRegistryBackend {
         self.services.lock().unwrap().keys().cloned().collect()
     }
 }
+
+// Safety: The *mut c_void pointers stored in the service registry are FFI handles
+// to Arc-wrapped service objects (LoggerV2, ConfigV2, EventBusV2, etc.) that are
+// themselves Send + Sync. The Mutex serializes all access to the HashMap.
+unsafe impl Send for PluginServiceRegistryBackend {}
+unsafe impl Sync for PluginServiceRegistryBackend {}
 
 impl Default for PluginServiceRegistryBackend {
     fn default() -> Self {
@@ -662,10 +668,12 @@ pub struct PluginServices {
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,
@@ -822,6 +830,7 @@ impl PluginManager {
     }
 
     /// Create a plugin manager with custom services
+    #[allow(dead_code)] // Public API for custom service injection — used by consumers
     #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_services(services: Arc<PluginServices>) -> Self {
         Self {
@@ -832,6 +841,7 @@ impl PluginManager {
     }
 
     /// Get access to the plugin services
+    #[allow(dead_code)] // Public API — exposed via PluginLifecycleManager
     pub fn services(&self) -> Arc<PluginServices> {
         self.services.clone()
     }
@@ -1907,6 +1917,7 @@ impl PluginManager {
     }
 
     /// Get list of loaded plugins
+    #[allow(dead_code)] // Public API — query method for introspection
     pub async fn list_plugins(&self) -> Result<Vec<String>> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         Ok(plugins_v2.keys().cloned().collect())

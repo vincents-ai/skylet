@@ -547,23 +547,47 @@ pub trait KubernetesClient: Send + Sync {
     // Deployment Operations
     async fn get_deployments(&self, namespace: &str) -> Result<Vec<Deployment>>;
     async fn get_deployment(&self, namespace: &str, name: &str) -> Result<Option<Deployment>>;
-    async fn create_deployment(&self, namespace: &str, deployment: &Deployment) -> Result<Deployment>;
-    async fn update_deployment(&self, namespace: &str, name: &str, deployment: &Deployment) -> Result<Deployment>;
+    async fn create_deployment(
+        &self,
+        namespace: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment>;
+    async fn update_deployment(
+        &self,
+        namespace: &str,
+        name: &str,
+        deployment: &Deployment,
+    ) -> Result<Deployment>;
     async fn delete_deployment(&self, namespace: &str, name: &str) -> Result<()>;
-    async fn scale_deployment(&self, namespace: &str, name: &str, replicas: i32) -> Result<Deployment>;
+    async fn scale_deployment(
+        &self,
+        namespace: &str,
+        name: &str,
+        replicas: i32,
+    ) -> Result<Deployment>;
 
     // Service Operations
     async fn get_services(&self, namespace: &str) -> Result<Vec<Service>>;
     async fn get_service(&self, namespace: &str, name: &str) -> Result<Option<Service>>;
     async fn create_service(&self, namespace: &str, service: &Service) -> Result<Service>;
-    async fn update_service(&self, namespace: &str, name: &str, service: &Service) -> Result<Service>;
+    async fn update_service(
+        &self,
+        namespace: &str,
+        name: &str,
+        service: &Service,
+    ) -> Result<Service>;
     async fn delete_service(&self, namespace: &str, name: &str) -> Result<()>;
 
     // ConfigMap Operations
     async fn get_configmaps(&self, namespace: &str) -> Result<Vec<ConfigMap>>;
     async fn get_configmap(&self, namespace: &str, name: &str) -> Result<Option<ConfigMap>>;
     async fn create_configmap(&self, namespace: &str, configmap: &ConfigMap) -> Result<ConfigMap>;
-    async fn update_configmap(&self, namespace: &str, name: &str, configmap: &ConfigMap) -> Result<ConfigMap>;
+    async fn update_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+        configmap: &ConfigMap,
+    ) -> Result<ConfigMap>;
     async fn delete_configmap(&self, namespace: &str, name: &str) -> Result<()>;
 
     // Secret Operations
@@ -574,7 +598,11 @@ pub trait KubernetesClient: Send + Sync {
     async fn delete_secret(&self, namespace: &str, name: &str) -> Result<()>;
 
     // Generic Resource Operations
-    async fn apply_resource(&self, namespace: &str, resource: &KubernetesResource) -> Result<KubernetesResource>;
+    async fn apply_resource(
+        &self,
+        namespace: &str,
+        resource: &KubernetesResource,
+    ) -> Result<KubernetesResource>;
     async fn delete_resource(&self, namespace: &str, kind: &str, name: &str) -> Result<()>;
     async fn watch_resources(&self, namespace: &str, kind: &str) -> Result<WatchStream>;
 }
@@ -615,7 +643,11 @@ pub fn create_pod_template(name: impl Into<String>, image: impl Into<String>) ->
     }
 }
 
-pub fn create_deployment_template(name: impl Into<String>, image: impl Into<String>, replicas: i32) -> Deployment {
+pub fn create_deployment_template(
+    name: impl Into<String>,
+    image: impl Into<String>,
+    replicas: i32,
+) -> Deployment {
     let name_str = name.into();
     Deployment {
         api_version: "apps/v1".to_string(),
@@ -633,17 +665,13 @@ pub fn create_deployment_template(name: impl Into<String>, image: impl Into<Stri
         spec: Some(DeploymentSpec {
             replicas: Some(replicas),
             selector: LabelSelector {
-                match_labels: Some(HashMap::from([
-                    ("app".to_string(), name_str.clone()),
-                ])),
+                match_labels: Some(HashMap::from([("app".to_string(), name_str.clone())])),
             },
             template: PodTemplateSpec {
                 metadata: KubernetesMetadata {
                     name: name_str,
                     namespace: Some("default".to_string()),
-                    labels: Some(HashMap::from([
-                        ("app".to_string(), "app".to_string()),
-                    ])),
+                    labels: Some(HashMap::from([("app".to_string(), "app".to_string())])),
                     annotations: None,
                     creation_timestamp: None,
                     generation: None,

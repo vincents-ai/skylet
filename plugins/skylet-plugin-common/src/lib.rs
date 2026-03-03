@@ -6,12 +6,12 @@
 #![allow(dead_code, unused_imports, unused_variables)]
 use anyhow::Result;
 // Import specific types to avoid ambiguity - V2 ABI only
+use serde::{Deserialize, Serialize};
 use skylet_abi::v2_spec::{
-    CapabilityInfo, HealthStatus, MaturityLevel, PluginApiV2, PluginCategory,
-    PluginContextV2, PluginInfoV2, PluginResultV2, RequestV2, ResponseV2, ServiceInfo,
+    CapabilityInfo, HealthStatus, MaturityLevel, PluginApiV2, PluginCategory, PluginContextV2,
+    PluginInfoV2, PluginResultV2, RequestV2, ResponseV2, ServiceInfo,
 };
 use skylet_abi::{HttpResponse, PluginType};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::path::PathBuf;
@@ -83,7 +83,8 @@ impl CapabilityBuilder {
         self.capabilities.push((
             CString::new(name).unwrap_or_else(|_| CString::new("invalid").unwrap()),
             CString::new(description).unwrap_or_else(|_| CString::new("invalid").unwrap()),
-            required_permission.map(|p| CString::new(p).unwrap_or_else(|_| CString::new("invalid").unwrap())),
+            required_permission
+                .map(|p| CString::new(p).unwrap_or_else(|_| CString::new("invalid").unwrap())),
         ));
         self
     }
@@ -102,7 +103,9 @@ impl CapabilityBuilder {
             .map(|(name, desc, perm)| CapabilityInfo {
                 name: name.into_raw() as *const c_char,
                 description: desc.into_raw() as *const c_char,
-                required_permission: perm.map(|p| p.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
+                required_permission: perm
+                    .map(|p| p.into_raw() as *const c_char)
+                    .unwrap_or(std::ptr::null()),
             })
             .collect();
 
@@ -148,12 +151,14 @@ impl ServiceInfoBuilder {
     }
 
     pub fn description(mut self, desc: &str) -> Self {
-        self.description = Some(CString::new(desc).unwrap_or_else(|_| CString::new("invalid").unwrap()));
+        self.description =
+            Some(CString::new(desc).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
     pub fn interface_spec(mut self, spec: &str) -> Self {
-        self.interface_spec = Some(CString::new(spec).unwrap_or_else(|_| CString::new("invalid").unwrap()));
+        self.interface_spec =
+            Some(CString::new(spec).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
@@ -163,8 +168,14 @@ impl ServiceInfoBuilder {
         let info = ServiceInfo {
             name: self.name.into_raw() as *const c_char,
             version: self.version.into_raw() as *const c_char,
-            description: self.description.map(|d| d.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
-            interface_spec: self.interface_spec.map(|s| s.into_raw() as *const c_char).unwrap_or(std::ptr::null()),
+            description: self
+                .description
+                .map(|d| d.into_raw() as *const c_char)
+                .unwrap_or(std::ptr::null()),
+            interface_spec: self
+                .interface_spec
+                .map(|s| s.into_raw() as *const c_char)
+                .unwrap_or(std::ptr::null()),
         };
         Box::leak(Box::new(info))
     }
@@ -194,7 +205,8 @@ impl TagsBuilder {
     }
 
     pub fn add(mut self, tag: &str) -> Self {
-        self.tags.push(CString::new(tag).unwrap_or_else(|_| CString::new("invalid").unwrap()));
+        self.tags
+            .push(CString::new(tag).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
@@ -205,7 +217,11 @@ impl TagsBuilder {
             return (std::ptr::null(), 0);
         }
 
-        let ptrs: Vec<*const c_char> = self.tags.into_iter().map(|t| t.into_raw() as *const c_char).collect();
+        let ptrs: Vec<*const c_char> = self
+            .tags
+            .into_iter()
+            .map(|t| t.into_raw() as *const c_char)
+            .collect();
         let ptr = Box::leak(ptrs.into_boxed_slice()).as_ptr();
         (ptr, count)
     }
@@ -222,28 +238,28 @@ impl Default for TagsBuilder {
 // ============================================================================
 
 /// Standard configuration path resolver for Skylet plugins (RFC-0006)
-/// 
+///
 /// Provides consistent config file locations across all plugins:
 /// - Primary: `~/.config/skylet/plugins/{plugin_name}.toml`
 /// - Local project: `data/{plugin_name}.toml`
 /// - System: `/etc/skylet/plugins/{plugin_name}.toml`
-/// 
+///
 /// # Example
 /// ```rust
 /// use skylet_plugin_common::config_paths;
-/// 
+///
 /// // Find config for "my-plugin"
 /// if let Some(path) = config_paths::find_config("my-plugin") {
 ///     println!("Config found at: {:?}", path);
 /// }
-/// 
+///
 /// // Get standard config path (may not exist yet)
 /// let standard_path = config_paths::get_standard_config_path("my-plugin");
 /// println!("Standard config location: {:?}", standard_path);
 /// ```
 pub mod config_paths {
     use super::*;
-    
+
     /// Get the standard user config directory for Skylet plugins
     /// Returns `~/.config/skylet/plugins/`
     pub fn get_user_config_dir() -> PathBuf {
@@ -252,25 +268,25 @@ pub mod config_paths {
             .join("skylet")
             .join("plugins")
     }
-    
+
     /// Get the standard local/project config directory
     /// Returns `data/` relative to current directory
     pub fn get_local_config_dir() -> PathBuf {
         PathBuf::from("data")
     }
-    
+
     /// Get the system-wide config directory
     /// Returns `/etc/skylet/plugins/` on Unix systems
     pub fn get_system_config_dir() -> PathBuf {
         PathBuf::from("/etc/skylet/plugins")
     }
-    
+
     /// Get the standard config path for a plugin (user location)
     /// This path may not exist yet - use find_config() to find an existing config
     pub fn get_standard_config_path(plugin_name: &str) -> PathBuf {
         get_user_config_dir().join(format!("{}.toml", plugin_name))
     }
-    
+
     /// Get all possible config paths for a plugin in search order
     /// Returns paths in priority order: local -> user -> system
     pub fn get_config_search_paths(plugin_name: &str) -> Vec<PathBuf> {
@@ -283,7 +299,7 @@ pub mod config_paths {
             get_system_config_dir().join(format!("{}.toml", plugin_name)),
         ]
     }
-    
+
     /// Find an existing config file for a plugin
     /// Searches in order: local -> user -> system
     /// Returns the first existing path, or None if no config exists
@@ -292,7 +308,7 @@ pub mod config_paths {
             .into_iter()
             .find(|p| p.exists())
     }
-    
+
     /// Find config file with legacy fallback paths
     /// Use this for migrating plugins that have configs in old locations
     pub fn find_config_with_legacy(plugin_name: &str, legacy_paths: &[PathBuf]) -> Option<PathBuf> {
@@ -300,65 +316,73 @@ pub mod config_paths {
         if let Some(path) = find_config(plugin_name) {
             return Some(path);
         }
-        
+
         // Then check legacy paths
         legacy_paths.iter().find(|p| p.exists()).cloned()
     }
-    
+
     /// Load config from the first available location
     pub fn load_config<T: for<'de> Deserialize<'de>>(plugin_name: &str) -> PluginResult<Option<T>> {
         if let Some(path) = find_config(plugin_name) {
-            let content = std::fs::read_to_string(&path)
-                .map_err(|e| PluginCommonError::SerializationFailed(
-                    format!("Failed to read config {:?}: {}", path, e)
-                ))?;
-            let config: T = toml::from_str(&content)
-                .map_err(|e| PluginCommonError::SerializationFailed(
-                    format!("Failed to parse config {:?}: {}", path, e)
-                ))?;
+            let content = std::fs::read_to_string(&path).map_err(|e| {
+                PluginCommonError::SerializationFailed(format!(
+                    "Failed to read config {:?}: {}",
+                    path, e
+                ))
+            })?;
+            let config: T = toml::from_str(&content).map_err(|e| {
+                PluginCommonError::SerializationFailed(format!(
+                    "Failed to parse config {:?}: {}",
+                    path, e
+                ))
+            })?;
             Ok(Some(config))
         } else {
             Ok(None)
         }
     }
-    
+
     /// Load config from a specific path
     pub fn load_config_from_path<T: for<'de> Deserialize<'de>>(path: &PathBuf) -> PluginResult<T> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| PluginCommonError::SerializationFailed(
-                format!("Failed to read config {:?}: {}", path, e)
-            ))?;
-        toml::from_str(&content)
-            .map_err(|e| PluginCommonError::SerializationFailed(
-                format!("Failed to parse config {:?}: {}", path, e)
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!(
+                "Failed to read config {:?}: {}",
+                path, e
             ))
+        })?;
+        toml::from_str(&content).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!(
+                "Failed to parse config {:?}: {}",
+                path, e
+            ))
+        })
     }
-    
+
     /// Save config to the standard user location
     pub fn save_config<T: Serialize>(plugin_name: &str, config: &T) -> PluginResult<PathBuf> {
         let path = get_standard_config_path(plugin_name);
-        
+
         // Create parent directories if needed
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| PluginCommonError::SerializationFailed(
-                    format!("Failed to create config directory: {}", e)
-                ))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                PluginCommonError::SerializationFailed(format!(
+                    "Failed to create config directory: {}",
+                    e
+                ))
+            })?;
         }
-        
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| PluginCommonError::SerializationFailed(
-                format!("Failed to serialize config: {}", e)
-            ))?;
-        
-        std::fs::write(&path, content)
-            .map_err(|e| PluginCommonError::SerializationFailed(
-                format!("Failed to write config: {}", e)
-            ))?;
-        
+
+        let content = toml::to_string_pretty(config).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!("Failed to serialize config: {}", e))
+        })?;
+
+        std::fs::write(&path, content).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!("Failed to write config: {}", e))
+        })?;
+
         Ok(path)
     }
-    
+
     /// Get the standard secrets directory for a plugin
     /// Returns `~/.config/skylet/secrets/{plugin_name}/`
     pub fn get_secrets_dir(plugin_name: &str) -> PathBuf {
@@ -368,20 +392,24 @@ pub mod config_paths {
             .join("secrets")
             .join(plugin_name)
     }
-    
+
     /// Get the standard data directory for a plugin
     /// Returns `data/{plugin_name}/`
     pub fn get_data_dir(plugin_name: &str) -> PathBuf {
         PathBuf::from("data").join(plugin_name)
     }
-    
+
     /// Get environment variable with standard prefix
     /// Maps `SKYLET_{PLUGIN_NAME}_{KEY}` to value
     pub fn get_env_var(plugin_name: &str, key: &str) -> Option<String> {
-        let env_key = format!("SKYLET_{}_{}", plugin_name.to_uppercase().replace("-", "_"), key);
+        let env_key = format!(
+            "SKYLET_{}_{}",
+            plugin_name.to_uppercase().replace("-", "_"),
+            key
+        );
         std::env::var(&env_key).ok()
     }
-    
+
     /// Get plugin-specific environment variable
     /// Example: get_plugin_env("telegram-bot", "token") -> $SKYLET_TELEGRAM_BOT_TOKEN
     pub fn get_plugin_env(plugin_name: &str, var: &str) -> Option<String> {
@@ -542,7 +570,7 @@ pub fn create_success_response<T: Serialize>(
     _rate_limit: Option<RateLimitInfo>,
 ) -> *mut HttpResponse {
     let body_bytes = body.as_bytes();
-    
+
     // Security: Validate body size to prevent DoS attacks
     const MAX_RESPONSE_SIZE: usize = 100 * 1024 * 1024; // 100MB limit
     if body_bytes.len() > MAX_RESPONSE_SIZE {
@@ -555,12 +583,12 @@ pub fn create_success_response<T: Serialize>(
             body_len: 0,
         }));
     }
-    
+
     // Security: Use Vec instead of raw alloc for automatic bounds checking
     let mut body_vec = body_bytes.to_vec();
     let body_ptr = body_vec.as_mut_ptr();
     std::mem::forget(body_vec); // Leak the vec so the raw pointer remains valid
-    
+
     let resp = Box::new(HttpResponse {
         status_code: 200,
         headers: std::ptr::null_mut(),
@@ -591,7 +619,7 @@ pub fn create_error_response(status_code: i32, error_message: &str) -> *mut Http
     };
 
     let body_bytes = response_body.as_bytes();
-    
+
     // Security: Validate body size to prevent DoS attacks
     const MAX_RESPONSE_SIZE: usize = 100 * 1024 * 1024; // 100MB limit
     if body_bytes.len() > MAX_RESPONSE_SIZE {
@@ -641,7 +669,11 @@ pub fn extract_method_and_path(_request: *const HttpResponse) -> PluginResult<(S
 }
 
 // Logging utility (simplified for v0.3.0)
-pub fn log_message(_context: *const skylet_abi::PluginContext, _level: skylet_abi::PluginLogLevel, message: &str) {
+pub fn log_message(
+    _context: *const skylet_abi::PluginContext,
+    _level: skylet_abi::PluginLogLevel,
+    message: &str,
+) {
     println!("PLUGIN_LOG: {}", message);
 }
 
@@ -743,11 +775,11 @@ mod tests {
 
         unsafe {
             let caps = std::slice::from_raw_parts(ptr, count);
-            
+
             let name0 = CStr::from_ptr(caps[0].name).to_str().unwrap();
             let name1 = CStr::from_ptr(caps[1].name).to_str().unwrap();
             let name2 = CStr::from_ptr(caps[2].name).to_str().unwrap();
-            
+
             assert_eq!(name0, "secrets.get");
             assert_eq!(name1, "secrets.set");
             assert_eq!(name2, "secrets.delete");
@@ -798,7 +830,7 @@ mod tests {
             let version = CStr::from_ptr(info.version).to_str().unwrap();
             let desc = CStr::from_ptr(info.description).to_str().unwrap();
             let spec = CStr::from_ptr(info.interface_spec).to_str().unwrap();
-            
+
             assert_eq!(name, "ConfigService");
             assert_eq!(version, "2.0.0");
             assert_eq!(desc, "Centralized configuration management");
@@ -835,9 +867,7 @@ mod tests {
 
     #[test]
     fn test_tags_builder_single() {
-        let (ptr, count) = TagsBuilder::new()
-            .add("security")
-            .build();
+        let (ptr, count) = TagsBuilder::new().add("security").build();
 
         assert!(!ptr.is_null());
         assert_eq!(count, 1);
@@ -863,12 +893,12 @@ mod tests {
 
         unsafe {
             let tags = std::slice::from_raw_parts(ptr, count);
-            
+
             let tag0 = CStr::from_ptr(tags[0]).to_str().unwrap();
             let tag1 = CStr::from_ptr(tags[1]).to_str().unwrap();
             let tag2 = CStr::from_ptr(tags[2]).to_str().unwrap();
             let tag3 = CStr::from_ptr(tags[3]).to_str().unwrap();
-            
+
             assert_eq!(tag0, "security");
             assert_eq!(tag1, "encryption");
             assert_eq!(tag2, "bootstrap");
@@ -891,7 +921,7 @@ mod tests {
     #[test]
     fn test_static_cstr_macro() {
         const TEST_STR: &[u8] = static_cstr!("hello");
-        
+
         // Should be null-terminated
         assert_eq!(TEST_STR, b"hello\0");
         assert_eq!(TEST_STR.len(), 6);
@@ -901,7 +931,7 @@ mod tests {
     #[test]
     fn test_static_cstr_empty() {
         const EMPTY: &[u8] = static_cstr!("");
-        
+
         assert_eq!(EMPTY, b"\0");
         assert_eq!(EMPTY.len(), 1);
     }
@@ -909,7 +939,7 @@ mod tests {
     #[test]
     fn test_static_cstr_with_special_chars() {
         const SPECIAL: &[u8] = static_cstr!("test-plugin_v2.0");
-        
+
         assert_eq!(SPECIAL, b"test-plugin_v2.0\0");
     }
 
@@ -917,9 +947,9 @@ mod tests {
     fn test_cstr_ptr_macro() {
         const NAME: &[u8] = static_cstr!("my-plugin");
         let ptr = cstr_ptr!(NAME);
-        
+
         assert!(!ptr.is_null());
-        
+
         unsafe {
             let recovered = CStr::from_ptr(ptr).to_str().unwrap();
             assert_eq!(recovered, "my-plugin");
@@ -930,7 +960,7 @@ mod tests {
     fn test_cstr_ptr_roundtrip() {
         const VERSION: &[u8] = static_cstr!("1.2.3");
         let ptr = cstr_ptr!(VERSION);
-        
+
         unsafe {
             let cstr = CStr::from_ptr(ptr);
             assert_eq!(cstr.to_bytes_with_nul(), VERSION);
@@ -950,10 +980,7 @@ mod tests {
             .build();
 
         // Build tags
-        let (tags_ptr, num_tags) = TagsBuilder::new()
-            .add("core")
-            .add("v2")
-            .build();
+        let (tags_ptr, num_tags) = TagsBuilder::new().add("core").add("v2").build();
 
         // Build service info
         let service_ptr = ServiceInfoBuilder::new("PluginService", "2.0.0")
@@ -1083,11 +1110,14 @@ impl ConfigManager {
         let configs = self.configs.read().await;
         let value = configs
             .get(key)
-            .ok_or_else(|| PluginCommonError::SerializationFailed(format!("Config key '{}' not found", key)))?
+            .ok_or_else(|| {
+                PluginCommonError::SerializationFailed(format!("Config key '{}' not found", key))
+            })?
             .clone();
-        
-        serde_json::from_value(value)
-            .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to deserialize config: {}", e)))
+
+        serde_json::from_value(value).map_err(|e| {
+            PluginCommonError::SerializationFailed(format!("Failed to deserialize config: {}", e))
+        })
     }
 }
 
@@ -1103,16 +1133,16 @@ impl<T> PluginState<T> {
         }
     }
 
-    pub async fn read<F, R>(&self, f: F) -> R 
-    where 
+    pub async fn read<F, R>(&self, f: F) -> R
+    where
         F: FnOnce(&T) -> R,
     {
         let guard = self.inner.read().await;
         f(&*guard)
     }
 
-    pub async fn write<F, R>(&self, f: F) -> R 
-    where 
+    pub async fn write<F, R>(&self, f: F) -> R
+    where
         F: FnOnce(&mut T) -> R,
     {
         let mut guard = self.inner.write().await;
@@ -1132,7 +1162,15 @@ pub struct SecretsManager {
     /// In-memory secrets storage using std::sync::RwLock for sync access
     secrets: Arc<std::sync::RwLock<HashMap<String, String>>>,
     /// Pending secrets to be stored asynchronously (key, value, callback)
-    pending_stores: Arc<Mutex<Vec<(String, String, Option<Arc<dyn Fn(&str, &str) -> Result<()> + Send + Sync>>)>>>,
+    pending_stores: Arc<
+        Mutex<
+            Vec<(
+                String,
+                String,
+                Option<Arc<dyn Fn(&str, &str) -> Result<()> + Send + Sync>>,
+            )>,
+        >,
+    >,
 }
 
 impl SecretsManager {
@@ -1145,7 +1183,10 @@ impl SecretsManager {
 
     /// Store a secret synchronously (stored in memory, queued for async persistence)
     pub fn store_secret_sync(&self, key: &str, value: &str) -> Result<()> {
-        let mut secrets = self.secrets.write().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut secrets = self
+            .secrets
+            .write()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         secrets.insert(key.to_string(), value.to_string());
         Ok(())
     }
@@ -1157,7 +1198,12 @@ impl SecretsManager {
     }
 
     /// Queue a secret for async storage with an optional callback
-    pub fn queue_secret_store(&self, key: &str, value: &str, callback: Option<Arc<dyn Fn(&str, &str) -> Result<()> + Send + Sync>>) {
+    pub fn queue_secret_store(
+        &self,
+        key: &str,
+        value: &str,
+        callback: Option<Arc<dyn Fn(&str, &str) -> Result<()> + Send + Sync>>,
+    ) {
         let mut pending = self.pending_stores.lock().unwrap();
         pending.push((key.to_string(), value.to_string(), callback));
         // Also store in memory immediately
@@ -1191,33 +1237,41 @@ impl SecretsManager {
     }
 
     pub async fn store_secret(&self, key: &str, value: &str) -> PluginResult<()> {
-        let mut secrets = self.secrets.write()
+        let mut secrets = self
+            .secrets
+            .write()
             .map_err(|e| PluginCommonError::SerializationFailed(format!("Lock poisoned: {}", e)))?;
         secrets.insert(key.to_string(), value.to_string());
         Ok(())
     }
 
     pub async fn get_secret(&self, key: &str) -> PluginResult<Option<String>> {
-        let secrets = self.secrets.read()
+        let secrets = self
+            .secrets
+            .read()
             .map_err(|e| PluginCommonError::SerializationFailed(format!("Lock poisoned: {}", e)))?;
         Ok(secrets.get(key).cloned())
     }
 
     pub async fn delete_secret(&self, key: &str) -> PluginResult<bool> {
-        let mut secrets = self.secrets.write()
+        let mut secrets = self
+            .secrets
+            .write()
             .map_err(|e| PluginCommonError::SerializationFailed(format!("Lock poisoned: {}", e)))?;
         Ok(secrets.remove(key).is_some())
     }
 
     pub async fn list_secrets(&self, prefix: Option<&str>) -> PluginResult<Vec<String>> {
-        let secrets = self.secrets.read()
+        let secrets = self
+            .secrets
+            .read()
             .map_err(|e| PluginCommonError::SerializationFailed(format!("Lock poisoned: {}", e)))?;
         let mut keys: Vec<String> = secrets.keys().cloned().collect();
-        
+
         if let Some(prefix) = prefix {
             keys.retain(|k| k.starts_with(prefix));
         }
-        
+
         keys.sort();
         Ok(keys)
     }
@@ -1232,10 +1286,11 @@ impl Default for SecretsManager {
 // Utility functions for secrets
 pub fn generate_secure_password(length: usize) -> String {
     use rand::Rng;
-    
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+
+    const CHARSET: &[u8] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
     let mut rng = rand::thread_rng();
-    
+
     (0..length)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());
@@ -1245,12 +1300,12 @@ pub fn generate_secure_password(length: usize) -> String {
 }
 
 pub fn hash_secret(secret: &str, salt: &str) -> PluginResult<String> {
-    use sha2::{Sha256, Digest};
-    
+    use sha2::{Digest, Sha256};
+
     let mut hasher = Sha256::new();
     hasher.update(secret.as_bytes());
     hasher.update(salt.as_bytes());
-    
+
     Ok(format!("{:x}", hasher.finalize()))
 }
 
@@ -1262,11 +1317,12 @@ pub async fn load_config_with_secrets<T: for<'de> Deserialize<'de>>(
     config_path: &str,
     secrets: &SecretsManager,
 ) -> PluginResult<T> {
-    let config_content = std::fs::read_to_string(config_path)
-        .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to read config: {}", e)))?;
-    
+    let config_content = std::fs::read_to_string(config_path).map_err(|e| {
+        PluginCommonError::SerializationFailed(format!("Failed to read config: {}", e))
+    })?;
+
     let mut processed_content = config_content;
-    
+
     if let Ok(all_keys) = secrets.list_secrets(None).await {
         for secret_key in all_keys {
             if let Ok(Some(secret_value)) = secrets.get_secret(&secret_key).await {
@@ -1275,9 +1331,10 @@ pub async fn load_config_with_secrets<T: for<'de> Deserialize<'de>>(
             }
         }
     }
-    
-    serde_json::from_str(&processed_content)
-        .map_err(|e| PluginCommonError::SerializationFailed(format!("Failed to parse config: {}", e)))
+
+    serde_json::from_str(&processed_content).map_err(|e| {
+        PluginCommonError::SerializationFailed(format!("Failed to parse config: {}", e))
+    })
 }
 
 // Simple JSON request handler utility
@@ -1295,26 +1352,26 @@ pub fn handle_json_request<T: Serialize>(
         }
 
         let args_str = CStr::from_ptr(args_json).to_string_lossy().into_owned();
-        
+
         match serde_json::from_str::<serde_json::Value>(&args_str) {
-            Ok(args) => {
-                match handler(args) {
-                    Ok(result) => {
-                        let success_response = serde_json::json!({
-                            "success": true,
-                            "data": result
-                        });
-                        CString::new(success_response.to_string()).unwrap().into_raw()
-                    }
-                    Err(e) => {
-                        let error_response = serde_json::json!({
-                            "success": false,
-                            "error": e.to_string()
-                        });
-                        CString::new(error_response.to_string()).unwrap().into_raw()
-                    }
+            Ok(args) => match handler(args) {
+                Ok(result) => {
+                    let success_response = serde_json::json!({
+                        "success": true,
+                        "data": result
+                    });
+                    CString::new(success_response.to_string())
+                        .unwrap()
+                        .into_raw()
                 }
-            }
+                Err(e) => {
+                    let error_response = serde_json::json!({
+                        "success": false,
+                        "error": e.to_string()
+                    });
+                    CString::new(error_response.to_string()).unwrap().into_raw()
+                }
+            },
             Err(e) => {
                 let error_response = serde_json::json!({
                     "success": false,
@@ -1412,7 +1469,7 @@ pub fn create_plugin_info_v2(
 }
 
 /// V2 ABI Plugin declaration macro - eliminates 150+ lines of boilerplate
-/// 
+///
 /// This macro generates all required V2 ABI entry points:
 /// - `plugin_get_info_v2()` - Returns plugin metadata
 /// - `plugin_init_v2()` - Plugin initialization (calls user-provided init_fn if specified)
@@ -1420,7 +1477,7 @@ pub fn create_plugin_info_v2(
 /// - `plugin_handle_request_v2()` - Default NotImplemented handler
 /// - `plugin_health_check_v2()` - Returns Healthy status
 /// - `plugin_create_v2()` - Returns PluginApiV2 struct
-/// 
+///
 /// # Basic Example
 /// ```ignore
 /// skylet_plugin_v2! {
@@ -1488,7 +1545,7 @@ macro_rules! skylet_plugin_v2 {
             health_check: None,
         }
     };
-    
+
     // Form with tags
     (
         name: $name:expr,
@@ -1520,7 +1577,7 @@ macro_rules! skylet_plugin_v2 {
             health_check: None,
         }
     };
-    
+
     // Form with hooks
     (
         name: $name:expr,
@@ -1553,7 +1610,7 @@ macro_rules! skylet_plugin_v2 {
             health_check: None,
         }
     };
-    
+
     // Form with init and shutdown hooks
     (
         name: $name:expr,
@@ -1587,7 +1644,7 @@ macro_rules! skylet_plugin_v2 {
             health_check: None,
         }
     };
-    
+
     // Full form with all hooks
     (
         name: $name:expr,
@@ -1645,7 +1702,7 @@ macro_rules! skylet_plugin_v2_impl {
         health_check: $health_hook:expr,
     ) => {
         // Use fully qualified paths to avoid import conflicts with user code
-        static __SKYLET_PLUGIN_INFO_V2: std::sync::atomic::AtomicPtr<skylet_abi::v2_spec::PluginInfoV2> = 
+        static __SKYLET_PLUGIN_INFO_V2: std::sync::atomic::AtomicPtr<skylet_abi::v2_spec::PluginInfoV2> =
             std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
         static mut __SKYLET_PLUGIN_INFO_V2_HOLDER: Option<$crate::PluginInfoV2Holder> = None;
 
@@ -1684,7 +1741,7 @@ macro_rules! skylet_plugin_v2_impl {
             if context.is_null() {
                 return skylet_abi::v2_spec::PluginResultV2::InvalidRequest;
             }
-            
+
             // Log initialization
             unsafe {
                 if !(*context).logger.is_null() {
@@ -1693,7 +1750,7 @@ macro_rules! skylet_plugin_v2_impl {
                     (logger.log)(context, skylet_abi::PluginLogLevel::Info, msg.as_ptr());
                 }
             }
-            
+
             // Call user-provided init hook if specified
             let init_hook: Option<fn(*const skylet_abi::v2_spec::PluginContextV2) -> skylet_abi::v2_spec::PluginResultV2> = $init_hook;
             if let Some(hook) = init_hook {
@@ -1702,7 +1759,7 @@ macro_rules! skylet_plugin_v2_impl {
                     return result;
                 }
             }
-            
+
             skylet_abi::v2_spec::PluginResultV2::Success
         }
 
@@ -1716,7 +1773,7 @@ macro_rules! skylet_plugin_v2_impl {
                     return result;
                 }
             }
-            
+
             skylet_abi::v2_spec::PluginResultV2::Success
         }
 
@@ -1736,10 +1793,10 @@ macro_rules! skylet_plugin_v2_impl {
             if let Some(hook) = health_hook {
                 return hook(context);
             }
-            
+
             skylet_abi::v2_spec::HealthStatus::Healthy
         }
-        
+
         #[no_mangle]
         #[allow(clippy::not_unsafe_ptr_arg_deref)]
         pub extern "C" fn plugin_query_capability_v2(
@@ -1749,7 +1806,7 @@ macro_rules! skylet_plugin_v2_impl {
             if capability.is_null() {
                 return false;
             }
-            
+
             unsafe {
                 let cap_str = std::ffi::CStr::from_ptr(capability).to_str().unwrap_or("");
                 let capabilities: &[&str] = &[$($cap),*];
@@ -1775,7 +1832,7 @@ macro_rules! skylet_plugin_v2_impl {
                 deserialize_state: None,
                 free_state: None,
             };
-            
+
             &API
         }
     };

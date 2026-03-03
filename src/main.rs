@@ -9,14 +9,12 @@ mod plugin_manager;
 
 use crate::config::AppConfig;
 use anyhow::Result;
-use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
-use serde::{Deserialize, Serialize};
+use axum::{extract::Path, extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde_json::json;
 
 use bootstrap::{load_bootstrap_plugins, shutdown_bootstrap_plugins, BootstrapContext};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -25,14 +23,11 @@ use tracing::{error, info, warn};
 // GAP-003: Import auth HTTP handlers from permissions crate
 use permissions::http::{auth_router, AuthState};
 
-// CQ-003: Import dynamic plugin discovery
-use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
+// Plugin lifecycle orchestrator (wraps discovery, dep resolution, and loading)
+use plugin_manager::lifecycle::{LifecycleConfig, PluginLifecycleManager};
 
-// Wire PluginManager for application plugins (provides real FFI services)
-use plugin_manager::manager::PluginManager;
-
-// CQ-004: Plugin dependency resolution for load ordering
-use plugin_manager::dependency_resolver::PluginDependencyResolver;
+// Discovery config to build LifecycleConfig from AppConfig
+use plugin_manager::discovery::DiscoveryConfig;
 
 #[derive(Parser)]
 #[command(name = "skylet")]
@@ -50,53 +45,38 @@ enum Commands {
     Maintenance,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginHealth {
-    pub name: String,
-    pub status: String,
-    pub abi_version: String,
-    pub loaded_at: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct AppState {
-    pub plugins: Arc<RwLock<Vec<PluginHealth>>>,
+    pub lifecycle: Arc<PluginLifecycleManager>,
     pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(lifecycle: Arc<PluginLifecycleManager>) -> Self {
         Self {
-            plugins: Arc::new(RwLock::new(Vec::new())),
+            lifecycle,
             started_at: chrono::Utc::now(),
         }
-    }
-
-    pub async fn add_plugin(&self, name: &str, status: &str, abi_version: &str) {
-        let mut plugins = self.plugins.write().await;
-        plugins.push(PluginHealth {
-            name: name.to_string(),
-            status: status.to_string(),
-            abi_version: abi_version.to_string(),
-            loaded_at: chrono::Utc::now().to_rfc3339(),
-        });
     }
 }
 
 async fn health_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let plugins = state.plugins.read().await;
-    let healthy_count = plugins.iter().filter(|p| p.status == "healthy").count();
-    let total_count = plugins.len();
+    let summary = state.lifecycle.status_summary().await;
+    let active = summary.get("active").copied().unwrap_or(0);
+    let failed = summary.get("failed").copied().unwrap_or(0);
+    let total: usize = summary.values().sum();
 
-    let status = if healthy_count == total_count && total_count > 0 {
+    let status = if failed == 0 && active > 0 {
         "healthy"
-    } else if healthy_count > 0 {
+    } else if active > 0 {
         "degraded"
     } else {
         "unhealthy"
     };
+
+    let plugins = state.lifecycle.list_plugins().await;
 
     Ok(Json(json!({
         "status": status,
@@ -104,14 +84,14 @@ async fn health_handler(
         "started_at": state.started_at.to_rfc3339(),
         "uptime_seconds": (chrono::Utc::now() - state.started_at).num_seconds(),
         "plugins": {
-            "total": total_count,
-            "healthy": healthy_count,
-            "unhealthy": total_count - healthy_count,
+            "total": total,
+            "active": active,
+            "failed": failed,
             "list": plugins.iter().map(|p| json!({
                 "name": p.name,
-                "status": p.status,
+                "status": format!("{}", p.status),
                 "abi_version": p.abi_version,
-                "loaded_at": p.loaded_at
+                "loaded_at": p.loaded_at.map(|t| t.to_rfc3339())
             })).collect::<Vec<_>>()
         }
     })))
@@ -120,23 +100,60 @@ async fn health_handler(
 async fn ready_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let plugins = state.plugins.read().await;
-    let healthy_count = plugins.iter().filter(|p| p.status == "healthy").count();
-    let total_count = plugins.len();
+    let active = state.lifecycle.active_count().await;
+    let summary = state.lifecycle.status_summary().await;
+    let total: usize = summary.values().sum();
 
-    let is_ready = healthy_count > 0;
+    let is_ready = active > 0;
 
     if is_ready {
         Ok(Json(json!({
             "status": "ready",
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "plugins": {
-                "total": total_count,
-                "healthy": healthy_count
+                "total": total,
+                "active": active
             }
         })))
     } else {
         Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
+}
+
+async fn plugins_list_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let plugins = state.lifecycle.list_plugins().await;
+    let order = state.lifecycle.loading_order().await;
+
+    Json(json!({
+        "plugins": plugins.iter().map(|p| json!({
+            "name": p.name,
+            "status": format!("{}", p.status),
+            "abi_version": p.abi_version,
+            "path": p.path.display().to_string(),
+            "dependencies": p.dependencies,
+            "loaded_at": p.loaded_at.map(|t| t.to_rfc3339()),
+            "error": p.error,
+        })).collect::<Vec<_>>(),
+        "loading_order": order,
+        "total": plugins.len(),
+    }))
+}
+
+async fn plugin_detail_handler(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match state.lifecycle.get_state(&name).await {
+        Some(p) => Ok(Json(json!({
+            "name": p.name,
+            "status": format!("{}", p.status),
+            "abi_version": p.abi_version,
+            "path": p.path.display().to_string(),
+            "dependencies": p.dependencies,
+            "loaded_at": p.loaded_at.map(|t| t.to_rfc3339()),
+            "error": p.error,
+        }))),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -169,21 +186,11 @@ async fn main() -> Result<()> {
 async fn run_server(config: AppConfig) -> Result<()> {
     info!("Starting Skylet server...");
 
-    let app_state = Arc::new(AppState::new());
-
     // Load bootstrap plugins
     info!("Loading bootstrap plugins...");
     let bootstrap_context = match load_bootstrap_plugins(None) {
         Ok(ctx) => {
             info!("Bootstrap plugins loaded successfully");
-            app_state
-                .add_plugin("config-manager", "healthy", "v2")
-                .await;
-            app_state.add_plugin("logging", "healthy", "v2").await;
-            app_state.add_plugin("registry", "healthy", "v2").await;
-            app_state
-                .add_plugin("secrets-manager", "healthy", "v2")
-                .await;
             ctx
         }
         Err(e) => {
@@ -192,10 +199,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     };
 
-    // CQ-003: Dynamic plugin discovery - discover plugins from filesystem
-    info!("Discovering application plugins...");
-
-    // Create discovery config from AppConfig.plugins settings
+    // Build lifecycle configuration from AppConfig
     let discovery_config = DiscoveryConfig {
         search_paths: vec![config.plugins.directory.clone()],
         exclude_patterns: config.plugins.exclude_patterns.clone(),
@@ -204,129 +208,37 @@ async fn run_server(config: AppConfig) -> Result<()> {
         include_debug_builds: config.plugins.include_debug_builds,
     };
 
-    let discovery = PluginDiscovery::new(discovery_config);
-    let app_plugins = match discovery.discover_plugins() {
-        Ok(plugins) => {
-            info!("Discovered {} application plugins", plugins.len());
-            plugins
-        }
-        Err(e) => {
-            warn!("Plugin discovery failed, using empty list: {}", e);
-            vec![]
-        }
+    let lifecycle_config = LifecycleConfig {
+        discovery: discovery_config,
+        continue_on_failure: true,
+        health_check_interval_secs: 0,
     };
 
-    // CQ-004: Resolve plugin loading order via dependency graph
-    // Probe each discovered plugin for its declared dependencies, then
-    // topologically sort so that dependencies load before dependents.
-    let ordered_plugins = {
-        use skylet_abi::AbiV2PluginLoader;
-        use std::collections::HashMap;
+    // Create lifecycle manager and activate all plugins
+    // (handles discovery → dependency resolution → ordered loading)
+    let lifecycle_manager = Arc::new(PluginLifecycleManager::new(lifecycle_config));
 
-        let mut resolver = PluginDependencyResolver::new();
-        let mut plugin_map: HashMap<String, &plugin_manager::discovery::DiscoveredPlugin> =
-            HashMap::new();
-
-        for discovered in &app_plugins {
-            plugin_map.insert(discovered.name.clone(), discovered);
-
-            // Probe plugin library once for both dependency metadata and version
-            let (deps, version) = match AbiV2PluginLoader::load(&discovered.path) {
-                Ok(loader) => {
-                    let deps: Vec<String> = match loader.get_dependencies() {
-                        Ok(entries) => entries
-                            .into_iter()
-                            .filter(|d| d.required)
-                            .map(|d| match d.version_range {
-                                Some(ver) => format!("{}@{}", d.name, ver),
-                                None => d.name,
-                            })
-                            .collect(),
-                        Err(e) => {
-                            warn!(
-                                "Could not read dependencies for plugin '{}': {}",
-                                discovered.name, e
-                            );
-                            vec![]
-                        }
-                    };
-                    let version = loader.get_info().ok().map(|m| m.version);
-                    (deps, version)
-                }
-                Err(e) => {
-                    warn!(
-                        "Could not probe plugin '{}' for dependencies: {}",
-                        discovered.name, e
-                    );
-                    (vec![], None)
-                }
-            };
-
-            resolver.register_plugin(
-                &discovered.name,
-                &discovered.abi_version,
-                deps,
-                version.as_deref(),
+    info!("Discovering and activating application plugins...");
+    match lifecycle_manager.activate_all().await {
+        Ok((loaded, failed)) => {
+            info!(
+                "Plugin activation complete: {} loaded, {} failed",
+                loaded, failed
             );
         }
-
-        match resolver.resolve_loading_order() {
-            Ok(order) => {
-                // resolve_loading_order() returns dependencies-first order (via
-                // Kahn's algorithm starting from nodes with zero dependencies).
-                // This is already the correct loading order: each plugin's
-                // prerequisites are loaded before the plugin itself.
-
-                info!(
-                    "Resolved plugin loading order: {:?}",
-                    order.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>()
-                );
-                // Map back to DiscoveredPlugin references in resolved order
-                order
-                    .into_iter()
-                    .filter_map(|(name, _)| plugin_map.remove(&name).cloned())
-                    .collect::<Vec<_>>()
-            }
-            Err(e) => {
-                warn!(
-                    "Dependency resolution failed, loading in discovery order: {}",
-                    e
-                );
-                app_plugins.clone()
-            }
-        }
-    };
-
-    // Load application plugins via PluginManager (provides real FFI services:
-    // logging, config, event bus, RPC, tracing, secrets, HTTP routing)
-    let plugin_manager = PluginManager::new();
-    for discovered in &ordered_plugins {
-        match plugin_manager
-            .load_plugin_instance_v2(&discovered.name, &discovered.path)
-            .await
-        {
-            Ok(_) => {
-                info!("Loaded application plugin: {}", discovered.name);
-                app_state
-                    .add_plugin(&discovered.name, "healthy", &discovered.abi_version)
-                    .await;
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to load application plugin '{}': {}",
-                    discovered.name, e
-                );
-                app_state
-                    .add_plugin(&discovered.name, "failed", &discovered.abi_version)
-                    .await;
-            }
+        Err(e) => {
+            error!("Plugin activation failed: {}", e);
         }
     }
+
+    let app_state = Arc::new(AppState::new(lifecycle_manager.clone()));
 
     // Simplified server startup, relying on plugins for networking
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/ready", get(ready_handler))
+        .route("/plugins", get(plugins_list_handler))
+        .route("/plugins/:name", get(plugin_detail_handler))
         .with_state(app_state.clone())
         .layer(
             ServiceBuilder::new()
@@ -386,9 +298,9 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     }
 
-    // Shutdown application plugins before bootstrap
+    // Shutdown application plugins (reverse dependency order) before bootstrap
     info!("Shutting down application plugins...");
-    plugin_manager.shutdown_all().await;
+    lifecycle_manager.shutdown_all().await;
 
     // Shutdown bootstrap plugins before exiting
     info!("Shutting down bootstrap plugins...");

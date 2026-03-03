@@ -162,13 +162,14 @@ impl ToolRegistry {
         let metadata = tool.metadata().clone();
         let capabilities = tool.capabilities().clone();
         let tool_box = Box::new(tool);
-        
+
         let mut tools = self.tools.write().await;
         tools.insert(tool_name.clone(), tool_box);
 
         // Update category mapping
         let mut categories = self.categories.write().await;
-        categories.entry(metadata.category.clone())
+        categories
+            .entry(metadata.category.clone())
             .or_insert_with(Vec::new)
             .push(tool_name.clone());
 
@@ -178,7 +179,7 @@ impl ToolRegistry {
                 limits: limits.clone(),
                 call_history: Arc::new(RwLock::new(Vec::new())),
             };
-            
+
             let mut rate_limiters = self.rate_limiters.write().await;
             rate_limiters.insert(tool_name.clone(), rate_limiter);
         }
@@ -207,31 +208,33 @@ impl ToolRegistry {
     /// List all registered tools
     pub async fn list_tools(&self) -> Vec<ToolInfo> {
         let tools = self.tools.read().await;
-        tools.iter().map(|(name, tool)| ToolInfo {
-            name: name.clone(),
-            description: tool.description().to_string(),
-            parameters: tool.parameters(),
-            capabilities: tool.capabilities(),
-            metadata: tool.metadata(),
-        }).collect()
+        tools
+            .iter()
+            .map(|(name, tool)| ToolInfo {
+                name: name.clone(),
+                description: tool.description().to_string(),
+                parameters: tool.parameters(),
+                capabilities: tool.capabilities(),
+                metadata: tool.metadata(),
+            })
+            .collect()
     }
 
     /// List tools by category
     pub async fn list_tools_by_category(&self, category: ToolCategory) -> Vec<ToolInfo> {
         let tools = self.tools.read().await;
         let categories = self.categories.read().await;
-        
+
         if let Some(tool_names) = categories.get(&category) {
-            tool_names.iter()
+            tool_names
+                .iter()
                 .filter_map(|name| {
-                    tools.get(name).map(|tool| {
-                        ToolInfo {
-                            name: name.clone(),
-                            description: tool.description().to_string(),
-                            parameters: tool.parameters(),
-                            capabilities: tool.capabilities(),
-                            metadata: tool.metadata(),
-                        }
+                    tools.get(name).map(|tool| ToolInfo {
+                        name: name.clone(),
+                        description: tool.description().to_string(),
+                        parameters: tool.parameters(),
+                        capabilities: tool.capabilities(),
+                        metadata: tool.metadata(),
                     })
                 })
                 .collect()
@@ -241,9 +244,10 @@ impl ToolRegistry {
     }
 
     /// Execute a tool with arguments
-    pub async fn execute_tool(&self, 
-        tool_name: &str, 
-        args: serde_json::Value
+    pub async fn execute_tool(
+        &self,
+        tool_name: &str,
+        args: serde_json::Value,
     ) -> Result<ToolResult, ToolError> {
         // Check rate limits
         if let Err(e) = self.check_rate_limits(tool_name).await {
@@ -252,7 +256,8 @@ impl ToolRegistry {
 
         // Get tool and validate arguments
         let tools = self.tools.read().await;
-        let tool = tools.get(tool_name)
+        let tool = tools
+            .get(tool_name)
             .ok_or_else(|| ToolError::tool_not_found(tool_name.to_string()))?;
 
         tool.validate_args(&args).await?;
@@ -273,51 +278,57 @@ impl ToolRegistry {
             // Check if rate limits would be exceeded
             let call_history = limiter.call_history.read().await;
             let now = chrono::Utc::now();
-            
+
             // Check minute limit
             if let Some(minute_limit) = limiter.limits.max_calls_per_minute {
-                let recent_calls: u32 = call_history.iter()
+                let recent_calls: u32 = call_history
+                    .iter()
                     .filter(|call| {
                         let minutes_passed = (now - call.timestamp).num_minutes();
                         minutes_passed < 1
                     })
                     .count() as u32;
-                
+
                 if recent_calls >= minute_limit {
                     return Err(ToolError::rate_limit_exceeded(format!(
-                        "Minute limit of {} exceeded", minute_limit
+                        "Minute limit of {} exceeded",
+                        minute_limit
                     )));
                 }
             }
 
             // Check hour limit
             if let Some(hour_limit) = limiter.limits.max_calls_per_hour {
-                let recent_calls: u32 = call_history.iter()
+                let recent_calls: u32 = call_history
+                    .iter()
                     .filter(|call| {
                         let hours_passed = (now - call.timestamp).num_hours();
                         hours_passed < 1
                     })
                     .count() as u32;
-                
+
                 if recent_calls >= hour_limit {
                     return Err(ToolError::rate_limit_exceeded(format!(
-                        "Hour limit of {} exceeded", hour_limit
+                        "Hour limit of {} exceeded",
+                        hour_limit
                     )));
                 }
             }
 
             // Check day limit
             if let Some(day_limit) = limiter.limits.max_calls_per_day {
-                let recent_calls: u32 = call_history.iter()
+                let recent_calls: u32 = call_history
+                    .iter()
                     .filter(|call| {
                         let days_passed = (now - call.timestamp).num_days();
                         days_passed < 1
                     })
                     .count() as u32;
-                
+
                 if recent_calls >= day_limit {
                     return Err(ToolError::rate_limit_exceeded(format!(
-                        "Day limit of {} exceeded", day_limit
+                        "Day limit of {} exceeded",
+                        day_limit
                     )));
                 }
             }
@@ -327,15 +338,16 @@ impl ToolRegistry {
     }
 
     /// Record a tool call for rate limiting
-    async fn record_tool_call(&self, 
-        tool_name: &str, 
-        args: &serde_json::Value, 
-        result: &ToolResult
+    async fn record_tool_call(
+        &self,
+        tool_name: &str,
+        args: &serde_json::Value,
+        result: &ToolResult,
     ) {
         let rate_limiters = self.rate_limiters.read().await;
         if let Some(limiter) = rate_limiters.get(tool_name) {
             let mut call_history = limiter.call_history.write().await;
-            
+
             let call_record = ToolCall {
                 timestamp: chrono::Utc::now(),
                 tool_name: tool_name.to_string(),
@@ -343,9 +355,9 @@ impl ToolRegistry {
                 success: result.success,
                 execution_time_ms: result.execution_time_ms,
             };
-            
+
             call_history.push(call_record);
-            
+
             // Clean up old calls (older than 24 hours)
             let cutoff = chrono::Utc::now() - chrono::Duration::hours(24);
             call_history.retain(|call| call.timestamp > cutoff);
@@ -368,15 +380,17 @@ impl ToolRegistry {
         if let Some(limiter) = rate_limiters.get(tool_name) {
             let call_history = limiter.call_history.read().await;
             let now = chrono::Utc::now();
-            
-            let last_24h_calls = call_history.iter()
+
+            let last_24h_calls = call_history
+                .iter()
                 .filter(|call| {
                     let hours_passed = (now - call.timestamp).num_hours();
                     hours_passed <= 24
                 })
                 .count();
 
-            let successful_calls = call_history.iter()
+            let successful_calls = call_history
+                .iter()
                 .filter(|call| {
                     let hours_passed = (now - call.timestamp).num_hours();
                     hours_passed <= 24 && call.success
@@ -384,14 +398,15 @@ impl ToolRegistry {
                 .count();
 
             let avg_execution_time = if last_24h_calls > 0 {
-                let total_time: u64 = call_history.iter()
+                let total_time: u64 = call_history
+                    .iter()
                     .filter(|call| {
                         let hours_passed = (now - call.timestamp).num_hours();
                         hours_passed <= 24
                     })
                     .map(|call| call.execution_time_ms)
                     .sum();
-                
+
                 total_time / last_24h_calls as u64
             } else {
                 0
@@ -412,12 +427,17 @@ impl ToolRegistry {
     pub async fn search_tools(&self, query: &str) -> Vec<ToolInfo> {
         let tools = self.tools.read().await;
         let query_lower = query.to_lowercase();
-        
-        tools.iter()
+
+        tools
+            .iter()
             .filter(|(_, tool)| {
-                tool.name().to_lowercase().contains(&query_lower) ||
-                tool.description().to_lowercase().contains(&query_lower) ||
-                tool.metadata().tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower))
+                tool.name().to_lowercase().contains(&query_lower)
+                    || tool.description().to_lowercase().contains(&query_lower)
+                    || tool
+                        .metadata()
+                        .tags
+                        .iter()
+                        .any(|tag| tag.to_lowercase().contains(&query_lower))
             })
             .map(|(name, tool)| ToolInfo {
                 name: name.clone(),
@@ -432,15 +452,14 @@ impl ToolRegistry {
     /// Get tools by capability
     pub async fn get_tools_by_capability(&self, capability: &str) -> Vec<ToolInfo> {
         let tools = self.tools.read().await;
-        
-        tools.iter()
-            .filter(|(_, tool)| {
-                match capability {
-                    "streaming" => tool.capabilities().supports_streaming,
-                    "file_upload" => tool.capabilities().supports_file_upload,
-                    "file_download" => tool.capabilities().supports_file_download,
-                    _ => false,
-                }
+
+        tools
+            .iter()
+            .filter(|(_, tool)| match capability {
+                "streaming" => tool.capabilities().supports_streaming,
+                "file_upload" => tool.capabilities().supports_file_upload,
+                "file_download" => tool.capabilities().supports_file_download,
+                _ => false,
             })
             .map(|(name, tool)| ToolInfo {
                 name: name.clone(),
@@ -568,13 +587,13 @@ mod tests {
 
     struct TestTool {
         name: String,
-    description: String,
-    parameters: ToolParameters,
-    capabilities: ToolCapabilities,
-    metadata: ToolMetadata,
-    call_count: Arc<RwLock<u32>>,
-    should_fail: bool,
-    rate_limits: Option<ToolRateLimits>,
+        description: String,
+        parameters: ToolParameters,
+        capabilities: ToolCapabilities,
+        metadata: ToolMetadata,
+        call_count: Arc<RwLock<u32>>,
+        should_fail: bool,
+        rate_limits: Option<ToolRateLimits>,
     }
 
     impl TestTool {
@@ -584,11 +603,10 @@ mod tests {
                 description: description.to_string(),
                 parameters: ToolParameters::simple(
                     "object",
-                    HashMap::from([
-                        ("input".to_string(), 
-                            ToolProperty::string(Some("Input to process"))
-                        )
-                    ]),
+                    HashMap::from([(
+                        "input".to_string(),
+                        ToolProperty::string(Some("Input to process")),
+                    )]),
                     vec!["input".to_string()],
                 ),
                 capabilities: ToolCapabilities {
@@ -600,7 +618,13 @@ mod tests {
                     supported_formats: vec!["text".to_string()],
                     rate_limits: None,
                 },
-                metadata: create_tool_metadata(name, "1.0", "test", description, ToolCategory::Utility),
+                metadata: create_tool_metadata(
+                    name,
+                    "1.0",
+                    "test",
+                    description,
+                    ToolCategory::Utility,
+                ),
                 call_count: Arc::new(RwLock::new(0)),
                 should_fail,
                 rate_limits: None,
@@ -677,10 +701,10 @@ mod tests {
     async fn test_tool_registration() {
         let registry = create_tool_registry();
         let tool = TestTool::new("test-tool", "A test tool", false);
-        
+
         let result = registry.register_tool(tool).await;
         assert!(result.is_ok());
-        
+
         let tools = registry.list_tools().await;
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].name, "test-tool");
@@ -688,18 +712,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_execution() {
-         let registry = create_tool_registry();
-         let tool = TestTool::new("test-tool", "A test tool", false);
-         
-         let _ = registry.register_tool(tool).await;
-        
+        let registry = create_tool_registry();
+        let tool = TestTool::new("test-tool", "A test tool", false);
+
+        let _ = registry.register_tool(tool).await;
+
         let args = serde_json::json!({
             "input": "test data"
         });
-        
+
         let result = registry.execute_tool("test-tool", args).await;
         assert!(result.is_ok());
-        
+
         let result = result.unwrap();
         assert!(result.success);
         assert!(result.data.is_some());
@@ -708,17 +732,17 @@ mod tests {
     #[tokio::test]
     async fn test_tool_search() {
         let registry = create_tool_registry();
-         let tool = TestTool::new("search-tool", "Search tool", false);
-         let other_tool = TestTool::new("math-tool", "Math tool", false);
-         
-         let _ = registry.register_tool(tool).await;
-         let _ = registry.register_tool(other_tool).await;
-        
+        let tool = TestTool::new("search-tool", "Search tool", false);
+        let other_tool = TestTool::new("math-tool", "Math tool", false);
+
+        let _ = registry.register_tool(tool).await;
+        let _ = registry.register_tool(other_tool).await;
+
         // Search by description
         let search_results = registry.search_tools("search").await;
         assert_eq!(search_results.len(), 1);
         assert_eq!(search_results[0].name, "search-tool");
-        
+
         // Search by name
         let name_results = registry.search_tools("math").await;
         assert_eq!(name_results.len(), 1);
@@ -729,31 +753,31 @@ mod tests {
     async fn test_rate_limiting() {
         let registry = create_tool_registry();
         let mut tool = TestTool::new("limited-tool", "Limited tool", false);
-        
+
         // Add rate limits
         tool.rate_limits = Some(ToolRateLimits {
             max_calls_per_minute: Some(2),
             max_calls_per_hour: Some(10),
             max_calls_per_day: Some(100),
             cooldown_seconds: Some(5),
-         });
-         
-         let _ = registry.register_tool(tool).await;
-        
+        });
+
+        let _ = registry.register_tool(tool).await;
+
         let args = serde_json::json!({"input": "test"});
-        
+
         // First call should succeed
         let result1 = registry.execute_tool("limited-tool", args.clone()).await;
         assert!(result1.is_ok());
-        
+
         // Second call should succeed
         let result2 = registry.execute_tool("limited-tool", args.clone()).await;
         assert!(result2.is_ok());
-        
+
         // Third call should fail due to minute limit
         let result3 = registry.execute_tool("limited-tool", args).await;
         assert!(result3.is_err());
-        
+
         if let Err(ToolError::RateLimitExceeded(_)) = result3 {
             // This is expected
         } else {

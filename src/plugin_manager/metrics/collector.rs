@@ -83,11 +83,8 @@ impl MetricsCollector {
         let mut metrics = Vec::new();
 
         metrics.push(
-            Metric::counter(
-                "plugin_total_calls".to_string(),
-                performance.total_calls,
-            )
-            .with_label("plugin".to_string(), plugin_name.to_string()),
+            Metric::counter("plugin_total_calls".to_string(), performance.total_calls)
+                .with_label("plugin".to_string(), plugin_name.to_string()),
         );
 
         metrics.push(
@@ -128,11 +125,8 @@ impl MetricsCollector {
         );
 
         metrics.push(
-            Metric::gauge(
-                "plugin_error_rate".to_string(),
-                performance.error_rate,
-            )
-            .with_label("plugin".to_string(), plugin_name.to_string()),
+            Metric::gauge("plugin_error_rate".to_string(), performance.error_rate)
+                .with_label("plugin".to_string(), plugin_name.to_string()),
         );
 
         metrics.push(
@@ -154,9 +148,7 @@ impl MetricsCollector {
         *count += 1;
         drop(metrics);
 
-        let sample = if self.sample_rate >= 1.0
-            || rand::random::<f64>() < self.sample_rate
-        {
+        let sample = if self.sample_rate >= 1.0 || rand::random::<f64>() < self.sample_rate {
             self.sample_cpu_usage().await
         } else {
             0.0
@@ -247,7 +239,10 @@ mod tests {
         assert!(!metrics.is_empty());
 
         for metric in &metrics {
-            assert_eq!(metric.labels.get("source"), Some(&"metrics_collector".to_string()));
+            assert_eq!(
+                metric.labels.get("source"),
+                Some(&"metrics_collector".to_string())
+            );
         }
     }
 
@@ -266,7 +261,10 @@ mod tests {
         assert!(!metrics.is_empty());
 
         for metric in &metrics {
-            assert_eq!(metric.labels.get("plugin"), Some(&"test_plugin".to_string()));
+            assert_eq!(
+                metric.labels.get("plugin"),
+                Some(&"test_plugin".to_string())
+            );
         }
     }
 

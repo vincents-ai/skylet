@@ -117,9 +117,9 @@ impl AdvancedConfigBackend {
     pub async fn set_config_value(&self, plugin_name: &str, key: &str, value: &str) -> Result<()> {
         let mut configs = self.configs.write().await;
 
-        let config = configs.entry(plugin_name.to_string()).or_insert_with(|| {
-            serde_json::json!({})
-        });
+        let config = configs
+            .entry(plugin_name.to_string())
+            .or_insert_with(|| serde_json::json!({}));
 
         let json_value: serde_json::Value = serde_json::from_str(value)?;
         config[key] = json_value;
@@ -163,7 +163,8 @@ impl AdvancedConfigBackend {
             return Ok(serde_json::json!({}));
         }
 
-        let content = tokio::fs::read_to_string(path).await
+        let content = tokio::fs::read_to_string(path)
+            .await
             .with_context(|| format!("Failed to read config file: {:?}", path))?;
 
         if path.extension().map(|e| e == "toml").unwrap_or(false) {
@@ -173,7 +174,10 @@ impl AdvancedConfigBackend {
         } else if path.extension().map(|e| e == "json").unwrap_or(false) {
             Ok(serde_json::from_str(&content)?)
         } else {
-            Err(anyhow::anyhow!("Unsupported config file format: {:?}", path))
+            Err(anyhow::anyhow!(
+                "Unsupported config file format: {:?}",
+                path
+            ))
         }
     }
 

@@ -329,8 +329,7 @@ impl SourcesConfig {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read sources file: {}", path.display()))?;
 
-        toml::from_str(&content)
-            .with_context(|| "Failed to parse sources configuration")
+        toml::from_str(&content).with_context(|| "Failed to parse sources configuration")
     }
 
     /// Save sources to file
@@ -340,8 +339,8 @@ impl SourcesConfig {
                 .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize sources configuration")?;
+        let content =
+            toml::to_string_pretty(self).context("Failed to serialize sources configuration")?;
 
         std::fs::write(path, content)
             .with_context(|| format!("Failed to write sources file: {}", path.display()))?;
@@ -377,7 +376,10 @@ impl SourcesConfig {
 
     /// Remove a source by name
     fn remove_source(&mut self, name: &str) -> Result<RegistrySource> {
-        let idx = self.sources.iter().position(|s| s.name == name)
+        let idx = self
+            .sources
+            .iter()
+            .position(|s| s.name == name)
             .ok_or_else(|| anyhow::anyhow!("Source '{}' not found", name))?;
 
         let removed = self.sources.remove(idx);
@@ -449,18 +451,29 @@ impl RegistryClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { sources, global_token, http_client }
+        Self {
+            sources,
+            global_token,
+            http_client,
+        }
     }
 
     /// Get authorization header for a source
     fn get_auth_header(&self, source: &RegistrySource) -> Option<String> {
-        source.auth_token.as_ref()
+        source
+            .auth_token
+            .as_ref()
             .or(self.global_token.as_ref())
             .map(|token| format!("Bearer {}", token))
     }
 
     /// Search for plugins across all sources
-    async fn search(&self, query: &str, limit: usize, source_filter: Option<&str>) -> Result<Vec<PluginInfo>> {
+    async fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        source_filter: Option<&str>,
+    ) -> Result<Vec<PluginInfo>> {
         let mut results = Vec::new();
 
         for source in &self.sources {
@@ -473,7 +486,9 @@ impl RegistryClient {
             info!("Searching source '{}' at {}", source.name, source.url);
 
             let url = format!("{}/api/v1/plugins/search", source.url.trim_end_matches('/'));
-            let mut request = self.http_client.get(&url)
+            let mut request = self
+                .http_client
+                .get(&url)
                 .query(&[("q", query), ("limit", &limit.to_string())]);
 
             if let Some(auth) = self.get_auth_header(source) {
@@ -498,7 +513,11 @@ impl RegistryClient {
                             }
                         }
                     } else {
-                        warn!("Registry '{}' returned status {}", source.name, response.status());
+                        warn!(
+                            "Registry '{}' returned status {}",
+                            source.name,
+                            response.status()
+                        );
                     }
                 }
                 Err(e) => {
@@ -533,7 +552,11 @@ impl RegistryClient {
 
         info!("Fetching plugin '{}' from '{}'", plugin_name, source.name);
 
-        let url = format!("{}/api/v1/plugins/{}", source.url.trim_end_matches('/'), plugin_name);
+        let url = format!(
+            "{}/api/v1/plugins/{}",
+            source.url.trim_end_matches('/'),
+            plugin_name
+        );
         let mut request = self.http_client.get(&url);
 
         if let Some(auth) = self.get_auth_header(source) {
@@ -573,7 +596,11 @@ impl RegistryClient {
     /// Search all sources for a plugin by name
     async fn search_for_plugin(&self, plugin_name: &str) -> Result<Option<PluginInfo>> {
         for source in &self.sources {
-            let url = format!("{}/api/v1/plugins/{}", source.url.trim_end_matches('/'), plugin_name);
+            let url = format!(
+                "{}/api/v1/plugins/{}",
+                source.url.trim_end_matches('/'),
+                plugin_name
+            );
             let mut request = self.http_client.get(&url);
 
             if let Some(auth) = self.get_auth_header(source) {
@@ -606,7 +633,11 @@ impl RegistryClient {
             let url = match plugin_id {
                 Some(id) => {
                     let name = id.split("::").last().unwrap_or(id);
-                    format!("{}/api/v1/plugins/{}/updates", source.url.trim_end_matches('/'), name)
+                    format!(
+                        "{}/api/v1/plugins/{}/updates",
+                        source.url.trim_end_matches('/'),
+                        name
+                    )
                 }
                 None => format!("{}/api/v1/updates", source.url.trim_end_matches('/')),
             };
@@ -632,15 +663,25 @@ impl RegistryClient {
                                 }
                             }
                             Err(e) => {
-                                warn!("Failed to parse updates response from '{}': {}", source.name, e);
+                                warn!(
+                                    "Failed to parse updates response from '{}': {}",
+                                    source.name, e
+                                );
                             }
                         }
                     } else {
-                        warn!("Registry '{}' returned status {} for updates check", source.name, response.status());
+                        warn!(
+                            "Registry '{}' returned status {} for updates check",
+                            source.name,
+                            response.status()
+                        );
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to connect to registry '{}' for updates: {}", source.name, e);
+                    warn!(
+                        "Failed to connect to registry '{}' for updates: {}",
+                        source.name, e
+                    );
                 }
             }
         }
@@ -672,7 +713,9 @@ impl OutputWriter for TextOutput {
         tracing::info!("    URL: {}", source.url);
 
         if verbose {
-            let token_display = source.auth_token.as_ref()
+            let token_display = source
+                .auth_token
+                .as_ref()
                 .map(|_| "***masked***".to_string())
                 .unwrap_or_else(|| "none".to_string());
             tracing::info!("    Token: {}", token_display);
@@ -688,10 +731,18 @@ impl OutputWriter for TextOutput {
     fn write_plugin(&self, plugin: &PluginInfo) {
         tracing::info!("Plugin: {}", plugin.id);
         tracing::info!("  Name: {}", plugin.name);
-        tracing::info!("  Version: {} (latest: {})", plugin.version, plugin.latest_version);
+        tracing::info!(
+            "  Version: {} (latest: {})",
+            plugin.version,
+            plugin.latest_version
+        );
 
         if plugin.has_update {
-            tracing::info!("  ⚠ Update available: {} -> {}", plugin.installed_version.as_deref().unwrap_or("none"), plugin.latest_version);
+            tracing::info!(
+                "  ⚠ Update available: {} -> {}",
+                plugin.installed_version.as_deref().unwrap_or("none"),
+                plugin.latest_version
+            );
         }
 
         tracing::info!("  Description: {}", plugin.description);
@@ -707,7 +758,11 @@ impl OutputWriter for TextOutput {
             tracing::info!("  Homepage: {}", homepage);
         }
 
-        let status = if plugin.installed { "installed" } else { "not installed" };
+        let status = if plugin.installed {
+            "installed"
+        } else {
+            "not installed"
+        };
         tracing::info!("  Status: {}", status);
         tracing::info!("");
     }
@@ -722,7 +777,14 @@ impl OutputWriter for TextOutput {
         for plugin in plugins {
             let status = if plugin.installed { "✓" } else { " " };
             let update = if plugin.has_update { " ↑" } else { "" };
-            tracing::info!("  [{}] {} - {} ({}){}", status, plugin.id, plugin.description, plugin.version, update);
+            tracing::info!(
+                "  [{}] {} - {} ({}){}",
+                status,
+                plugin.id,
+                plugin.description,
+                plugin.version,
+                update
+            );
         }
         tracing::info!("");
     }
@@ -763,9 +825,11 @@ impl OutputWriter for JsonOutput {
     }
 
     fn write_json<T: Serialize>(&self, data: &T) {
-        tracing::info!("{}", serde_json::to_string_pretty(data).unwrap_or_else(|e| {
-            serde_json::json!({"error": e.to_string()}).to_string()
-        }));
+        tracing::info!(
+            "{}",
+            serde_json::to_string_pretty(data)
+                .unwrap_or_else(|e| { serde_json::json!({"error": e.to_string()}).to_string() })
+        );
     }
 }
 
@@ -780,7 +844,12 @@ async fn handle_source_command(
     output: OutputFormat,
 ) -> Result<()> {
     match command {
-        SourceCommands::Add { name, url, token, default } => {
+        SourceCommands::Add {
+            name,
+            url,
+            token,
+            default,
+        } => {
             let source = RegistrySource {
                 name: name.clone(),
                 url,
@@ -812,7 +881,8 @@ async fn handle_source_command(
 
             match output {
                 OutputFormat::Text => {
-                    TextOutput.write_success(&format!("Removed source '{}' ({})", name, removed.url));
+                    TextOutput
+                        .write_success(&format!("Removed source '{}' ({})", name, removed.url));
                 }
                 OutputFormat::Json => {
                     JsonOutput.write_json(&serde_json::json!({
@@ -823,28 +893,36 @@ async fn handle_source_command(
             }
         }
 
-        SourceCommands::List { verbose } => {
-            match output {
-                OutputFormat::Text => {
-                    let sources = config.list_sources();
-                    if sources.is_empty() {
-                        tracing::info!("No registry sources configured.");
-                        tracing::info!("\nTo add a source, use: skylet-lifecycle-cli source add <name> <url>");
-                    } else {
-                        tracing::info!("Configured registry sources ({}):\n", sources.len());
-                        for source in sources {
-                            TextOutput.write_source(source, verbose);
-                        }
+        SourceCommands::List { verbose } => match output {
+            OutputFormat::Text => {
+                let sources = config.list_sources();
+                if sources.is_empty() {
+                    tracing::info!("No registry sources configured.");
+                    tracing::info!(
+                        "\nTo add a source, use: skylet-lifecycle-cli source add <name> <url>"
+                    );
+                } else {
+                    tracing::info!("Configured registry sources ({}):\n", sources.len());
+                    for source in sources {
+                        TextOutput.write_source(source, verbose);
                     }
                 }
-                OutputFormat::Json => {
-                    JsonOutput.write_json(&config.sources);
-                }
             }
-        }
+            OutputFormat::Json => {
+                JsonOutput.write_json(&config.sources);
+            }
+        },
 
-        SourceCommands::Update { name, url, token, default } => {
-            let source_idx = config.sources.iter().position(|s| s.name == name)
+        SourceCommands::Update {
+            name,
+            url,
+            token,
+            default,
+        } => {
+            let source_idx = config
+                .sources
+                .iter()
+                .position(|s| s.name == name)
                 .ok_or_else(|| anyhow::anyhow!("Source '{}' not found", name))?;
 
             // Apply updates
@@ -893,7 +971,11 @@ async fn handle_plugin_command(
     let client = RegistryClient::new(config.sources.clone(), global_token);
 
     match command {
-        PluginCommands::Search { query, limit, source } => {
+        PluginCommands::Search {
+            query,
+            limit,
+            source,
+        } => {
             let plugins = client.search(&query, limit, source.as_deref()).await?;
 
             match output {
@@ -906,14 +988,21 @@ async fn handle_plugin_command(
             }
         }
 
-        PluginCommands::List { source, plugin_type, limit, offset } => {
+        PluginCommands::List {
+            source,
+            plugin_type,
+            limit,
+            offset,
+        } => {
             let query = if let Some(ref ptype) = plugin_type {
                 format!("type:{}", ptype)
             } else {
                 "*".to_string()
             };
 
-            let mut plugins = client.search(&query, limit + offset, source.as_deref()).await?;
+            let mut plugins = client
+                .search(&query, limit + offset, source.as_deref())
+                .await?;
 
             // Apply offset
             if offset > 0 && offset < plugins.len() {
@@ -934,7 +1023,10 @@ async fn handle_plugin_command(
             }
         }
 
-        PluginCommands::Info { plugin_id, all_versions } => {
+        PluginCommands::Info {
+            plugin_id,
+            all_versions,
+        } => {
             if let Some(plugin) = client.get_plugin(&plugin_id).await? {
                 match output {
                     OutputFormat::Text => {
@@ -972,7 +1064,10 @@ async fn handle_plugin_command(
             }
         }
 
-        PluginCommands::CheckUpdates { plugin_id, prerelease } => {
+        PluginCommands::CheckUpdates {
+            plugin_id,
+            prerelease,
+        } => {
             let updates = client.check_updates(plugin_id.as_deref()).await?;
 
             match output {
@@ -983,7 +1078,8 @@ async fn handle_plugin_command(
                         tracing::info!("Available updates ({}):\n", updates.len());
                         for plugin in &updates {
                             if plugin.has_update {
-                                tracing::info!("  {} {} -> {}",
+                                tracing::info!(
+                                    "  {} {} -> {}",
                                     plugin.id,
                                     plugin.installed_version.as_deref().unwrap_or("?"),
                                     plugin.latest_version
@@ -1017,7 +1113,12 @@ async fn handle_install_command(
     config_path: &PathBuf,
 ) -> Result<()> {
     match command {
-        InstallCommands::Plugin { plugin_id, version, source, skip_confirm } => {
+        InstallCommands::Plugin {
+            plugin_id,
+            version,
+            source,
+            skip_confirm,
+        } => {
             // In a real implementation, this would:
             // 1. Resolve the plugin from the registry
             // 2. Download and verify the artifact
@@ -1039,7 +1140,8 @@ async fn handle_install_command(
                         tracing::info!("  Source: {}", src);
                     }
                     tracing::info!("");
-                    TextOutput.write_success(&format!("Plugin '{}' installed successfully", plugin_id));
+                    TextOutput
+                        .write_success(&format!("Plugin '{}' installed successfully", plugin_id));
                 }
                 OutputFormat::Json => {
                     JsonOutput.write_json(&serde_json::json!({
@@ -1052,50 +1154,51 @@ async fn handle_install_command(
             }
         }
 
-        InstallCommands::Uninstall { plugin_id, force } => {
-            match output {
-                OutputFormat::Text => {
-                    if force {
-                        tracing::info!("Force uninstalling plugin: {}", plugin_id);
-                    } else {
-                        tracing::info!("Uninstalling plugin: {}", plugin_id);
-                    }
-                    TextOutput.write_success(&format!("Plugin '{}' uninstalled", plugin_id));
+        InstallCommands::Uninstall { plugin_id, force } => match output {
+            OutputFormat::Text => {
+                if force {
+                    tracing::info!("Force uninstalling plugin: {}", plugin_id);
+                } else {
+                    tracing::info!("Uninstalling plugin: {}", plugin_id);
                 }
-                OutputFormat::Json => {
-                    JsonOutput.write_json(&serde_json::json!({
-                        "success": true,
-                        "uninstalled": plugin_id,
-                        "forced": force
-                    }));
-                }
+                TextOutput.write_success(&format!("Plugin '{}' uninstalled", plugin_id));
             }
-        }
+            OutputFormat::Json => {
+                JsonOutput.write_json(&serde_json::json!({
+                    "success": true,
+                    "uninstalled": plugin_id,
+                    "forced": force
+                }));
+            }
+        },
 
-        InstallCommands::Update { plugin_id, version } => {
-            match output {
-                OutputFormat::Text => {
-                    if let Some(id) = plugin_id {
-                        tracing::info!("Updating plugin: {} to version {}", id, version.as_deref().unwrap_or("latest"));
-                        TextOutput.write_success(&format!("Plugin '{}' updated", id));
-                    } else {
-                        tracing::info!("Updating all plugins...");
-                        TextOutput.write_success("All plugins updated");
-                    }
-                }
-                OutputFormat::Json => {
-                    JsonOutput.write_json(&serde_json::json!({
-                        "success": true,
-                        "updated": plugin_id,
-                        "version": version
-                    }));
+        InstallCommands::Update { plugin_id, version } => match output {
+            OutputFormat::Text => {
+                if let Some(id) = plugin_id {
+                    tracing::info!(
+                        "Updating plugin: {} to version {}",
+                        id,
+                        version.as_deref().unwrap_or("latest")
+                    );
+                    TextOutput.write_success(&format!("Plugin '{}' updated", id));
+                } else {
+                    tracing::info!("Updating all plugins...");
+                    TextOutput.write_success("All plugins updated");
                 }
             }
-        }
+            OutputFormat::Json => {
+                JsonOutput.write_json(&serde_json::json!({
+                    "success": true,
+                    "updated": plugin_id,
+                    "version": version
+                }));
+            }
+        },
 
         InstallCommands::Installed { verbose } => {
             // Read installed plugins from local manifest
-            let manifest_path = config_path.parent()
+            let manifest_path = config_path
+                .parent()
                 .unwrap_or(std::path::Path::new("."))
                 .join("installed.toml");
 
@@ -1158,12 +1261,12 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Determine config path
-    let config_path = cli.sources_file.clone()
-        .unwrap_or_else(|| {
-            cli.config_dir.clone()
-                .map(|d| d.join("sources.toml"))
-                .unwrap_or_else(SourcesConfig::default_path)
-        });
+    let config_path = cli.sources_file.clone().unwrap_or_else(|| {
+        cli.config_dir
+            .clone()
+            .map(|d| d.join("sources.toml"))
+            .unwrap_or_else(SourcesConfig::default_path)
+    });
 
     // Load configuration
     let mut config = SourcesConfig::load(&config_path)?;
@@ -1177,7 +1280,15 @@ async fn main() -> Result<()> {
             handle_plugin_command(cmd, &config, cli.auth_token.clone(), cli.output).await
         }
         Commands::Install(cmd) => {
-            handle_install_command(cmd, &config, cli.auth_token.clone(), cli.non_interactive, cli.output, &config_path).await
+            handle_install_command(
+                cmd,
+                &config,
+                cli.auth_token.clone(),
+                cli.non_interactive,
+                cli.output,
+                &config_path,
+            )
+            .await
         }
     };
 
@@ -1214,14 +1325,16 @@ mod tests {
         let path = temp_dir.path().join("sources.toml");
 
         let mut config = SourcesConfig::default();
-        config.add_source(RegistrySource {
-            name: "test".to_string(),
-            url: "https://test.registry.dev".to_string(),
-            auth_token: None,
-            is_default: true,
-            added_at: chrono::Utc::now().to_rfc3339(),
-            last_sync: None,
-        }).unwrap();
+        config
+            .add_source(RegistrySource {
+                name: "test".to_string(),
+                url: "https://test.registry.dev".to_string(),
+                auth_token: None,
+                is_default: true,
+                added_at: chrono::Utc::now().to_rfc3339(),
+                last_sync: None,
+            })
+            .unwrap();
 
         config.save(&path).unwrap();
         let loaded = SourcesConfig::load(&path).unwrap();
@@ -1234,14 +1347,16 @@ mod tests {
     #[test]
     fn test_sources_config_add_duplicate() {
         let mut config = SourcesConfig::default();
-        config.add_source(RegistrySource {
-            name: "test".to_string(),
-            url: "https://test1.registry.dev".to_string(),
-            auth_token: None,
-            is_default: false,
-            added_at: chrono::Utc::now().to_rfc3339(),
-            last_sync: None,
-        }).unwrap();
+        config
+            .add_source(RegistrySource {
+                name: "test".to_string(),
+                url: "https://test1.registry.dev".to_string(),
+                auth_token: None,
+                is_default: false,
+                added_at: chrono::Utc::now().to_rfc3339(),
+                last_sync: None,
+            })
+            .unwrap();
 
         let result = config.add_source(RegistrySource {
             name: "test".to_string(),
@@ -1258,22 +1373,26 @@ mod tests {
     #[test]
     fn test_sources_config_remove() {
         let mut config = SourcesConfig::default();
-        config.add_source(RegistrySource {
-            name: "source1".to_string(),
-            url: "https://source1.dev".to_string(),
-            auth_token: None,
-            is_default: true,
-            added_at: chrono::Utc::now().to_rfc3339(),
-            last_sync: None,
-        }).unwrap();
-        config.add_source(RegistrySource {
-            name: "source2".to_string(),
-            url: "https://source2.dev".to_string(),
-            auth_token: None,
-            is_default: false,
-            added_at: chrono::Utc::now().to_rfc3339(),
-            last_sync: None,
-        }).unwrap();
+        config
+            .add_source(RegistrySource {
+                name: "source1".to_string(),
+                url: "https://source1.dev".to_string(),
+                auth_token: None,
+                is_default: true,
+                added_at: chrono::Utc::now().to_rfc3339(),
+                last_sync: None,
+            })
+            .unwrap();
+        config
+            .add_source(RegistrySource {
+                name: "source2".to_string(),
+                url: "https://source2.dev".to_string(),
+                auth_token: None,
+                is_default: false,
+                added_at: chrono::Utc::now().to_rfc3339(),
+                last_sync: None,
+            })
+            .unwrap();
 
         let removed = config.remove_source("source1").unwrap();
         assert_eq!(removed.name, "source1");

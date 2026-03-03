@@ -175,11 +175,7 @@ impl PluginTestHarness {
     }
 
     /// Execute a single plugin action
-    pub fn execute_action(
-        &self,
-        action: &str,
-        args_json: &str,
-    ) -> Result<String> {
+    pub fn execute_action(&self, action: &str, args_json: &str) -> Result<String> {
         let plugin = self
             .plugin
             .as_ref()
@@ -200,9 +196,7 @@ impl PluginTestHarness {
             return Err(anyhow::anyhow!("Plugin returned null response"));
         }
 
-        let result_str = unsafe { CStr::from_ptr(result_ptr) }
-            .to_str()?
-            .to_string();
+        let result_str = unsafe { CStr::from_ptr(result_ptr) }.to_str()?.to_string();
 
         // Free the result string (plugin allocated it)
         unsafe {
@@ -241,7 +235,8 @@ pub struct LoadedPluginV2 {
     _lib: libloading::Library,
     init_fn: unsafe extern "C" fn(*const PluginContextV2) -> PluginResultV2,
     shutdown_fn: unsafe extern "C" fn(*const PluginContextV2) -> PluginResultV2,
-    execute_fn: unsafe extern "C" fn(*const PluginContextV2, *const c_char, *const c_char) -> *mut c_char,
+    execute_fn:
+        unsafe extern "C" fn(*const PluginContextV2, *const c_char, *const c_char) -> *mut c_char,
     get_info_fn: unsafe extern "C" fn() -> *const PluginInfoV2,
 }
 

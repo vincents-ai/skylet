@@ -30,14 +30,15 @@ impl TelegramAdapter {
     fn make_request(&self, method: &str, payload: &serde_json::Value) -> Result<serde_json::Value> {
         let client = self.client.as_ref().unwrap();
         let url = self.build_url(method);
-        
-        let response = client.post(&url)
+
+        let response = client
+            .post(&url)
             .set("Content-Type", "application/json")
             .send_string(&serde_json::to_string(payload)?)?;
-        
+
         let response_text = response.into_string()?;
         let response: serde_json::Value = serde_json::from_str(&response_text)?;
-        
+
         if response["ok"].as_bool() == Some(true) {
             Ok(response)
         } else {
@@ -78,7 +79,7 @@ impl MessagingPlatform for TelegramAdapter {
             "chat_id": recipient,
             "text": content,
         });
-        
+
         self.make_request("sendMessage", &payload)?;
         Ok(())
     }
@@ -98,7 +99,7 @@ impl MessagingPlatform for TelegramAdapter {
         if let Some(parse_mode) = options.parse_mode {
             payload["parse_mode"] = json!(match parse_mode {
                 ParseMode::Markdown => "Markdown",
-                ParseMode::MarkdownV2 => "MarkdownV2", 
+                ParseMode::MarkdownV2 => "MarkdownV2",
                 ParseMode::HTML => "HTML",
             });
         }
@@ -195,7 +196,9 @@ impl MessagingPlatform for TelegramAdapter {
         // For Telegram, message_id should be in format "chat_id:message_id"
         let parts: Vec<&str> = message_id.split(':').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid message_id format. Expected 'chat_id:message_id'"));
+            return Err(anyhow::anyhow!(
+                "Invalid message_id format. Expected 'chat_id:message_id'"
+            ));
         }
 
         let payload = json!({
@@ -208,10 +211,16 @@ impl MessagingPlatform for TelegramAdapter {
         Ok(())
     }
 
-    async fn edit_message_buttons(&self, message_id: &str, buttons: Vec<InlineButton>) -> Result<()> {
+    async fn edit_message_buttons(
+        &self,
+        message_id: &str,
+        buttons: Vec<InlineButton>,
+    ) -> Result<()> {
         let parts: Vec<&str> = message_id.split(':').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid message_id format. Expected 'chat_id:message_id'"));
+            return Err(anyhow::anyhow!(
+                "Invalid message_id format. Expected 'chat_id:message_id'"
+            ));
         }
 
         let keyboard: Vec<serde_json::Value> = buttons
@@ -248,7 +257,9 @@ impl MessagingPlatform for TelegramAdapter {
     async fn delete_message(&self, message_id: &str) -> Result<()> {
         let parts: Vec<&str> = message_id.split(':').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid message_id format. Expected 'chat_id:message_id'"));
+            return Err(anyhow::anyhow!(
+                "Invalid message_id format. Expected 'chat_id:message_id'"
+            ));
         }
 
         let payload = json!({
@@ -278,7 +289,9 @@ impl MessagingPlatform for TelegramAdapter {
                             "{} {}",
                             chat["first_name"].as_str().unwrap_or(""),
                             chat["last_name"].as_str().unwrap_or("")
-                        ).trim().to_string(),
+                        )
+                        .trim()
+                        .to_string(),
                         is_bot: chat["is_bot"].as_bool().unwrap_or(false),
                         is_verified: chat["is_verified"].as_bool().unwrap_or(false),
                         is_premium: chat["is_premium"].as_bool().unwrap_or(false),
@@ -314,7 +327,7 @@ impl MessagingPlatform for TelegramAdapter {
                     username: chat["username"].as_str().map(|s| s.to_string()),
                     description: chat["description"].as_str().map(|s| s.to_string()),
                     invite_link: chat["invite_link"].as_str().map(|s| s.to_string()),
-                    permissions: None, // Would need additional API call
+                    permissions: None,  // Would need additional API call
                     member_count: None, // Would need additional API call
                     platform_specific: HashMap::new(),
                 }))
@@ -435,7 +448,11 @@ impl MessagingPlatform for DiscordAdapter {
         Ok(())
     }
 
-    async fn edit_message_buttons(&self, _message_id: &str, _buttons: Vec<InlineButton>) -> Result<()> {
+    async fn edit_message_buttons(
+        &self,
+        _message_id: &str,
+        _buttons: Vec<InlineButton>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -552,7 +569,11 @@ impl MessagingPlatform for SlackAdapter {
         Ok(())
     }
 
-    async fn edit_message_buttons(&self, _message_id: &str, _buttons: Vec<InlineButton>) -> Result<()> {
+    async fn edit_message_buttons(
+        &self,
+        _message_id: &str,
+        _buttons: Vec<InlineButton>,
+    ) -> Result<()> {
         Ok(())
     }
 
