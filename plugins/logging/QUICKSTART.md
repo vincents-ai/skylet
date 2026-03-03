@@ -49,7 +49,7 @@ jq --version 2>/dev/null || echo "jq not installed"
 
 ```bash
 # Navigate to repository root
-cd /home/shift/code/vincents-ai
+cd /path/to/skylet
 
 # Enter Nix development environment
 nix develop
@@ -63,7 +63,7 @@ which cargo
 
 ```bash
 # Navigate to plugin directory
-cd /home/shift/code/vincents-ai/skylet/plugins/logging
+cd plugins/logging
 
 # Build release binary
 cargo build --release
@@ -81,7 +81,7 @@ ls -lh target/release/liblogging.so
 # Start Skylet with logging plugin
 
 # Set up environment
-export SKYLET_PLUGINS_DIR="/home/shift/code/vincents-ai/skylet/plugins"
+export SKYLET_PLUGINS_DIR="$PWD/plugins"
 export LOG_LEVEL="INFO"
 
 # Start plugin system with logging plugin loaded
