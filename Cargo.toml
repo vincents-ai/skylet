@@ -60,7 +60,7 @@ tokio-test = "0.4"
 rusqlite = { version = "0.30", features = ["bundled"] }
 lru = "0.12"
 futures = "0.3"
-notify = "6.1"
+notify = "8.2"
 regex = "1.10"
 hex = "0.4"
 base64 = "0.22"
