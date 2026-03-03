@@ -13,7 +13,7 @@
 //! - RFC-0002: PluginLifecycleManager for lifecycle operations
 //! - RFC-0004: ABI hot-reload hooks (plugin_prepare_hot_reload, plugin_init_from_state)
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -365,7 +365,7 @@ impl HotReloadService {
             .await
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
 
-        let old_version = current_state.version.clone();
+        let old_version = current_state.abi_version.clone();
 
         // Check if plugin is active
         if current_state.status != PluginStatus::Active {
@@ -391,13 +391,11 @@ impl HotReloadService {
         });
 
         // Step 2: Deactivate plugin
-        let deactivate_result = self
+        if let Err(e) = self
             .lifecycle_manager
             .deactivate(plugin_id)
             .await
-            .with_context(|| "Deactivating plugin for reload")?;
-
-        if !deactivate_result.success {
+        {
             return Ok(HotReloadResult {
                 plugin_id: plugin_id.to_string(),
                 success: false,
@@ -405,16 +403,14 @@ impl HotReloadService {
                 new_version: None,
                 state_preserved: false,
                 duration_ms: start.elapsed().as_millis() as u64,
-                error: deactivate_result.error,
+                error: Some(format!("Deactivation failed: {}", e)),
                 rolled_back: false,
             });
         }
 
         // Step 3: Attempt to reactivate with new binary
-        let activate_result = self.lifecycle_manager.activate(plugin_id).await;
-
-        match activate_result {
-            Ok(result) if result.success => {
+        match self.lifecycle_manager.activate(plugin_id).await {
+            Ok(()) => {
                 // Step 4: Restore state (via ABI hook)
                 let state_restored = self
                     .restore_plugin_state(plugin_id, &snapshot)
@@ -425,7 +421,7 @@ impl HotReloadService {
                     .lifecycle_manager
                     .get_state(plugin_id)
                     .await
-                    .map(|s| s.version);
+                    .map(|s| s.abi_version);
 
                 let reload_result = HotReloadResult {
                     plugin_id: plugin_id.to_string(),
@@ -451,39 +447,12 @@ impl HotReloadService {
 
                 Ok(reload_result)
             }
-            Ok(result) => {
+            Err(e) => {
                 // Activation failed - attempt rollback
                 warn!(
-                    "Activation failed after reload, attempting rollback: {:?}",
-                    result.error
+                    "Activation failed after reload, attempting rollback: {}",
+                    e
                 );
-                let rolled_back = self
-                    .rollback_plugin(plugin_id, &snapshot)
-                    .await
-                    .unwrap_or(false);
-
-                let reload_result = HotReloadResult {
-                    plugin_id: plugin_id.to_string(),
-                    success: false,
-                    old_version: Some(old_version),
-                    new_version: None,
-                    state_preserved: false,
-                    duration_ms: start.elapsed().as_millis() as u64,
-                    error: result.error,
-                    rolled_back,
-                };
-
-                // Emit failure event
-                let _ = self.event_sender.send(HotReloadEvent::ReloadFailed {
-                    plugin_id: plugin_id.to_string(),
-                    error: reload_result.error.clone().unwrap_or_default(),
-                });
-
-                Ok(reload_result)
-            }
-            Err(e) => {
-                // Activation error - attempt rollback
-                error!("Activation error after reload: {}", e);
                 let rolled_back = self
                     .rollback_plugin(plugin_id, &snapshot)
                     .await
@@ -521,7 +490,7 @@ impl HotReloadService {
             .get_state(plugin_id)
             .await
             .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
-        let plugin_version = state.version;
+        let plugin_version = state.abi_version;
 
         // In a real implementation, this would call plugin_prepare_hot_reload via ABI
         // For now, we create an empty state snapshot
@@ -603,7 +572,7 @@ impl HotReloadService {
         let activate_result = self.lifecycle_manager.activate(plugin_id).await;
 
         match activate_result {
-            Ok(result) if result.success => {
+            Ok(()) => {
                 // Try to restore previous state
                 let restored = self
                     .restore_plugin_state(plugin_id, snapshot)
@@ -615,7 +584,7 @@ impl HotReloadService {
                 );
                 Ok(true)
             }
-            _ => {
+            Err(_) => {
                 error!("Rollback failed for plugin '{}'", plugin_id);
                 Ok(false)
             }
@@ -668,8 +637,14 @@ mod tests {
 
     fn create_test_service() -> (HotReloadService, Arc<PluginLifecycleManager>) {
         let temp_dir = tempdir().unwrap();
-        let config = super::super::lifecycle::LifecycleConfig::new(temp_dir.path().join("plugins"));
-        let manager = Arc::new(PluginLifecycleManager::new(config).unwrap());
+        let config = super::super::lifecycle::LifecycleConfig {
+            discovery: super::super::discovery::DiscoveryConfig {
+                search_paths: vec![temp_dir.path().join("plugins")],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let manager = Arc::new(PluginLifecycleManager::new(config));
         let service = HotReloadService::new(HotReloadConfig::default(), manager.clone());
         (service, manager)
     }

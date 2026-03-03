@@ -131,6 +131,12 @@ impl PluginServiceRegistryBackend {
     }
 }
 
+// Safety: The *mut c_void pointers stored in the service registry are FFI handles
+// to Arc-wrapped service objects (LoggerV2, ConfigV2, EventBusV2, etc.) that are
+// themselves Send + Sync. The Mutex serializes all access to the HashMap.
+unsafe impl Send for PluginServiceRegistryBackend {}
+unsafe impl Sync for PluginServiceRegistryBackend {}
+
 impl Default for PluginServiceRegistryBackend {
     fn default() -> Self {
         Self::new()
@@ -822,6 +828,7 @@ impl PluginManager {
     }
 
     /// Create a plugin manager with custom services
+    #[allow(dead_code)] // Public API for custom service injection — used by consumers
     #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_services(services: Arc<PluginServices>) -> Self {
         Self {
@@ -832,6 +839,7 @@ impl PluginManager {
     }
 
     /// Get access to the plugin services
+    #[allow(dead_code)] // Public API — exposed via PluginLifecycleManager
     pub fn services(&self) -> Arc<PluginServices> {
         self.services.clone()
     }
@@ -1907,6 +1915,7 @@ impl PluginManager {
     }
 
     /// Get list of loaded plugins
+    #[allow(dead_code)] // Public API — query method for introspection
     pub async fn list_plugins(&self) -> Result<Vec<String>> {
         let plugins_v2 = self.loaded_plugins_v2.read().await;
         Ok(plugins_v2.keys().cloned().collect())
