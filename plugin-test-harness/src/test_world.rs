@@ -189,9 +189,7 @@ impl PluginTestWorld {
             return Err(anyhow::anyhow!("Plugin returned null response"));
         }
 
-        let result_str = unsafe { CStr::from_ptr(result_ptr) }
-            .to_str()?
-            .to_string();
+        let result_str = unsafe { CStr::from_ptr(result_ptr) }.to_str()?.to_string();
 
         // Free the result string
         unsafe {
@@ -322,7 +320,8 @@ impl PluginTestWorld {
 
     /// Set a config value
     pub fn set_config(&mut self, key: &str, value: &str) {
-        self.config_values.insert(key.to_string(), value.to_string());
+        self.config_values
+            .insert(key.to_string(), value.to_string());
     }
 
     /// Get the temp directory path
@@ -349,14 +348,21 @@ impl PluginTestWorld {
 
     /// Check if logs contain a message at a specific level
     pub fn logs_contain(&self, level: &str, message_pattern: &str) -> bool {
-        self.log_entries.lock().unwrap().iter().any(|entry| {
-            entry.level == level && entry.message.contains(message_pattern)
-        })
+        self.log_entries
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.level == level && entry.message.contains(message_pattern))
     }
 
     /// Register a mock service handler
-    pub fn register_mock_service<S: MockServiceHandler + 'static>(&mut self, name: &str, service: S) {
-        self.mock_services.insert(name.to_string(), Box::new(service));
+    pub fn register_mock_service<S: MockServiceHandler + 'static>(
+        &mut self,
+        name: &str,
+        service: S,
+    ) {
+        self.mock_services
+            .insert(name.to_string(), Box::new(service));
     }
 
     /// Cleanup test state
@@ -395,7 +401,8 @@ impl SimpleMockService {
     }
 
     pub fn add_response(&mut self, method: &str, response: &str) {
-        self.responses.insert(method.to_string(), response.to_string());
+        self.responses
+            .insert(method.to_string(), response.to_string());
     }
 }
 

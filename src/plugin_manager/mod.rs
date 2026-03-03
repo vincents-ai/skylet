@@ -10,7 +10,6 @@ pub mod events;
 pub mod failover;
 pub mod hot_reload;
 pub mod lifecycle;
-pub mod metrics;
 /// Plugin Manager Module
 ///
 /// Provides complete plugin lifecycle management with support for both
@@ -28,3 +27,4 @@ pub mod metrics;
 /// - `dependency_resolver`: Plugin dependency ordering (CQ-004) - topological sort based on dependencies
 /// - `discovery`: Dynamic plugin discovery (CQ-003) - filesystem-based plugin scanning
 pub mod manager;
+pub mod metrics;

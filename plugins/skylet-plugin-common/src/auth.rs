@@ -5,8 +5,8 @@
 // Provides common interface for authentication and authorization plugins
 
 use anyhow::Result;
-use skylet_abi::*;
 use serde::{Deserialize, Serialize};
+use skylet_abi::*;
 use std::collections::HashMap;
 
 /// Common authentication methods supported by plugins
@@ -98,46 +98,42 @@ pub struct AuthProviderConfig {
 pub trait AuthPlugin: Send + Sync {
     /// Get plugin information
     fn get_provider_name(&self) -> &str;
-    
+
     /// Get supported authentication methods
     fn get_supported_methods(&self) -> Vec<AuthMethod>;
-    
+
     /// Get provider configuration requirements
     fn get_config_requirements(&self) -> Vec<String>;
-    
+
     /// Initialize the authentication provider (synchronous)
     fn initialize(&mut self, config: AuthProviderConfig) -> Result<()>;
-    
+
     /// Authenticate with provided credentials
     fn authenticate(&self, credentials: AuthCredentials) -> Result<AuthResult>;
-    
+
     /// Validate an existing token
     fn validate_token(&self, token: &str) -> Result<bool>;
-    
+
     /// Refresh an expired token
     fn refresh_token(&self, refresh_token: &str) -> Result<AuthResult>;
-    
+
     /// Get user information from token
     fn get_user_info(&self, token: &str) -> Result<UserInfo>;
-    
+
     /// Revoke/remove authentication
     fn revoke_token(&self, token: &str) -> Result<bool>;
-    
+
     /// Generate authorization URL (for OAuth2)
     fn get_auth_url(&self, state: Option<&str>) -> Result<String>;
-    
+
     /// Exchange authorization code for token (for OAuth2)
-    fn exchange_code_for_token(
-        &self,
-        code: &str,
-        state: Option<&str>,
-    ) -> Result<AuthResult>;
-    
+    fn exchange_code_for_token(&self, code: &str, state: Option<&str>) -> Result<AuthResult>;
+
     /// Check if provider supports token introspection
     fn supports_token_introspection(&self) -> bool {
         false
     }
-    
+
     /// Introspect token to get metadata
     fn introspect_token(&self, token: &str) -> Result<serde_json::Value> {
         Err(anyhow::anyhow!("Token introspection not supported"))
@@ -148,10 +144,10 @@ pub trait AuthPlugin: Send + Sync {
 pub trait AuthenticatedClient {
     /// Add authentication headers to request
     fn add_auth_headers(&self, headers: &mut HashMap<String, String>, token: &str);
-    
+
     /// Check if request needs authentication
     fn needs_auth(&self, url: &str) -> bool;
-    
+
     /// Handle authentication errors
     fn handle_auth_error(&self, status: u16, headers: &HashMap<String, String>) -> bool;
 }
@@ -161,25 +157,25 @@ pub trait AuthenticatedClient {
 pub enum AuthError {
     #[error("Unsupported authentication method: {0}")]
     UnsupportedMethod(String),
-    
+
     #[error("Invalid credentials: {0}")]
     InvalidCredentials(String),
-    
+
     #[error("Token expired")]
     TokenExpired,
-    
+
     #[error("Invalid token: {0}")]
     InvalidToken(String),
-    
+
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
-    
+
     #[error("Provider error: {0}")]
     ProviderError(String),
-    
+
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
 }
@@ -198,7 +194,7 @@ impl From<AuthError> for super::PluginCommonError {
 pub mod oauth2_utils {
     use super::*;
     use url::Url;
-    
+
     /// Generate OAuth2 authorization URL
     pub fn generate_auth_url(
         base_url: &str,
@@ -207,32 +203,30 @@ pub mod oauth2_utils {
         scope: &str,
         state: Option<&str>,
     ) -> Result<String> {
-        let mut url = Url::parse(base_url)
-            .map_err(|e| anyhow::anyhow!("Invalid auth URL: {}", e))?;
-        
+        let mut url =
+            Url::parse(base_url).map_err(|e| anyhow::anyhow!("Invalid auth URL: {}", e))?;
+
         url.query_pairs_mut()
             .append_pair("client_id", client_id)
             .append_pair("redirect_uri", redirect_uri)
             .append_pair("scope", scope)
             .append_pair("response_type", "code");
-        
+
         if let Some(s) = state {
             url.query_pairs_mut().append_pair("state", s);
         }
-        
+
         Ok(url.to_string())
     }
-    
+
     /// Parse OAuth2 callback parameters
-    pub fn parse_callback_params(
-        query: &str,
-    ) -> Result<(String, Option<String>)> {
+    pub fn parse_callback_params(query: &str) -> Result<(String, Option<String>)> {
         let params = url::form_urlencoded::parse(query.as_bytes());
-        
+
         let mut code = None;
         let mut state = None;
         let mut error = None;
-        
+
         for (key, value) in params {
             match key.as_ref() {
                 "code" => code = Some(value.into_owned()),
@@ -241,11 +235,11 @@ pub mod oauth2_utils {
                 _ => {}
             }
         }
-        
+
         if let Some(err) = error {
             return Err(anyhow::anyhow!("OAuth2 error: {}", err));
         }
-        
+
         let code = code.ok_or_else(|| anyhow::anyhow!("Missing authorization code"))?;
         Ok((code, state))
     }

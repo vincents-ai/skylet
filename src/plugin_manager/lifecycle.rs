@@ -238,10 +238,7 @@ impl PluginLifecycleManager {
                             })
                             .collect(),
                         Err(e) => {
-                            warn!(
-                                "Could not read dependencies for plugin '{}': {}",
-                                name, e
-                            );
+                            warn!("Could not read dependencies for plugin '{}': {}", name, e);
                             vec![]
                         }
                     };
@@ -249,10 +246,7 @@ impl PluginLifecycleManager {
                     (deps, version)
                 }
                 Err(e) => {
-                    warn!(
-                        "Could not probe plugin '{}' for dependencies: {}",
-                        name, e
-                    );
+                    warn!("Could not probe plugin '{}' for dependencies: {}", name, e);
                     (vec![], None)
                 }
             };
@@ -272,10 +266,7 @@ impl PluginLifecycleManager {
                 names
             }
             Err(e) => {
-                warn!(
-                    "Dependency resolution failed, using discovery order: {}",
-                    e
-                );
+                warn!("Dependency resolution failed, using discovery order: {}", e);
                 let plugins = self.plugins.read().await;
                 plugins.keys().cloned().collect()
             }
@@ -504,8 +495,7 @@ impl PluginLifecycleManager {
                         error!("Error shutting down plugin '{}': {}", name, e);
                         let mut plugins = self.plugins.write().await;
                         if let Some(state) = plugins.get_mut(name) {
-                            state.status =
-                                PluginStatus::Failed(format!("Shutdown error: {}", e));
+                            state.status = PluginStatus::Failed(format!("Shutdown error: {}", e));
                         }
                     }
                 }
@@ -789,9 +779,7 @@ mod tests {
             );
         }
 
-        let active = manager
-            .get_plugins_by_status(&PluginStatus::Active)
-            .await;
+        let active = manager.get_plugins_by_status(&PluginStatus::Active).await;
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].name, "plugin1");
 

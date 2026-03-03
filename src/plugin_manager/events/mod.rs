@@ -39,7 +39,7 @@ impl Default for EventSystemConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            max_event_size: 1024 * 1024, // 1MB
+            max_event_size: 1024 * 1024,                 // 1MB
             retention_period: Duration::from_secs(3600), // 1 hour
             enable_persistence: true,
             enable_replay: true,
@@ -81,7 +81,9 @@ impl EventSystem {
             return Err(EventError::Disabled);
         }
 
-        let payload_size = serde_json::to_string(&event.payload).map_err(|e| EventError::Callback(e.to_string()))?.len();
+        let payload_size = serde_json::to_string(&event.payload)
+            .map_err(|e| EventError::Callback(e.to_string()))?
+            .len();
         if payload_size > self.config.max_event_size {
             return Err(EventError::TooLarge(payload_size));
         }
@@ -97,15 +99,16 @@ impl EventSystem {
             let _ = self.storage.store_event(event.clone()).await;
         }
 
-        let subscriber_count = self.router.route_event(event.clone()).await.map_err(|e| EventError::Routing(e.to_string()))?;
+        let subscriber_count = self
+            .router
+            .route_event(event.clone())
+            .await
+            .map_err(|e| EventError::Routing(e.to_string()))?;
 
         Ok(EventResult::Published { subscriber_count })
     }
 
-    pub async fn subscribe(
-        &self,
-        subscriber: EventSubscriber,
-    ) -> Result<(), EventError> {
+    pub async fn subscribe(&self, subscriber: EventSubscriber) -> Result<(), EventError> {
         let mut subscribers = self.subscribers.write().await;
 
         for event_type in &subscriber.event_types {
@@ -167,7 +170,8 @@ impl EventSystem {
         let events = self
             .storage
             .query_events(event_type, start_time, end_time)
-            .await.map_err(|e| EventError::Storage(e.to_string()))?;
+            .await
+            .map_err(|e| EventError::Storage(e.to_string()))?;
 
         let mut replayed = 0;
         for event in events {
@@ -204,7 +208,8 @@ impl EventSystem {
         let mut stats = self.statistics.write().await;
 
         stats.total_published += 1;
-        *stats.per_event
+        *stats
+            .per_event
             .entry(event.event_type.clone())
             .or_insert_with(EventStatistics::default)
             .published_mut() += 1;

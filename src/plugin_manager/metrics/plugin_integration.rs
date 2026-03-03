@@ -28,12 +28,7 @@ impl PluginMetricsIntegration {
         timers.insert(timer_key.clone(), MetricTimer::new());
     }
 
-    pub async fn record_call_end(
-        &self,
-        plugin_name: &str,
-        operation: &str,
-        success: bool,
-    ) {
+    pub async fn record_call_end(&self, plugin_name: &str, operation: &str, success: bool) {
         let timer_key = format!("{}:{}", plugin_name, operation);
         let mut timers = self.plugin_timers.write().await;
 
@@ -68,15 +63,12 @@ impl PluginMetricsIntegration {
         }
     }
 
-    async fn update_plugin_performance(
-        &self,
-        plugin_name: &str,
-        latency_ms: f64,
-        success: bool,
-    ) {
+    async fn update_plugin_performance(&self, plugin_name: &str, latency_ms: f64, success: bool) {
         if let Some(mut metrics) = self.manager.get_plugin_metrics(plugin_name).await {
             metrics.performance_metrics.record_call(latency_ms, success);
-            self.manager.update_plugin_metrics(plugin_name, metrics).await;
+            self.manager
+                .update_plugin_metrics(plugin_name, metrics)
+                .await;
         }
     }
 
@@ -86,8 +78,7 @@ impl PluginMetricsIntegration {
         _metric_name: String,
         metric: Metric,
     ) {
-        let labeled_metric = metric
-            .with_label("plugin".to_string(), plugin_name.to_string());
+        let labeled_metric = metric.with_label("plugin".to_string(), plugin_name.to_string());
 
         self.manager.record_metric(labeled_metric.clone()).await;
 
@@ -97,12 +88,7 @@ impl PluginMetricsIntegration {
     }
 
     #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
-    pub async fn increment_counter(
-        &self,
-        plugin_name: &str,
-        counter_name: String,
-        value: u64,
-    ) {
+    pub async fn increment_counter(&self, plugin_name: &str, counter_name: String, value: u64) {
         let metric = Metric::counter(counter_name, value)
             .with_label("plugin".to_string(), plugin_name.to_string());
 
@@ -110,12 +96,7 @@ impl PluginMetricsIntegration {
     }
 
     #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
-    pub async fn set_gauge(
-        &self,
-        plugin_name: &str,
-        gauge_name: String,
-        value: f64,
-    ) {
+    pub async fn set_gauge(&self, plugin_name: &str, gauge_name: String, value: f64) {
         let metric = Metric::gauge(gauge_name, value)
             .with_label("plugin".to_string(), plugin_name.to_string());
 
@@ -261,8 +242,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_plugin_metrics_integration() {
-        use super::super::MetricsManager;
         use super::super::MetricsConfig;
+        use super::super::MetricsManager;
 
         let manager = Arc::new(MetricsManager::new(MetricsConfig::default()));
         let integration = PluginMetricsIntegration::new(manager.clone());
@@ -286,8 +267,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_custom_metric() {
-        use super::super::MetricsManager;
         use super::super::MetricsConfig;
+        use super::super::MetricsManager;
 
         let manager = Arc::new(MetricsManager::new(MetricsConfig::default()));
         let integration = PluginMetricsIntegration::new(manager.clone());

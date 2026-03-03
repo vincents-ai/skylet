@@ -23,9 +23,7 @@ impl MetricsStorage {
         Self {
             metrics: Arc::new(RwLock::new(HashMap::new())),
             retention_period,
-            cache: Arc::new(RwLock::new(LruCache::new(
-                NonZeroUsize::new(1000).unwrap(),
-            ))),
+            cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(1000).unwrap()))),
             max_cache_size: 1000,
         }
     }
@@ -51,7 +49,8 @@ impl MetricsStorage {
                 .or_insert_with(Vec::new);
             entry.push(metric.clone());
 
-            self.cleanup_old_metrics(&mut all_metrics, &metric.name).await;
+            self.cleanup_old_metrics(&mut all_metrics, &metric.name)
+                .await;
             self.update_cache(metric).await;
         }
 
@@ -131,9 +130,10 @@ impl MetricsStorage {
 
     fn matches_query(&self, metric: &Metric, query: &MetricQuery) -> Result<()> {
         if let Some(ref plugin) = query.plugin_name {
-            let metric_plugin = metric.labels.get("plugin").ok_or_else(|| {
-                anyhow::anyhow!("Metric missing 'plugin' label")
-            })?;
+            let metric_plugin = metric
+                .labels
+                .get("plugin")
+                .ok_or_else(|| anyhow::anyhow!("Metric missing 'plugin' label"))?;
 
             if metric_plugin != plugin {
                 return Err(anyhow::anyhow!("Plugin mismatch"));

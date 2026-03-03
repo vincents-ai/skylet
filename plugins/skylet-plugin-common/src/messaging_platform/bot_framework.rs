@@ -122,7 +122,7 @@ impl BotFramework {
 
     async fn execute_command(&self, ctx: &CommandContext) -> Result<()> {
         let commands = self.commands.read().unwrap();
-        
+
         if let Some(command) = commands.get(&ctx.command_name) {
             command.execute(ctx.clone()).await?;
         }
@@ -164,7 +164,10 @@ impl CommandContext {
     }
 
     pub fn get_argument_or_default(&self, index: usize, default: &str) -> String {
-        self.arguments.get(index).cloned().unwrap_or_else(|| default.to_string())
+        self.arguments
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| default.to_string())
     }
 
     pub fn has_argument(&self, index: usize) -> bool {
@@ -258,16 +261,22 @@ impl PermissionMiddleware {
 #[async_trait]
 impl Middleware for PermissionMiddleware {
     async fn before(&self, ctx: &mut CommandContext) -> Result<MiddlewareResult> {
-        let commands = ctx.message.metadata.get("command_info").cloned().unwrap_or_default();
-        let command_info: CommandInfo = serde_json::from_str(&commands).unwrap_or_else(|_| CommandInfo {
-            name: ctx.command_name.clone(),
-            description: String::new(),
-            usage: String::new(),
-            aliases: vec![],
-            required_permissions: vec![],
-            category: String::new(),
-            admin_only: false,
-        });
+        let commands = ctx
+            .message
+            .metadata
+            .get("command_info")
+            .cloned()
+            .unwrap_or_default();
+        let command_info: CommandInfo =
+            serde_json::from_str(&commands).unwrap_or_else(|_| CommandInfo {
+                name: ctx.command_name.clone(),
+                description: String::new(),
+                usage: String::new(),
+                aliases: vec![],
+                required_permissions: vec![],
+                category: String::new(),
+                admin_only: false,
+            });
 
         if command_info.admin_only && !self.is_admin(&ctx.message.sender_id) {
             return Ok(MiddlewareResult::Stop("Admin only command".to_string()));
@@ -275,8 +284,14 @@ impl Middleware for PermissionMiddleware {
 
         // Check required permissions
         for permission in command_info.required_permissions {
-            if !self.has_permission(&ctx.message.sender_id, &permission).await {
-                return Ok(MiddlewareResult::Stop(format!("Missing permission: {}", permission)));
+            if !self
+                .has_permission(&ctx.message.sender_id, &permission)
+                .await
+            {
+                return Ok(MiddlewareResult::Stop(format!(
+                    "Missing permission: {}",
+                    permission
+                )));
             }
         }
 
@@ -312,8 +327,10 @@ impl RateLimitMiddleware {
 
     fn check_user_limit(&self, user_id: &str) -> Result<()> {
         let mut limits = self.user_limits.write().unwrap();
-        let user_limit = limits.entry(user_id.to_string()).or_insert_with(|| UserRateLimit::new(5)); // 5 commands per minute per user
-        
+        let user_limit = limits
+            .entry(user_id.to_string())
+            .or_insert_with(|| UserRateLimit::new(5)); // 5 commands per minute per user
+
         user_limit.check_rate_limit()
     }
 
@@ -328,12 +345,18 @@ impl Middleware for RateLimitMiddleware {
     async fn before(&self, ctx: &mut CommandContext) -> Result<MiddlewareResult> {
         // Check user-specific limit
         if let Err(e) = self.check_user_limit(&ctx.message.sender_id) {
-            return Ok(MiddlewareResult::Stop(format!("Rate limit exceeded: {}", e)));
+            return Ok(MiddlewareResult::Stop(format!(
+                "Rate limit exceeded: {}",
+                e
+            )));
         }
 
         // Check global limit
         if let Err(e) = self.check_global_limit() {
-            return Ok(MiddlewareResult::Stop(format!("Global rate limit exceeded: {}", e)));
+            return Ok(MiddlewareResult::Stop(format!(
+                "Global rate limit exceeded: {}",
+                e
+            )));
         }
 
         Ok(MiddlewareResult::Continue)
@@ -426,11 +449,9 @@ impl Middleware for LoggingMiddleware {
     async fn before(&self, ctx: &mut CommandContext) -> Result<MiddlewareResult> {
         println!(
             "Command '{}' from user {} in chat {}",
-            ctx.command_name,
-            ctx.message.sender_id,
-            ctx.message.chat_id
+            ctx.command_name, ctx.message.sender_id, ctx.message.chat_id
         );
-        
+
         ctx.set_user_data(
             "start_time".to_string(),
             std::time::SystemTime::now()
@@ -445,11 +466,10 @@ impl Middleware for LoggingMiddleware {
 
     async fn after(&self, ctx: &CommandContext, result: &Result<()>) -> Result<()> {
         let status = if result.is_ok() { "SUCCESS" } else { "ERROR" };
-        
+
         println!(
             "Command '{}' completed with status: {}",
-            ctx.command_name,
-            status
+            ctx.command_name, status
         );
 
         Ok(())

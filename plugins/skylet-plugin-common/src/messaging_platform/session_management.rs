@@ -51,7 +51,7 @@ impl SessionManager {
 
     pub async fn get_or_create_session(&self, user_id: &str, platform: &str) -> UserSession {
         let session_key = format!("{}:{}", platform, user_id);
-        
+
         // Try to get existing session
         {
             let sessions = self.sessions.read().unwrap();
@@ -80,10 +80,10 @@ impl SessionManager {
 
     pub async fn get_session(&self, user_id: &str, platform: &str) -> Option<UserSession> {
         let session_key = format!("{}:{}", platform, user_id);
-        
+
         let sessions = self.sessions.read().unwrap();
         let session = sessions.get(&session_key)?;
-        
+
         if session.is_expired() {
             return None;
         }
@@ -93,7 +93,7 @@ impl SessionManager {
 
     pub async fn update_session(&self, session: &UserSession) -> Result<()> {
         let session_key = format!("{}:{}", session.platform, session.user_id);
-        
+
         {
             let mut sessions = self.sessions.write().unwrap();
             let mut updated_session = session.clone();
@@ -119,7 +119,7 @@ impl SessionManager {
     pub async fn load_session(&self, user_id: &str, platform: &str) -> Result<Option<UserSession>> {
         if let Some(storage) = &self.storage {
             let session = storage.load_session(user_id, platform).await?;
-            
+
             if let Some(ref s) = session {
                 if !s.is_expired() {
                     // Add to memory cache
@@ -128,7 +128,7 @@ impl SessionManager {
                     sessions.insert(session_key, s.clone());
                 }
             }
-            
+
             Ok(session)
         } else {
             Ok(None)
@@ -137,7 +137,7 @@ impl SessionManager {
 
     pub async fn delete_session(&self, user_id: &str, platform: &str) -> Result<()> {
         let session_key = format!("{}:{}", platform, user_id);
-        
+
         {
             let mut sessions = self.sessions.write().unwrap();
             sessions.remove(&session_key);
@@ -152,7 +152,7 @@ impl SessionManager {
 
     pub async fn cleanup_expired_sessions(&self) -> Result<usize> {
         let mut expired_keys = Vec::new();
-        
+
         {
             let sessions = self.sessions.read().unwrap();
             for (key, session) in sessions.iter() {
@@ -188,7 +188,13 @@ impl SessionManager {
         sessions.values().filter(|s| !s.is_expired()).count()
     }
 
-    pub async fn set_user_data(&self, user_id: &str, platform: &str, key: String, value: String) -> Result<()> {
+    pub async fn set_user_data(
+        &self,
+        user_id: &str,
+        platform: &str,
+        key: String,
+        value: String,
+    ) -> Result<()> {
         let mut session = self.get_or_create_session(user_id, platform).await;
         session.set_data(key, value);
         self.update_session(&session).await
@@ -202,13 +208,23 @@ impl SessionManager {
         }
     }
 
-    pub async fn set_user_preference(&self, user_id: &str, platform: &str, preference: UserPreference) -> Result<()> {
+    pub async fn set_user_preference(
+        &self,
+        user_id: &str,
+        platform: &str,
+        preference: UserPreference,
+    ) -> Result<()> {
         let mut session = self.get_or_create_session(user_id, platform).await;
         session.set_preference(preference);
         self.update_session(&session).await
     }
 
-    pub async fn get_user_preference(&self, user_id: &str, platform: &str, key: &str) -> Option<UserPreference> {
+    pub async fn get_user_preference(
+        &self,
+        user_id: &str,
+        platform: &str,
+        key: &str,
+    ) -> Option<UserPreference> {
         if let Some(session) = self.get_session(user_id, platform).await {
             session.get_preference(key)
         } else {
@@ -369,7 +385,8 @@ impl ConversationState {
     pub fn start_waiting(&mut self, input_type: String, timeout_seconds: u64) {
         self.waiting_for_input = true;
         self.input_type = Some(input_type);
-        self.timeout_at = Some(chrono::Utc::now() + chrono::Duration::seconds(timeout_seconds as i64));
+        self.timeout_at =
+            Some(chrono::Utc::now() + chrono::Duration::seconds(timeout_seconds as i64));
     }
 
     pub fn stop_waiting(&mut self) {
@@ -557,7 +574,7 @@ impl SessionStorage for InMemorySessionStorage {
     async fn cleanup_expired_sessions(&self) -> Result<usize> {
         let mut expired_keys = Vec::new();
         let timeout = Duration::from_secs(3600); // 1 hour default
-        
+
         {
             let sessions = self.sessions.read().unwrap();
             for (key, session) in sessions.iter() {
@@ -588,11 +605,7 @@ pub fn create_user_session(user_id: &str, platform: &str) -> UserSession {
     UserSession::new(user_id.to_string(), platform.to_string())
 }
 
-pub fn create_preference(
-    key: String,
-    value: PreferenceValue,
-    category: String,
-) -> UserPreference {
+pub fn create_preference(key: String, value: PreferenceValue, category: String) -> UserPreference {
     UserPreference {
         key,
         value,

@@ -28,7 +28,7 @@ impl DatabaseConfig {
             timeout_seconds: 30,
             min_connections: 1,
             connection_timeout_ms: 5000,
-            idle_timeout_ms: Some(300000), // 5 minutes
+            idle_timeout_ms: Some(300000),  // 5 minutes
             max_lifetime_ms: Some(1800000), // 30 minutes
         }
     }
@@ -238,8 +238,16 @@ impl<T: ToSql> ToSql for Option<T> {
 /// Database transaction trait
 pub trait DatabaseTransaction {
     fn execute(&mut self, query: &str, params: &[&dyn ToSql]) -> Result<u64, DatabaseError>;
-    fn query(&mut self, query: &str, params: &[&dyn ToSql]) -> Result<Vec<DatabaseRow>, DatabaseError>;
-    fn query_one(&mut self, query: &str, params: &[&dyn ToSql]) -> Result<Option<DatabaseRow>, DatabaseError>;
+    fn query(
+        &mut self,
+        query: &str,
+        params: &[&dyn ToSql],
+    ) -> Result<Vec<DatabaseRow>, DatabaseError>;
+    fn query_one(
+        &mut self,
+        query: &str,
+        params: &[&dyn ToSql],
+    ) -> Result<Option<DatabaseRow>, DatabaseError>;
     fn commit(self: Box<Self>) -> Result<(), DatabaseError>;
     fn rollback(self: Box<Self>) -> Result<(), DatabaseError>;
 }
@@ -248,7 +256,11 @@ pub trait DatabaseTransaction {
 pub trait DatabaseConnection: Send + Sync {
     fn execute(&self, query: &str, params: &[&dyn ToSql]) -> Result<u64, DatabaseError>;
     fn query(&self, query: &str, params: &[&dyn ToSql]) -> Result<Vec<DatabaseRow>, DatabaseError>;
-    fn query_one(&self, query: &str, params: &[&dyn ToSql]) -> Result<Option<DatabaseRow>, DatabaseError>;
+    fn query_one(
+        &self,
+        query: &str,
+        params: &[&dyn ToSql],
+    ) -> Result<Option<DatabaseRow>, DatabaseError>;
     fn transaction<F, R>(&self, f: F) -> Result<R, DatabaseError>
     where
         F: FnOnce(&mut dyn DatabaseTransaction) -> Result<R, DatabaseError>;
@@ -287,10 +299,7 @@ pub struct PoolMetrics {
 
 impl<T: DatabaseConnection> DatabasePool<T> {
     /// Create a new database pool
-    pub fn new<F>(
-        config: DatabaseConfig,
-        factory: F,
-    ) -> Result<Self, DatabaseError>
+    pub fn new<F>(config: DatabaseConfig, factory: F) -> Result<Self, DatabaseError>
     where
         F: Fn() -> Result<T, DatabaseError> + Send + Sync + 'static,
     {
@@ -305,7 +314,7 @@ impl<T: DatabaseConnection> DatabasePool<T> {
 
         // Initialize minimum connections
         pool.ensure_min_connections()?;
-        
+
         Ok(pool)
     }
 
@@ -313,7 +322,9 @@ impl<T: DatabaseConnection> DatabasePool<T> {
     pub async fn get_connection(&self) -> Result<PooledConnection<T>, DatabaseError> {
         // Pool implementation is not yet complete
         // For now, return an error indicating this feature is not available
-        Err(DatabaseError::Connection("Connection pooling not yet implemented".to_string()))
+        Err(DatabaseError::Connection(
+            "Connection pooling not yet implemented".to_string(),
+        ))
     }
 
     /// Ensure minimum number of connections
@@ -389,7 +400,11 @@ impl<T: DatabaseConnection> DatabaseConnection for PooledConnectionHandle<T> {
         Err(DatabaseError::NotImplemented)
     }
 
-    fn query_one(&self, query: &str, params: &[&dyn ToSql]) -> Result<Option<DatabaseRow>, DatabaseError> {
+    fn query_one(
+        &self,
+        query: &str,
+        params: &[&dyn ToSql],
+    ) -> Result<Option<DatabaseRow>, DatabaseError> {
         // Simplified sync implementation
         Err(DatabaseError::NotImplemented)
     }

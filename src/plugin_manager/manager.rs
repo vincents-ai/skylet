@@ -24,6 +24,7 @@ use std::sync::Arc;
 use super::epoch_guard::EpochGuardedPlugin;
 
 // ABI v2 imports
+use serde_json::Value;
 #[allow(unused_imports)]
 use skylet_abi::{
     config_schema::{ConfigSchemaValidator, ConfigValidationResult},
@@ -37,7 +38,6 @@ use skylet_abi::{
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
@@ -668,10 +668,12 @@ pub struct PluginServices {
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,

@@ -120,9 +120,7 @@ async fn ready_handler(
     }
 }
 
-async fn plugins_list_handler(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn plugins_list_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let plugins = state.lifecycle.list_plugins().await;
     let order = state.lifecycle.loading_order().await;
 

@@ -391,11 +391,7 @@ impl HotReloadService {
         });
 
         // Step 2: Deactivate plugin
-        if let Err(e) = self
-            .lifecycle_manager
-            .deactivate(plugin_id)
-            .await
-        {
+        if let Err(e) = self.lifecycle_manager.deactivate(plugin_id).await {
             return Ok(HotReloadResult {
                 plugin_id: plugin_id.to_string(),
                 success: false,
@@ -449,10 +445,7 @@ impl HotReloadService {
             }
             Err(e) => {
                 // Activation failed - attempt rollback
-                warn!(
-                    "Activation failed after reload, attempting rollback: {}",
-                    e
-                );
+                warn!("Activation failed after reload, attempting rollback: {}", e);
                 let rolled_back = self
                     .rollback_plugin(plugin_id, &snapshot)
                     .await

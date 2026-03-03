@@ -42,7 +42,7 @@ pub struct WorkflowStep {
 #[serde(tag = "type")]
 pub enum StepType {
     #[serde(rename = "task")]
-    Task { 
+    Task {
         executor_id: String,
         command: String,
         parameters: serde_json::Value,
@@ -54,14 +54,12 @@ pub enum StepType {
         false_path: String,
     },
     #[serde(rename = "parallel")]
-    Parallel { 
+    Parallel {
         steps: Vec<WorkflowStep>,
         join_type: JoinType,
     },
     #[serde(rename = "sequential")]
-    Sequential {
-        steps: Vec<WorkflowStep>,
-    },
+    Sequential { steps: Vec<WorkflowStep> },
     #[serde(rename = "subworkflow")]
     SubWorkflow {
         workflow_id: String,
@@ -249,15 +247,17 @@ pub struct WorkflowExecutionError {
 #[async_trait]
 pub trait WorkflowExecutor: Send + Sync {
     /// Execute a single workflow step
-    async fn execute_step(&self, 
-        step: &WorkflowStep, 
-        context: &WorkflowContext
+    async fn execute_step(
+        &self,
+        step: &WorkflowStep,
+        context: &WorkflowContext,
     ) -> Result<StepResult, WorkflowError>;
 
     /// Validate that a step can be executed
-    async fn validate_step(&self, 
-        step: &WorkflowStep, 
-        context: &WorkflowContext
+    async fn validate_step(
+        &self,
+        step: &WorkflowStep,
+        context: &WorkflowContext,
     ) -> Result<(), WorkflowError>;
 
     /// Get executor capabilities
@@ -330,36 +330,36 @@ pub struct WorkflowExecution {
 #[async_trait]
 pub trait WorkflowStateStore: Send + Sync {
     /// Save workflow state
-    async fn save_state(&self, 
-        execution_id: &str, 
-        state: &WorkflowContext
+    async fn save_state(
+        &self,
+        execution_id: &str,
+        state: &WorkflowContext,
     ) -> Result<(), WorkflowError>;
 
     /// Load workflow state
-    async fn load_state(&self, 
-        execution_id: &str
+    async fn load_state(
+        &self,
+        execution_id: &str,
     ) -> Result<Option<WorkflowContext>, WorkflowError>;
 
     /// Save execution results
-    async fn save_results(&self, 
-        execution_id: &str, 
-        results: &WorkflowOutput
+    async fn save_results(
+        &self,
+        execution_id: &str,
+        results: &WorkflowOutput,
     ) -> Result<(), WorkflowError>;
 
     /// Load execution results
-    async fn load_results(&self, 
-        execution_id: &str
+    async fn load_results(
+        &self,
+        execution_id: &str,
     ) -> Result<Option<WorkflowOutput>, WorkflowError>;
 
     /// Delete workflow state
-    async fn delete_state(&self, 
-        execution_id: &str
-    ) -> Result<(), WorkflowError>;
+    async fn delete_state(&self, execution_id: &str) -> Result<(), WorkflowError>;
 
     /// List active executions
-    async fn list_executions(&self, 
-        workflow_id: &str
-    ) -> Result<Vec<String>, WorkflowError>;
+    async fn list_executions(&self, workflow_id: &str) -> Result<Vec<String>, WorkflowError>;
 }
 
 impl WorkflowEngine {
@@ -374,14 +374,20 @@ impl WorkflowEngine {
     }
 
     /// Register a workflow definition
-    pub async fn register_workflow(&self, workflow: WorkflowDefinition) -> Result<(), WorkflowError> {
+    pub async fn register_workflow(
+        &self,
+        workflow: WorkflowDefinition,
+    ) -> Result<(), WorkflowError> {
         let mut workflows = self.workflows.write().await;
         workflows.insert(workflow.id.clone(), workflow);
         Ok(())
     }
 
     /// Register a workflow executor
-    pub async fn register_executor<E: WorkflowExecutor + 'static>(&self, executor: E) -> Result<(), WorkflowError> {
+    pub async fn register_executor<E: WorkflowExecutor + 'static>(
+        &self,
+        executor: E,
+    ) -> Result<(), WorkflowError> {
         let mut executors = self.executors.write().await;
         let metadata = executor.metadata();
         executors.insert(metadata.executor_id.clone(), Box::new(executor));
@@ -389,16 +395,18 @@ impl WorkflowEngine {
     }
 
     /// Execute a workflow
-    pub async fn execute_workflow(&self, 
-        workflow_id: &str, 
-        input: WorkflowInput
+    pub async fn execute_workflow(
+        &self,
+        workflow_id: &str,
+        input: WorkflowInput,
     ) -> Result<String, WorkflowError> {
         let execution_id = Uuid::new_v4().to_string();
-        
+
         // Load workflow definition
         let workflow = {
             let workflows = self.workflows.read().await;
-            workflows.get(workflow_id)
+            workflows
+                .get(workflow_id)
                 .cloned()
                 .ok_or_else(|| WorkflowError::workflow_not_found(workflow_id))?
         };
@@ -423,11 +431,17 @@ impl WorkflowEngine {
             let mut variables = context.variables.write().await;
             variables.insert("input".to_string(), input.data.clone());
             if let Some(files) = &input.files {
-                variables.insert("files".to_string(), serde_json::to_value(files).unwrap_or(serde_json::Value::Null));
+                variables.insert(
+                    "files".to_string(),
+                    serde_json::to_value(files).unwrap_or(serde_json::Value::Null),
+                );
             }
             if let Some(ctx) = &input.context {
                 for (key, value) in ctx {
-                    variables.insert(format!("context.{}", key), serde_json::Value::String(value.clone()));
+                    variables.insert(
+                        format!("context.{}", key),
+                        serde_json::Value::String(value.clone()),
+                    );
                 }
             }
         }
@@ -445,7 +459,7 @@ impl WorkflowEngine {
 
         // Save initial state
         self.state_store.save_state(&execution_id, &context).await?;
-        
+
         // Add to execution queue
         {
             let mut queue = self.execution_queue.write().await;
@@ -453,7 +467,8 @@ impl WorkflowEngine {
         }
 
         // Start execution (simplified - real implementation would use proper async task spawning)
-        self.execute_workflow_steps(workflow_id, &workflow.steps, &context).await?;
+        self.execute_workflow_steps(workflow_id, &workflow.steps, &context)
+            .await?;
 
         // Generate final output
         let output = WorkflowOutput {
@@ -469,39 +484,46 @@ impl WorkflowEngine {
         };
 
         // Save results
-        self.state_store.save_results(&execution_id, &output).await?;
+        self.state_store
+            .save_results(&execution_id, &output)
+            .await?;
 
         Ok(execution_id)
     }
 
     /// Execute workflow steps
-    async fn execute_workflow_steps(&self, 
+    async fn execute_workflow_steps(
+        &self,
         workflow_id: &str,
         steps: &[WorkflowStep],
-        context: &WorkflowContext
+        context: &WorkflowContext,
     ) -> Result<(), WorkflowError> {
         for step in steps {
-            self.execute_step_internal(workflow_id, step, context).await?;
+            self.execute_step_internal(workflow_id, step, context)
+                .await?;
         }
         Ok(())
     }
 
     /// Execute a single step internally
-    async fn execute_step_internal(&self, 
+    async fn execute_step_internal(
+        &self,
         workflow_id: &str,
         step: &WorkflowStep,
-        context: &WorkflowContext
+        context: &WorkflowContext,
     ) -> Result<(), WorkflowError> {
         // Get appropriate executor
         let executors = self.executors.read().await;
         let executor = match &step.step_type {
-            StepType::Task { executor_id, .. } => {
-                executors.get(executor_id)
-                    .ok_or_else(|| WorkflowError::executor_not_found(executor_id))?
-            }
+            StepType::Task { executor_id, .. } => executors
+                .get(executor_id)
+                .ok_or_else(|| WorkflowError::executor_not_found(executor_id))?,
             // Handle other step types (condition, parallel, sequential, subworkflow)
             _ => {
-                return Err(WorkflowError::unsupported_step_type(format!("{:?}", step.step_type)));
+                return Err(WorkflowError::unsupported_step_type(format!(
+                    "{:?}",
+                    step.step_type
+                )));
             }
         };
 
@@ -514,29 +536,36 @@ impl WorkflowEngine {
         // Store step result
         {
             let mut step_results = context.step_results.write().await;
-            step_results.insert(step.id.clone(), serde_json::Value::Object({
-                let mut map = serde_json::Map::new();
-                map.insert("status".to_string(), serde_json::Value::String(format!("{:?}", step_result.status)));
-                map.insert("output".to_string(), step_result.output.clone());
-                map
-            }));
+            step_results.insert(
+                step.id.clone(),
+                serde_json::Value::Object({
+                    let mut map = serde_json::Map::new();
+                    map.insert(
+                        "status".to_string(),
+                        serde_json::Value::String(format!("{:?}", step_result.status)),
+                    );
+                    map.insert("output".to_string(), step_result.output.clone());
+                    map
+                }),
+            );
         }
 
         Ok(())
     }
 
     /// Get execution status
-    pub async fn get_execution_status(&self, 
-        execution_id: &str
+    pub async fn get_execution_status(
+        &self,
+        execution_id: &str,
     ) -> Result<Option<ExecutionStatus>, WorkflowError> {
-        self.state_store.load_results(execution_id).await
+        self.state_store
+            .load_results(execution_id)
+            .await
             .map(|results| results.map(|r| r.status))
     }
 
     /// Cancel execution
-    pub async fn cancel_execution(&self, 
-        execution_id: &str
-    ) -> Result<(), WorkflowError> {
+    pub async fn cancel_execution(&self, execution_id: &str) -> Result<(), WorkflowError> {
         // Update execution status to cancelled
         // This is a simplified implementation
         Ok(())
@@ -551,7 +580,8 @@ impl WorkflowEngine {
     /// List available executors
     pub async fn list_executors(&self) -> Vec<ExecutorMetadata> {
         let executors = self.executors.read().await;
-        executors.values()
+        executors
+            .values()
             .map(|executor| executor.metadata())
             .collect()
     }
@@ -642,53 +672,53 @@ impl InMemoryWorkflowStateStore {
 
 #[async_trait]
 impl WorkflowStateStore for InMemoryWorkflowStateStore {
-    async fn save_state(&self, 
-        execution_id: &str, 
-        state: &WorkflowContext
+    async fn save_state(
+        &self,
+        execution_id: &str,
+        state: &WorkflowContext,
     ) -> Result<(), WorkflowError> {
         let mut states = self.states.write().await;
         states.insert(execution_id.to_string(), state.clone());
         Ok(())
     }
 
-    async fn load_state(&self, 
-        execution_id: &str
+    async fn load_state(
+        &self,
+        execution_id: &str,
     ) -> Result<Option<WorkflowContext>, WorkflowError> {
         let states = self.states.read().await;
         Ok(states.get(execution_id).cloned())
     }
 
-    async fn save_results(&self, 
-        execution_id: &str, 
-        results: &WorkflowOutput
+    async fn save_results(
+        &self,
+        execution_id: &str,
+        results: &WorkflowOutput,
     ) -> Result<(), WorkflowError> {
         let mut results_store = self.results.write().await;
         results_store.insert(execution_id.to_string(), results.clone());
         Ok(())
     }
 
-    async fn load_results(&self, 
-        execution_id: &str
+    async fn load_results(
+        &self,
+        execution_id: &str,
     ) -> Result<Option<WorkflowOutput>, WorkflowError> {
         let results_store = self.results.read().await;
         Ok(results_store.get(execution_id).cloned())
     }
 
-    async fn delete_state(&self, 
-        execution_id: &str
-    ) -> Result<(), WorkflowError> {
+    async fn delete_state(&self, execution_id: &str) -> Result<(), WorkflowError> {
         let mut states = self.states.write().await;
         states.remove(execution_id);
-        
+
         let mut results_store = self.results.write().await;
         results_store.remove(execution_id);
-        
+
         Ok(())
     }
 
-    async fn list_executions(&self, 
-        _workflow_id: &str
-    ) -> Result<Vec<String>, WorkflowError> {
+    async fn list_executions(&self, _workflow_id: &str) -> Result<Vec<String>, WorkflowError> {
         let states = self.states.read().await;
         Ok(states.keys().cloned().collect())
     }
@@ -737,12 +767,7 @@ pub fn create_workflow_definition(
     }
 }
 
-pub fn create_task_step(
-    id: &str,
-    name: &str,
-    executor_id: &str,
-    command: &str,
-) -> WorkflowStep {
+pub fn create_task_step(id: &str, name: &str, executor_id: &str, command: &str) -> WorkflowStep {
     WorkflowStep {
         id: id.to_string(),
         name: name.to_string(),
@@ -768,25 +793,30 @@ mod tests {
     #[tokio::test]
     async fn test_workflow_registration() {
         let engine = create_workflow_engine(create_in_memory_state_store());
-        
+
         let workflow = create_workflow_definition(
             "test-workflow",
             "Test Workflow",
             "A test workflow",
-            vec![create_task_step("step1", "Step 1", "test-executor", "echo hello")],
+            vec![create_task_step(
+                "step1",
+                "Step 1",
+                "test-executor",
+                "echo hello",
+            )],
         );
-        
+
         let result = engine.register_workflow(workflow).await;
         assert!(result.is_ok());
-        
+
         let workflows = engine.list_workflows().await;
         assert!(workflows.contains(&"test-workflow".to_string()));
     }
 
-     #[tokio::test]
-     async fn test_in_memory_state_store() {
+    #[tokio::test]
+    async fn test_in_memory_state_store() {
         let store = create_in_memory_state_store();
-        
+
         let context = WorkflowContext {
             execution_id: "test-execution".to_string(),
             workflow_id: "test-workflow".to_string(),
@@ -804,23 +834,28 @@ mod tests {
         // Test saving and loading
         let result = store.save_state("test-execution", &context).await;
         assert!(result.is_ok());
-        
+
         let loaded_context = store.load_state("test-execution").await;
-         assert!(loaded_context.is_ok());
-         
-         let loaded = loaded_context.unwrap().unwrap();
-         assert_eq!(loaded.execution_id, context.execution_id);
-         assert_eq!(loaded.workflow_id, context.workflow_id);
+        assert!(loaded_context.is_ok());
+
+        let loaded = loaded_context.unwrap().unwrap();
+        assert_eq!(loaded.execution_id, context.execution_id);
+        assert_eq!(loaded.workflow_id, context.workflow_id);
     }
 
     #[test]
     fn test_workflow_step_creation() {
         let step = create_task_step("step1", "Test Step", "test-executor", "echo hello");
-        
+
         assert_eq!(step.id, "step1");
         assert_eq!(step.name, "Test Step");
-        
-        if let StepType::Task { executor_id, command, .. } = step.step_type {
+
+        if let StepType::Task {
+            executor_id,
+            command,
+            ..
+        } = step.step_type
+        {
             assert_eq!(executor_id, "test-executor");
             assert_eq!(command, "echo hello");
         } else {
