@@ -131,7 +131,7 @@ impl PluginServiceRegistryBackend {
     }
 }
 
-// Safety: The *mut c_void pointers stored in the service registry are FFI handles
+// SAFETY: The *mut c_void pointers stored in the service registry are FFI handles
 // to Arc-wrapped service objects (LoggerV2, ConfigV2, EventBusV2, etc.) that are
 // themselves Send + Sync. The Mutex serializes all access to the HashMap.
 unsafe impl Send for PluginServiceRegistryBackend {}

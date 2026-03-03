@@ -5,18 +5,7 @@ All notable changes to Skylet (Execution Engine) are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2024-02-20
-
-### Status: Beta Release
-
-This is the first public beta release of the Skylet Execution Engine. The core plugin ABI (v2.0) is stable, but the release versioning follows a path to v1.0.0 stable release where additional APIs may be refined based on community feedback.
-
-### Support
-- Beta phase for gathering feedback and real-world usage patterns
-- API stable for plugin development (ABI v2.0 frozen)
-- Runtime APIs may evolve before v1.0.0
-
-## [2.0.0] - TBD (Future)
+## [Unreleased]
 
 ### Added
 
@@ -214,13 +203,13 @@ This is the first public beta release of the Skylet Execution Engine. The core p
 
 ### Security
 
-- ✅ All 124 source files have Apache 2.0 license headers
-- ✅ No hardcoded secrets in codebase
-- ✅ All dependencies checked for known vulnerabilities
-- ✅ Cryptographic operations use approved algorithms
-- ✅ Input validation at FFI boundaries
-- ✅ Memory safety guarantees with strict RAII
-- ✅ TLS/HTTPS for external communications
+- All 124 source files have Apache 2.0 license headers
+- No hardcoded secrets in codebase
+- All dependencies checked for known vulnerabilities
+- Cryptographic operations use approved algorithms
+- Input validation at FFI boundaries
+- Memory safety guarantees with strict RAII
+- TLS/HTTPS for external communications
 
 ### Performance
 
@@ -229,6 +218,19 @@ This is the first public beta release of the Skylet Execution Engine. The core p
 - **Configuration Validation**: < 10ms for complex schemas
 - **Request Processing**: < 50ms P99 latency target
 - **Memory Per Plugin**: Typical 5-20MB depending on plugin
+
+## [0.5.0] - 2024-02-20
+
+### Status: Beta Release
+
+This is the first public beta release of the Skylet Execution Engine. The core plugin ABI (v2.0) is stable, but the release versioning follows a path to v1.0.0 stable release where additional APIs may be refined based on community feedback.
+
+### Support
+- Beta phase for gathering feedback and real-world usage patterns
+- API stable for plugin development (ABI v2.0 frozen)
+- Runtime APIs may evolve before v1.0.0
+
+---
 
 ## Compatibility
 
@@ -244,8 +246,9 @@ This is the first public beta release of the Skylet Execution Engine. The core p
 ### Support Timeline
 - **v0.5.0**: 2024-02-20 (beta) - Gather feedback, refine before v1.0.0
 - **v1.0.0**: TBD - Stable release with finalized APIs
-- **v2.0+**: Future major releases with extended support windows
 - **ABI v2.0**: Stable until v3.0.0 (no breaking changes)
+
+---
 
 ## Migration Guide
 
@@ -260,6 +263,8 @@ For users upgrading from Skylet V1 plugins:
 
 See `docs/MIGRATION_GUIDE.md` for detailed examples.
 
+---
+
 ## Known Limitations
 
 ### Intentional Design Decisions
@@ -269,10 +274,12 @@ See `docs/MIGRATION_GUIDE.md` for detailed examples.
 - **Resource Limits**: Defined per deployment configuration
 
 ### Future Roadmap
-- [ ] WebAssembly (WASM) plugin support (v2.1)
-- [ ] Distributed tracing defaults (v2.2)
-- [ ] Plugin registry integration (v2.3)
-- [ ] Peer-to-peer plugin distribution (v2.4+)
+- [ ] WebAssembly (WASM) plugin support
+- [ ] Distributed tracing defaults
+- [ ] Plugin registry integration
+- [ ] Peer-to-peer plugin distribution
+
+---
 
 ## Contributors
 
@@ -281,25 +288,20 @@ Special thanks to:
 - Rust community for excellent ecosystem
 - All open-source maintainers whose libraries are used
 
+---
+
 ## Feedback
 
 Found a bug or have a feature request? Please open an issue on GitHub:
 https://github.com/vincents-ai/skylet/issues
+
+---
 
 ## License
 
 This project is licensed under the Apache License 2.0. See LICENSE and NOTICE files for details.
 
 ---
-
-## Previous Versions
-
-### v1.0.0 (Legacy - No Longer Supported)
-
-This was the initial Skylet release with external dependencies.
-Migration to v2.0.0 is strongly recommended for all users.
-
-See `docs/MIGRATION_GUIDE.md` for upgrade instructions.
 
 ## Version Numbering Scheme
 
@@ -310,7 +312,13 @@ We follow Semantic Versioning:
 - **MINOR**: New features, non-breaking additions
 - **PATCH**: Bug fixes and security patches
 
-For v2.0.0 specifically:
-- **2.0.0**: Release date (2024-02-20)
-- **2.x.y**: All updates through v2.9.9 are compatible
-- **3.0.0**: Next breaking change window (2026-02-20+)
+---
+
+## Previous Versions
+
+### v1.0.0 (Legacy - No Longer Supported)
+
+This was the initial Skylet release with external dependencies.
+Migration to ABI v2.0 is strongly recommended for all users.
+
+See `docs/MIGRATION_GUIDE.md` for upgrade instructions.
