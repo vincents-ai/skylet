@@ -190,7 +190,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 - **Skylet V1 ABI**: Use V2 for new plugins
-  - Migration guide available in MIGRATION_GUIDE.md
   - V1 support will be removed in v3.0.0
   - Timeline: v2.0 to v2.4 (minimum 2 years)
 
@@ -250,18 +249,15 @@ This is the first public beta release of the Skylet Execution Engine. The core p
 
 ---
 
-## Migration Guide
+## Migration Notes
 
 For users upgrading from Skylet V1 plugins:
 
-1. Read `docs/MIGRATION_GUIDE.md` for step-by-step instructions
-2. Update Cargo.toml dependencies
-3. Rename entry points (plugin_init → plugin_init_v2)
-4. Migrate configuration to new schema system
-5. Update error handling for new error codes
-6. Test with new test vectors
-
-See `docs/MIGRATION_GUIDE.md` for detailed examples.
+1. Update Cargo.toml dependencies
+2. Rename entry points (plugin_init → plugin_init_v2)
+3. Migrate configuration to new schema system
+4. Update error handling for new error codes
+5. Test with new test vectors
 
 ---
 
@@ -319,6 +315,4 @@ We follow Semantic Versioning:
 ### v1.0.0 (Legacy - No Longer Supported)
 
 This was the initial Skylet release with external dependencies.
-Migration to ABI v2.0 is strongly recommended for all users.
-
-See `docs/MIGRATION_GUIDE.md` for upgrade instructions.
+Upgrade to ABI v2.0 is strongly recommended for all users.
