@@ -42,7 +42,7 @@ rusqlite = { workspace = true }
 
 # For Kubernetes secrets backend (feature-gated)
 kube = { version = "0.87", optional = true }
-k8s-openapi = { version = "0.20", optional = true, features = ["latest"] }
+k8s-openapi = { version = "0.27", optional = true, features = ["latest"] }
 
 [features]
 default = ["sqlite"]
