@@ -26,7 +26,7 @@ fn get_max_plugins() -> usize {
         // Try to get from environment variable first (for testing/override)
         if let Ok(val) = std::env::var("SKYLET_MAX_PLUGINS") {
             if let Ok(max) = val.parse::<usize>() {
-                tracing::error!("Security: Using SKYLET_MAX_PLUGINS={} from environment", max);
+                tracing::debug!("Security: Using SKYLET_MAX_PLUGINS={} from environment", max);
                 return max;
             }
         }
@@ -44,7 +44,7 @@ fn get_max_plugins() -> usize {
         // Cap at reasonable limits: minimum 16, maximum 4096
         let final_max = calculated_max.clamp(16, 4096);
 
-        tracing::error!(
+        tracing::debug!(
             "Security: Calculated MAX_PLUGINS={} (CPUs: {}, Memory: {}MB, per_cpu: {}, per_memory: {})",
             final_max, num_cpus, available_memory / (1024 * 1024), plugins_per_cpu, plugins_per_memory
         );
@@ -819,7 +819,7 @@ fn load_remote_hosts() -> Vec<String> {
         for host in hosts_str.split(',') {
             let host = host.trim();
             if !host.is_empty() {
-                tracing::error!("Security: Registered remote host: {}", host);
+                tracing::debug!("Security: Registered remote host: {}", host);
                 hosts.push(host.to_string());
             }
         }
@@ -834,7 +834,7 @@ fn load_remote_hosts() -> Vec<String> {
                     for line in content.lines() {
                         let line = line.trim();
                         if !line.is_empty() && !line.starts_with('#') {
-                            tracing::error!("Security: Loaded remote host from config: {}", line);
+                            tracing::debug!("Security: Loaded remote host from config: {}", line);
                             hosts.push(line.to_string());
                         }
                     }
@@ -844,7 +844,7 @@ fn load_remote_hosts() -> Vec<String> {
     }
 
     if !hosts.is_empty() {
-        tracing::error!(
+        tracing::debug!(
             "Security: Loaded {} remote hosts for plugin offloading",
             hosts.len()
         );
@@ -2528,7 +2528,7 @@ impl PluginAuthenticator {
         let mut roles = self.roles.lock().unwrap();
         roles.insert(plugin_id.to_string(), role);
 
-        tracing::error!("Auth: Plugin {} registered with role {:?}", plugin_id, role);
+        tracing::info!("Auth: Plugin {} registered with role {:?}", plugin_id, role);
         Ok(())
     }
 
@@ -2551,7 +2551,7 @@ impl PluginAuthenticator {
             .copied()
             .ok_or(SecurityError::AuthenticationFailed)?;
 
-        tracing::error!("Auth: Plugin {} authenticated successfully", plugin_id);
+        tracing::debug!("Auth: Plugin {} authenticated successfully", plugin_id);
         Ok(role)
     }
 
@@ -2576,7 +2576,7 @@ impl PluginAuthenticator {
     pub fn set_role(&self, plugin_id: &str, role: PluginRole) -> Result<(), SecurityError> {
         let mut roles = self.roles.lock().unwrap();
         roles.insert(plugin_id.to_string(), role);
-        tracing::error!("Auth: Plugin {} role updated to {:?}", plugin_id, role);
+        tracing::info!("Auth: Plugin {} role updated to {:?}", plugin_id, role);
         Ok(())
     }
 
@@ -2588,7 +2588,7 @@ impl PluginAuthenticator {
         let mut roles = self.roles.lock().unwrap();
         roles.remove(plugin_id);
 
-        tracing::error!("Auth: Plugin {} authentication revoked", plugin_id);
+        tracing::warn!("Auth: Plugin {} authentication revoked", plugin_id);
         Ok(())
     }
 
@@ -2764,7 +2764,7 @@ impl PluginAuthenticator {
             cleaned += original_len.saturating_sub(cred_versions.len());
         }
 
-        tracing::error!("Auth: Cleaned up {} expired credentials", cleaned);
+        tracing::info!("Auth: Cleaned up {} expired credentials", cleaned);
         Ok(cleaned)
     }
 
@@ -2779,7 +2779,7 @@ impl PluginAuthenticator {
     pub fn enable_mfa(&self, plugin_id: &str) -> Result<(), SecurityError> {
         let mut mfa_enabled = self.mfa_enabled.lock().unwrap();
         mfa_enabled.insert(plugin_id.to_string(), true);
-        tracing::error!("Auth: MFA enabled for plugin {}", plugin_id);
+        tracing::info!("Auth: MFA enabled for plugin {}", plugin_id);
         Ok(())
     }
 
@@ -2787,7 +2787,7 @@ impl PluginAuthenticator {
     pub fn disable_mfa(&self, plugin_id: &str) -> Result<(), SecurityError> {
         let mut mfa_enabled = self.mfa_enabled.lock().unwrap();
         mfa_enabled.insert(plugin_id.to_string(), false);
-        tracing::error!("Auth: MFA disabled for plugin {}", plugin_id);
+        tracing::info!("Auth: MFA disabled for plugin {}", plugin_id);
         Ok(())
     }
 
@@ -2802,7 +2802,7 @@ impl PluginAuthenticator {
         let secret = rand::random::<[u8; 32]>();
         self.mfa_manager
             .register_factor(plugin_id, MFAMethod::TOTP, secret.to_vec())?;
-        tracing::error!("Auth: TOTP factor registered for plugin {}", plugin_id);
+        tracing::info!("Auth: TOTP factor registered for plugin {}", plugin_id);
         Ok(secret.to_vec())
     }
 
@@ -2817,7 +2817,7 @@ impl PluginAuthenticator {
             MFAMethod::BackupCodes,
             codes.join("|").into_bytes(),
         )?;
-        tracing::error!(
+        tracing::info!(
             "Auth: Backup codes factor registered for plugin {} (10 codes)",
             plugin_id
         );
