@@ -1,13 +1,15 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
 use chrono::{DateTime, TimeDelta, Utc};
 use lru::LruCache;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Event storage with persistence
@@ -29,7 +31,7 @@ pub struct DeadLetterEvent {
 
 impl Default for EventStorage {
     fn default() -> Self {
-        Self::new(Duration::hours(1))
+        Self::new(Duration::from_secs(3600))
     }
 }
 
@@ -37,7 +39,7 @@ impl EventStorage {
     pub fn new(retention_period: Duration) -> Self {
         Self {
             events: Arc::new(RwLock::new(HashMap::new())),
-            retention_period,
+            retention_period: TimeDelta::from_std(retention_period).unwrap_or_else(|_| TimeDelta::hours(1)),
             cache: Arc::new(RwLock::new(LruCache::new(
                 NonZeroUsize::new(1000).unwrap(),
             ))),
@@ -56,11 +58,13 @@ impl EventStorage {
         Ok(())
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event(&self, event_id: &str) -> Option<Event> {
         let events = self.events.read().await;
         events.get(event_id).cloned()
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_events_for_type(
         &self,
         event_type: &str,
@@ -129,11 +133,13 @@ impl EventStorage {
         Ok(())
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_dead_letters(&self) -> Vec<DeadLetterEvent> {
         let dead_letters = self.dead_letters.read().await;
         dead_letters.clone()
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn clear_dead_letters(&self) {
         let mut dead_letters = self.dead_letters.write().await;
         dead_letters.clear();
@@ -171,30 +177,34 @@ impl EventStorage {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_cached_events(
         &self,
         event_type: &str,
         limit: usize,
     ) -> Vec<Event> {
-        let cache = self.cache.read().await;
+        let mut cache = self.cache.write().await;
 
-        if let Some(events) = cache.get(event_type) {
+        if let Some(events) = cache.get_mut(event_type) {
             events.iter().rev().take(limit).cloned().collect()
         } else {
             Vec::new()
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event_count(&self) -> usize {
         let events = self.events.read().await;
         events.len()
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event_count_for_type(&self, event_type: &str) -> usize {
         let events = self.events.read().await;
         events.values().filter(|e| e.event_type == event_type).count()
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn clear(&self) {
         let mut events = self.events.write().await;
         let mut cache = self.cache.write().await;
@@ -205,6 +215,7 @@ impl EventStorage {
         dead_letters.clear();
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_storage_stats(&self) -> StorageStats {
         let events = self.events.read().await;
         let dead_letters = self.dead_letters.read().await;
@@ -219,6 +230,7 @@ impl EventStorage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct StorageStats {
     pub total_events: usize,
     pub dead_letter_count: usize,
@@ -232,7 +244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_store_and_get() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -249,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_query_by_type() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event1 = Event::new(
             "test.event".to_string(),
@@ -273,7 +285,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_query_by_time() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -283,8 +295,8 @@ mod tests {
 
         storage.store_event(event).await.unwrap();
 
-        let start = Utc::now() - chrono::Duration::hours(1);
-        let end = Utc::now() + chrono::Duration::hours(1);
+        let start = Utc::now() - TimeDelta::hours(1);
+        let end = Utc::now() + TimeDelta::hours(1);
 
         let events = storage.query_events(None, start, end).await.unwrap();
         assert_eq!(events.len(), 1);
@@ -292,7 +304,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_dead_letter() {
-        let storage = EventStorage::new(Duration::hours(1));
+        let storage = EventStorage::new(Duration::from_secs(3600));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -316,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_cleanup() {
-        let storage = EventStorage::new(Duration::milliseconds(100));
+        let storage = EventStorage::new(Duration::from_millis(100));
 
         let event = Event::new(
             "test.event".to_string(),
@@ -328,7 +340,15 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        let count = storage.get_event_count().await;
+        // Trigger cleanup by storing another event
+        let event2 = Event::new(
+            "trigger.cleanup".to_string(),
+            "test_plugin".to_string(),
+            serde_json::json!({}),
+        );
+        storage.store_event(event2).await.unwrap();
+
+        let count = storage.get_event_count_for_type("test.event").await;
         assert_eq!(count, 0);
     }
 }

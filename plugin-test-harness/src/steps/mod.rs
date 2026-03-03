@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! BDD Step Definitions for Plugin Testing
 //!
 //! This module provides cucumber step definitions for testing Skylet plugins.

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Test modules
 #[cfg(test)]
@@ -12,5 +12,3 @@ pub mod framework_tests;
 pub mod hot_reload_tests;
 #[cfg(test)]
 pub mod integration_tests;
-#[cfg(test)]
-pub mod wallet_test;

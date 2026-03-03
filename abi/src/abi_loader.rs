@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// ABI Loader - RFC-0004 Plugin Loading with Complete ABI Validation
 /// This module handles the complete lifecycle of loading and validating plugins
@@ -97,9 +97,20 @@ pub struct PluginCapabilities {
     pub capabilities: Vec<String>,
 }
 
+/// A single dependency entry extracted from plugin metadata
+#[derive(Debug, Clone)]
+pub struct PluginDependencyEntry {
+    /// Name of the required plugin (e.g., "config-manager")
+    pub name: String,
+    /// Optional semver range constraint (e.g., "^1.0.0", ">=1.0.0, <2.0.0")
+    pub version_range: Option<String>,
+    /// Whether this dependency is required (true) or optional (false)
+    pub required: bool,
+}
+
 /// ABI V2 Plugin Loader
-#[allow(dead_code)]
 pub struct AbiV2PluginLoader {
+    #[allow(dead_code)] // Must be kept alive to maintain valid FFI function pointers
     library: Library,
     info: *const PluginInfoV2,
     init_fn: PluginInitFnV2,
@@ -110,8 +121,6 @@ pub struct AbiV2PluginLoader {
     metrics_fn: Option<PluginGetMetricsFnV2>,
     /// Configuration schema function - Optional (RFC-0006)
     config_schema_fn: Option<PluginGetConfigSchemaJsonFn>,
-    /// Billing metrics function - Optional (RFC-ARCH Section 10.3)
-    billing_metrics_fn: Option<PluginGetBillingMetricsFnV2>,
 }
 
 impl AbiV2PluginLoader {
@@ -217,14 +226,6 @@ impl AbiV2PluginLoader {
                 .map(|sym| *(addr_of!(*sym) as *const _))
         };
 
-        // Load optional billing metrics function (RFC-ARCH Section 10.3)
-        let billing_metrics_fn: Option<PluginGetBillingMetricsFnV2> = unsafe {
-            library
-                .get::<Symbol<PluginGetBillingMetricsFnV2>>(b"plugin_get_billing_metrics_v2")
-                .ok()
-                .map(|sym| *(addr_of!(*sym) as *const _))
-        };
-
         Ok(AbiV2PluginLoader {
             library,
             info,
@@ -235,7 +236,6 @@ impl AbiV2PluginLoader {
             health_check_fn,
             metrics_fn,
             config_schema_fn,
-            billing_metrics_fn,
         })
     }
 
@@ -275,15 +275,115 @@ impl AbiV2PluginLoader {
         unsafe {
             let info = &*self.info;
 
+            // Extract requires_services
+            let requires_services = if !info.requires_services.is_null()
+                && info.num_requires_services > 0
+            {
+                let services =
+                    std::slice::from_raw_parts(info.requires_services, info.num_requires_services);
+                services
+                    .iter()
+                    .filter_map(|s| {
+                        if s.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(s.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Extract provides_services
+            let provides_services = if !info.provides_services.is_null()
+                && info.num_provides_services > 0
+            {
+                let services =
+                    std::slice::from_raw_parts(info.provides_services, info.num_provides_services);
+                services
+                    .iter()
+                    .filter_map(|s| {
+                        if s.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(s.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Extract capabilities
+            let capabilities = if !info.capabilities.is_null() && info.num_capabilities > 0 {
+                let caps = std::slice::from_raw_parts(info.capabilities, info.num_capabilities);
+                caps.iter()
+                    .filter_map(|c| {
+                        if c.name.is_null() {
+                            None
+                        } else {
+                            Some(CStr::from_ptr(c.name).to_string_lossy().into_owned())
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
             Ok(PluginCapabilities {
                 supports_hot_reload: info.supports_hot_reload,
                 supports_async: info.supports_async,
                 supports_streaming: info.supports_streaming,
                 max_concurrency: info.max_concurrency,
-                requires_services: Vec::new(), // TODO: Parse from info
-                provides_services: Vec::new(), // TODO: Parse from info
-                capabilities: Vec::new(),      // TODO: Parse from info
+                requires_services,
+                provides_services,
+                capabilities,
             })
+        }
+    }
+
+    /// Get plugin dependency information from the ABI metadata
+    ///
+    /// Extracts the `dependencies` array from `PluginInfoV2` and returns
+    /// them as safe Rust structs. Each dependency has a name, optional
+    /// version range constraint, and a required/optional flag.
+    pub fn get_dependencies(&self) -> AbiLoaderResult<Vec<PluginDependencyEntry>> {
+        unsafe {
+            let info = &*self.info;
+
+            if info.dependencies.is_null() || info.num_dependencies == 0 {
+                return Ok(Vec::new());
+            }
+
+            let deps = std::slice::from_raw_parts(info.dependencies, info.num_dependencies);
+
+            let mut result = Vec::with_capacity(deps.len());
+            for dep in deps {
+                let name = if dep.name.is_null() {
+                    continue; // Skip entries with null names
+                } else {
+                    CStr::from_ptr(dep.name).to_string_lossy().into_owned()
+                };
+
+                let version_range = if dep.version_range.is_null() {
+                    None
+                } else {
+                    Some(
+                        CStr::from_ptr(dep.version_range)
+                            .to_string_lossy()
+                            .into_owned(),
+                    )
+                };
+
+                result.push(PluginDependencyEntry {
+                    name,
+                    version_range,
+                    required: dep.required,
+                });
+            }
+
+            Ok(result)
         }
     }
 
@@ -439,44 +539,6 @@ impl AbiV2PluginLoader {
     /// Check if plugin exports a configuration schema (RFC-0006)
     pub fn has_config_schema(&self) -> bool {
         self.config_schema_fn.is_some()
-    }
-
-    // ========================================================================
-    // RFC-ARCH Section 10.3: Billing Metrics Support
-    // ========================================================================
-
-    /// Get billing metrics from the plugin if available (RFC-ARCH Section 10.3)
-    ///
-    /// Returns a BillingMetricsReport containing usage-based billing information,
-    /// or None if the plugin doesn't support billing metrics.
-    ///
-    /// # Example
-    /// ```ignore
-    /// if let Some(report_ptr) = loader.get_billing_metrics(&context) {
-    ///     let report = unsafe { &*report_ptr };
-    ///     // Process billing metrics
-    /// }
-    /// ```
-    pub fn get_billing_metrics(
-        &self,
-        context: *const PluginContextV2,
-    ) -> Option<*const BillingMetricsReport> {
-        match &self.billing_metrics_fn {
-            Some(fn_ref) => {
-                let report_ptr = (fn_ref)(context);
-                if report_ptr.is_null() {
-                    None
-                } else {
-                    Some(report_ptr)
-                }
-            }
-            None => None,
-        }
-    }
-
-    /// Check if plugin supports billing metrics (RFC-ARCH Section 10.3)
-    pub fn has_billing_metrics(&self) -> bool {
-        self.billing_metrics_fn.is_some()
     }
 }
 

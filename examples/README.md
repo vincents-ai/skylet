@@ -322,6 +322,6 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 ## License
 
 All example plugins are licensed under the same license as the main project:
-Apache License 2.0
+MIT OR Apache-2.0
 
-See [LICENSE](../LICENSE) for details.
+See [LICENSE-APACHE](../LICENSE-APACHE) and [LICENSE-MIT](../LICENSE-MIT) for details.

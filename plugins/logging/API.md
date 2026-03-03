@@ -23,7 +23,7 @@ Complete API reference for the Logging Plugin FFI (Foreign Function Interface) a
 Initializes the Logging plugin and creates a LoggingService instance.
 
 **Parameters:**
-- `context`: Plugin context pointer (PluginContext structure from marketplace ABI)
+- `context`: Plugin context pointer (PluginContext structure from Skylet ABI)
 
 **Behavior:**
 - Initializes LoggingService with default INFO log level
@@ -636,8 +636,8 @@ All log events follow RFC-0018 structured logging format:
 {
   "timestamp": "2024-02-03T14:25:30.123456Z",
   "level": "INFO",
-  "message": "Marketplace initialized",
-  "plugin_name": "marketplace-core",
+  "message": "Plugin initialized",
+  "plugin_name": "example-plugin",
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
   "span_id": "00f067aa0ba902b7",
   "data": {

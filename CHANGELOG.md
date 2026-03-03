@@ -44,17 +44,10 @@ This is the first public beta release of the Skylet Execution Engine. The core p
   - Multi-instance deployment support
 
 #### Feature Flags
-- **`standalone` flag (default)**: Run without proprietary dependencies
-  - No external dependencies beyond open-source ecosystem
-  - Complete feature parity with proprietary mode
-  - Suitable for production open-source deployments
+- **`standalone` flag (default)**: Run with no external dependencies
+  - Full plugin execution capabilities
+  - Suitable for production deployments
   - `cargo build --features standalone --release`
-
-- **`proprietary` flag**: Enable Skylet-specific extensions
-  - Additional clustering features
-  - Proprietary service implementations
-  - Enterprise-grade monitoring
-  - Gated behind feature flag for flexibility
 
 - **`opentelemetry` flag**: Distributed tracing support
   - OpenTelemetry API integration
@@ -199,7 +192,7 @@ This is the first public beta release of the Skylet Execution Engine. The core p
   - Reason: Type safety and validation guarantees
 
 #### Internal Improvements
-- **Dependency Cleanup**: Removed proprietary dependencies from default build
+- **Dependency Cleanup**: Removed unnecessary dependencies from default build
 - **Trait-Based Abstractions**: KeyManagement and InstanceManager for flexibility
 - **Resource Pooling**: Connection and object pooling patterns
 - **Memory Safety**: Zero-copy patterns where possible
@@ -270,15 +263,15 @@ See `docs/MIGRATION_GUIDE.md` for detailed examples.
 ## Known Limitations
 
 ### Intentional Design Decisions
-- **Standalone Mode**: No proprietary features (by design)
-- **Single Plugin Instance**: Clustering requires proprietary extensions
+- **Standalone Mode**: Self-contained with no external service dependencies
+- **Single Plugin Instance**: Clustering available via custom `InstanceManager` implementations
 - **Hot Reload**: Requires explicit plugin implementation
 - **Resource Limits**: Defined per deployment configuration
 
 ### Future Roadmap
 - [ ] WebAssembly (WASM) plugin support (v2.1)
 - [ ] Distributed tracing defaults (v2.2)
-- [ ] Plugin marketplace integration (v2.3)
+- [ ] Plugin registry integration (v2.3)
 - [ ] Peer-to-peer plugin distribution (v2.4+)
 
 ## Contributors
@@ -303,7 +296,7 @@ This project is licensed under the Apache License 2.0. See LICENSE and NOTICE fi
 
 ### v1.0.0 (Legacy - No Longer Supported)
 
-This was the initial Skylet release with proprietary dependencies.
+This was the initial Skylet release with external dependencies.
 Migration to v2.0.0 is strongly recommended for all users.
 
 See `docs/MIGRATION_GUIDE.md` for upgrade instructions.

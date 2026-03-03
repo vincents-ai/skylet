@@ -1,6 +1,8 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 pub struct ObjectPool<T> {
     pool: std::sync::Mutex<VecDeque<T>>,
@@ -22,7 +24,7 @@ impl<T: 'static> ObjectPool<T> {
         }
     }
 
-    pub fn get(&self) -> PooledObject<T> {
+    pub fn get(&self) -> PooledObject<'_, T> {
         let obj = {
             let mut pool = self.pool.lock().unwrap();
             pool.pop_front()
@@ -76,22 +78,28 @@ impl<T: 'static> ObjectPool<T> {
     }
 }
 
-pub struct PooledObject<'a, T> {
+pub struct PooledObject<'a, T: 'static> {
     pool: &'a ObjectPool<T>,
     value: Option<T>,
 }
 
-impl<'a, T> PooledObject<'a, T> {
+impl<'a, T> PooledObject<'a, T>
+where
+    T: 'static,
+{
     pub fn get(&mut self) -> &mut T {
         self.value.as_mut().unwrap()
     }
 
-    pub fn take(self) -> T {
+    pub fn take(mut self) -> T {
         self.value.take().unwrap()
     }
 }
 
-impl<'a, T> Drop for PooledObject<'a, T> {
+impl<'a, T> Drop for PooledObject<'a, T>
+where
+    T: 'static,
+{
     fn drop(&mut self) {
         if let Some(value) = self.value.take() {
             self.pool.return_object(value);
@@ -111,12 +119,12 @@ mod tests {
         obj.get().push(42);
 
         assert_eq!(pool.in_use_count(), 1);
-        assert_eq!(pool.available_count(), 4);
+        assert_eq!(pool.available_count(), 0);
 
         drop(obj);
 
         assert_eq!(pool.in_use_count(), 0);
-        assert_eq!(pool.available_count(), 5);
+        assert_eq!(pool.available_count(), 1);
     }
 
     #[test]

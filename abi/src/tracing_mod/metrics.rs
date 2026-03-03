@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Performance Metrics Collection for RFC-0017
 //!
@@ -22,26 +22,6 @@ pub enum MetricType {
 
     /// Histogram - distribution of values
     Histogram,
-}
-
-/// A single metric measurement
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct MetricMeasurement {
-    /// Metric name
-    pub name: String,
-
-    /// Metric type
-    pub metric_type: MetricType,
-
-    /// Metric value
-    pub value: f64,
-
-    /// Labels/tags
-    pub labels: HashMap<String, String>,
-
-    /// Timestamp (Unix nanoseconds)
-    pub timestamp: u64,
 }
 
 /// Performance metrics for a plugin or operation

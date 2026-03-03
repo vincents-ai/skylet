@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use lru::LruCache;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -27,7 +30,7 @@ impl MetadataCache {
     }
 
     pub async fn get(&self, key: &str) -> Option<Arc<PluginMetadata>> {
-        let cache = self.cache.read().await;
+        let mut cache = self.cache.write().await;
         let result = cache.get(key).cloned();
         if result.is_some() {
             self.metrics.record_hit();
@@ -39,7 +42,7 @@ impl MetadataCache {
 
     pub async fn insert(&self, key: String, value: PluginMetadata) {
         let mut cache = self.cache.write().await;
-        if cache.len() >= cache.cap() {
+        if cache.len() >= cache.cap().into() {
             self.metrics.record_eviction();
         }
         cache.put(key, Arc::new(value));

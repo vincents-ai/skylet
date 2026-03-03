@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Plugin Test Harness CLI
 //!
 //! A command-line tool for testing Skylet plugins in isolation.

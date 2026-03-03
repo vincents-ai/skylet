@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Authentication HTTP Handlers - RFC-0023
 //!
@@ -370,6 +370,11 @@ pub async fn login_handler(
             user: None,
             error: Some("Token invalid or expired".to_string()),
         })),
+
+        AuthResult::RateLimited => Err(error_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many authentication attempts. Please try again later.",
+        )),
     }
 }
 

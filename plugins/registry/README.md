@@ -78,7 +78,7 @@ Add a new registry source.
 ```c
 RegistryResult result = registry_service->add_source(
     context,
-    "https://registry.skylet.ai"
+    "https://registry.example.com"
 );
 if (result.result != PluginResult::Success) {
     fprintf(stderr, "Error: %s\n", result.error_message);
@@ -100,7 +100,7 @@ Remove a registry source.
 ```c
 RegistryResult result = registry_service->remove_source(
     context,
-    "https://old-registry.skylet.ai"
+    "https://old-registry.example.com"
 );
 ```
 
@@ -220,8 +220,8 @@ Registry sources are configured via the Skylet configuration system:
 ```toml
 [registry]
 sources = [
-    "https://registry.skylet.ai",
-    "https://community-registry.skylet.ai"
+    "https://registry.example.com",
+    "https://community-registry.example.com"
 ]
 
 # Optional: cache settings
@@ -291,7 +291,7 @@ Dependencies
 The registry plugin depends on:
 
 - `skylet-abi`: Skylet plugin ABI
-- `marketplace-registry`: Core registry implementation
+- `plugin-registry`: Core registry implementation
 - `tokio`: Async runtime
 - `serde_json`: JSON serialization
 - `anyhow`: Error handling

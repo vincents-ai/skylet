@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Database abstraction layer for skylet-plugin-common v0.3.0
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

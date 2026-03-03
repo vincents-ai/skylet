@@ -1,13 +1,14 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Request-response pattern for plugin communication
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Request<T> {
     pub id: String,
     pub payload: T,
@@ -27,6 +28,7 @@ impl<T> Request<T> {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
@@ -35,12 +37,14 @@ impl<T> Request<T> {
 
 /// Response from a plugin request
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum Response<T> {
     Success(T),
     Error(String),
     Timeout(String),
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl<T> Response<T> {
     pub fn is_success(&self) -> bool {
         matches!(self, Response::Success(_))
@@ -55,11 +59,13 @@ impl<T> Response<T> {
 }
 
 /// Request-response manager for plugin communication
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RequestResponseManager {
-    pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>>,
+    pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>,
     timeout: std::time::Duration,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl RequestResponseManager {
     pub fn new(timeout_ms: u64) -> Self {
         Self {
@@ -99,7 +105,7 @@ impl RequestResponseManager {
 
         tokio::select! {
             result = receiver => {
-                result.map_err(|_| "Request canceled".to_string())?
+                return Ok(result.map_err(|_| "Request canceled".to_string())?);
             }
             _ = tokio::time::sleep(self.timeout) => {
                 return Ok(Response::Timeout("Request timed out".to_string()));
@@ -132,7 +138,7 @@ impl RequestResponseManager {
 
         let expired: Vec<String> = pending
             .iter()
-            .filter(|(_, (_, timestamp))| now.duration(*timestamp) > self.timeout)
+            .filter(|(_, (_, timestamp))| now.saturating_duration_since(*timestamp) > self.timeout)
             .map(|(id, _)| id.clone())
             .collect();
 
@@ -143,10 +149,12 @@ impl RequestResponseManager {
 }
 
 /// Broadcast manager for sending events to multiple subscribers
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct BroadcastManager {
     event_system: Arc<super::EventSystem>,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl BroadcastManager {
     pub fn new(event_system: Arc<super::EventSystem>) -> Self {
         Self { event_system }
@@ -164,7 +172,7 @@ impl BroadcastManager {
         )
         .with_metadata(EventMetadata::default().with_tags(vec!["broadcast".to_string()]));
 
-        let result = self.event_system.publish(event).await?;
+        let result = self.event_system.publish(event).await.map_err(|e| e.to_string())?;
 
         match result {
             EventResult::Published { subscriber_count } => Ok(subscriber_count),
@@ -187,8 +195,13 @@ impl BroadcastManager {
                 payload.clone(),
             );
 
-            let result = self.event_system.publish(event).await;
-            results.push(result.map_err(|e| e.to_string()));
+            let result = self.event_system.publish(event).await.map_err(|e| e.to_string()).and_then(|r| {
+                match r {
+                    EventResult::Published { subscriber_count } => Ok(subscriber_count),
+                    EventResult::Filtered => Ok(0),
+                }
+            });
+            results.push(result);
         }
 
         Ok(results)
@@ -196,11 +209,13 @@ impl BroadcastManager {
 }
 
 /// Event bus wrapper for easy plugin communication
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventBus {
     event_system: Arc<super::EventSystem>,
     plugin_name: String,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventBus {
     pub fn new(event_system: Arc<super::EventSystem>, plugin_name: String) -> Self {
         Self {
@@ -260,7 +275,7 @@ impl EventBus {
 
         self.event_system.publish(event).await.map_err(|e| e.to_string())?;
 
-        manager.send_request(&self.event_system, target_plugin, request_obj).await
+        manager.send_request(self.event_system.clone(), target_plugin, request_obj).await
     }
 
     pub fn broadcast_manager(&self) -> BroadcastManager {
@@ -307,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_response_error() {
-        let response = Response::Error("test error".to_string());
+        let response: Response<()> = Response::Error("test error".to_string());
         assert!(!response.is_success());
         assert!(response.into_result().is_err());
     }

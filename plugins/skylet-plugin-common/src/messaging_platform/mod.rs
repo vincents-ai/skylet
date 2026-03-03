@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 pub mod adapters;
 pub mod bot_framework;
 pub mod session_management;

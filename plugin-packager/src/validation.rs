@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin manifest validation framework
 ///
@@ -100,9 +100,9 @@ impl ValidationReport {
 /// Plugin manifest validator
 pub struct ManifestValidator {
     rules: HashMap<String, ValidationRule>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for validation rules not yet implemented
     max_name_length: usize,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for validation rules not yet implemented
     max_description_length: usize,
 }
 

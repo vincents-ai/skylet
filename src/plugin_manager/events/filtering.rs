@@ -1,14 +1,14 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
-use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// Event filter for conditional event processing
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventFilter {
     pub id: String,
     pub name: String,
@@ -16,7 +16,8 @@ pub struct EventFilter {
     pub action: FilterAction,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterCondition {
     EventTypeEquals(String),
     EventTypeMatches(String),
@@ -28,13 +29,51 @@ pub enum FilterCondition {
     Custom(Arc<dyn Fn(&Event) -> bool + Send + Sync>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl std::fmt::Debug for FilterCondition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterCondition::EventTypeEquals(s) => write!(f, "EventTypeEquals({})", s),
+            FilterCondition::EventTypeMatches(s) => write!(f, "EventTypeMatches({})", s),
+            FilterCondition::SourceEquals(s) => write!(f, "SourceEquals({})", s),
+            FilterCondition::PayloadContains(s) => write!(f, "PayloadContains({})", s),
+            FilterCondition::PayloadEquals(s) => write!(f, "PayloadEquals({})", s),
+            FilterCondition::PriorityAtLeast(p) => write!(f, "PriorityAtLeast({:?})", p),
+            FilterCondition::HeaderEquals(k, v) => write!(f, "HeaderEquals({}, {})", k, v),
+            FilterCondition::Custom(_) => write!(f, "Custom(<function>)"),
+        }
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterAction {
     Allow,
     Block,
     Transform(Arc<dyn Fn(&mut Event) + Send + Sync>),
 }
 
+impl PartialEq for FilterAction {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (FilterAction::Allow, FilterAction::Allow) => true,
+            (FilterAction::Block, FilterAction::Block) => true,
+            (FilterAction::Transform(_), FilterAction::Transform(_)) => false,
+            _ => false,
+        }
+    }
+}
+
+impl std::fmt::Debug for FilterAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterAction::Allow => write!(f, "Allow"),
+            FilterAction::Block => write!(f, "Block"),
+            FilterAction::Transform(_) => write!(f, "Transform(<function>)"),
+        }
+    }
+}
+
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventFilter {
     pub fn new(id: String, name: String) -> Self {
         Self {
@@ -108,6 +147,7 @@ impl EventFilter {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub enum FilterResult {
     Allowed,
     Filtered,
@@ -117,13 +157,15 @@ pub enum FilterResult {
 
 /// Rate limiter for events
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RateLimiter {
     pub id: String,
     pub event_type: String,
     pub max_events_per_second: f64,
-    pub events: Arc<RwLock<Vec<(std::time::Instant, Event)>>>>,
+    pub events: Arc<RwLock<Vec<(std::time::Instant, Event)>>>,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl RateLimiter {
     pub fn new(id: String, event_type: String, max_events_per_second: f64) -> Self {
         Self {
@@ -143,7 +185,7 @@ impl RateLimiter {
         let now = std::time::Instant::now();
 
         events.retain(|(timestamp, _)| {
-            now.duration(*timestamp).as_secs_f64() < 1.0
+            now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0
         });
 
         let count = events.len();
@@ -155,6 +197,7 @@ impl RateLimiter {
         Ok(true)
     }
 
+    #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_current_rate(&self) -> f64 {
         let events = self.events.read().await;
         let now = std::time::Instant::now();
@@ -162,7 +205,7 @@ impl RateLimiter {
         let recent_count = events
             .iter()
             .filter(|(timestamp, _)| {
-                now.duration(*timestamp).as_secs_f64() < 1.0
+                now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0
             })
             .count();
 
@@ -236,7 +279,7 @@ mod tests {
             })
         }).collect::<Vec<_>>();
 
-        assert_eq!(checks.iter().filter(|&&x| *x).count(), 10);
+        assert_eq!(checks.iter().filter(|x| **x).count(), 10);
     }
 
     #[test]

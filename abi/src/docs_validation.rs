@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Documentation Validation Tests
 //!
@@ -11,7 +11,7 @@
 #[cfg(test)]
 mod docs_validation_tests {
     use crate::config::ConfigFieldType;
-    use crate::v2_spec::{MaturityLevel, MonetizationModel, PluginCategory, PluginResultV2};
+    use crate::v2_spec::{MaturityLevel, PluginCategory, PluginResultV2};
 
     // =========================================================================
     // CONFIG_REFERENCE.md Validations
@@ -256,18 +256,6 @@ mod docs_validation_tests {
             9,
             "Should have 10 categories (0-9)"
         );
-    }
-
-    /// Validates: MonetizationModel enum has documented variants
-    /// File: docs/PLUGIN_DEVELOPMENT.md
-    #[test]
-    fn validate_monetization_models() {
-        // Verify all documented models exist with correct ordinal values
-        assert_eq!(MonetizationModel::Free as i32, 0);
-        assert_eq!(MonetizationModel::OneTime as i32, 1);
-        assert_eq!(MonetizationModel::Subscription as i32, 2);
-        assert_eq!(MonetizationModel::Freemium as i32, 3);
-        assert_eq!(MonetizationModel::Custom as i32, 4);
     }
 
     // =========================================================================

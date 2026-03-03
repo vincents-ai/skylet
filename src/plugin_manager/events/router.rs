@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 use super::storage::EventStorage;
 
 /// Event router with pattern matching
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct EventRouter {
     storage: Arc<EventStorage>,
     patterns: Arc<RwLock<HashMap<String, Vec<EventSubscriber>>>>,
@@ -17,6 +18,7 @@ pub struct EventRouter {
     config: RoutingConfig,
 }
 
+#[allow(dead_code)] // Phase 2 event system — not yet wired up
 impl EventRouter {
     pub fn new(storage: Arc<EventStorage>) -> Self {
         Self {
@@ -43,9 +45,10 @@ impl EventRouter {
             self.route_by_wildcard(&event, &mut matched_subscribers).await;
         }
 
+        let count = matched_subscribers.len();
         self.deliver_to_subscribers(event.clone(), matched_subscribers).await?;
 
-        Ok(matched_subscribers.len())
+        Ok(count)
     }
 
     async fn route_by_pattern(&self, event: &Event, subscribers: &mut Vec<EventSubscriber>) {
@@ -64,13 +67,13 @@ impl EventRouter {
         let wildcards = self.wildcards.read().await;
 
         for sub in wildcards.iter() {
-            for pattern in &sub.event_types {
-                if let EventPattern::Wildcard(wc) = pattern {
+            for pattern_str in &sub.event_types {
+                if let Ok(EventPattern::Wildcard(wc)) = self.parse_pattern(pattern_str) {
                     let event_parts: Vec<&str> = event.event_type.split('.').collect();
                     let wc_parts: Vec<&str> = wc.split('.').collect();
 
                     if event_parts.len() == wc_parts.len()
-                        && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| w == &"*" || w == e)
+                        && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| *w == "*" || w == e)
                     {
                         if self.should_deliver(sub, event) {
                             subscribers.push(sub.clone());
@@ -151,10 +154,10 @@ impl EventRouter {
     }
 
     fn parse_pattern(&self, pattern: &str) -> Result<EventPattern> {
-        if pattern.contains('*') {
-            Ok(EventPattern::Wildcard(pattern.to_string()))
-        } else if pattern.starts_with("regex:") {
+        if pattern.starts_with("regex:") {
             Ok(EventPattern::Regex(pattern[6..].to_string()))
+        } else if pattern.contains('*') {
+            Ok(EventPattern::Wildcard(pattern.to_string()))
         } else {
             Ok(EventPattern::Exact(pattern.to_string()))
         }
@@ -174,12 +177,12 @@ impl EventRouter {
     }
 
     fn pattern_matches_wildcard(&self, pattern: &str, event_type: &str) -> bool {
-        if let EventPattern::Wildcard(wc) = self.parse_pattern(pattern).ok()? {
+        if let Ok(EventPattern::Wildcard(wc)) = self.parse_pattern(pattern) {
             let event_parts: Vec<&str> = event_type.split('.').collect();
             let wc_parts: Vec<&str> = wc.split('.').collect();
 
             if event_parts.len() == wc_parts.len()
-                && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| w == &"*" || w == e)
+                && event_parts.iter().zip(wc_parts.iter()).all(|(e, w)| *w == "*" || w == e)
             {
                 return true;
             }
@@ -214,9 +217,15 @@ mod tests {
         let storage = Arc::new(EventStorage::default());
         let router = EventRouter::new(storage);
 
-        let callback = Arc::new(|_event: Event| async move {
-            Ok(())
-        });
+        struct TestCallback;
+        #[async_trait::async_trait]
+        impl EventCallback for TestCallback {
+            async fn on_event(&self, _event: Event) -> Result<(), EventError> {
+                Ok(())
+            }
+        }
+
+        let callback: Arc<dyn EventCallback> = Arc::new(TestCallback);
 
         let subscriber = EventSubscriber::new(
             "test_plugin".to_string(),

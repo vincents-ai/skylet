@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Advanced Metrics Collection and Monitoring Module
 //!
@@ -25,6 +25,7 @@ use types::*;
 
 /// Metrics configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsConfig {
     pub enabled: bool,
     pub collection_interval: StdDuration,
@@ -52,6 +53,7 @@ impl Default for MetricsConfig {
 }
 
 /// Main metrics manager
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsManager {
     config: MetricsConfig,
     storage: Arc<storage::MetricsStorage>,
@@ -60,6 +62,7 @@ pub struct MetricsManager {
     plugin_metrics: Arc<RwLock<HashMap<String, PluginMetrics>>>,
 }
 
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 impl MetricsManager {
     pub fn new(config: MetricsConfig) -> Self {
         use chrono::TimeDelta;
@@ -126,6 +129,11 @@ impl MetricsManager {
         metrics.get(plugin_name).cloned()
     }
 
+    pub async fn update_plugin_metrics(&self, plugin_name: &str, updated: PluginMetrics) {
+        let mut metrics = self.plugin_metrics.write().await;
+        metrics.insert(plugin_name.to_string(), updated);
+    }
+
     pub async fn query_metrics(&self, query: MetricQuery) -> Vec<Metric> {
         self.storage.query(query).await
     }
@@ -178,8 +186,8 @@ mod tests {
     fn test_metrics_config_default() {
         let config = MetricsConfig::default();
         assert!(config.enabled);
-        assert_eq!(config.collection_interval, Duration::from_secs(5));
-        assert_eq!(config.retention_period, Duration::from_hours(24));
+        assert_eq!(config.collection_interval, StdDuration::from_secs(5));
+        assert_eq!(config.retention_period, StdDuration::from_secs(86400));
         assert!(config.enable_prometheus);
         assert_eq!(config.prometheus_port, 9091);
         assert_eq!(config.sample_rate, 1.0);
@@ -189,6 +197,6 @@ mod tests {
     fn test_plugin_metrics_new() {
         let metrics = PluginMetrics::new("test_plugin".to_string());
         assert_eq!(metrics.plugin_name, "test_plugin");
-        assert!(metrics.performance_metrics.is_empty());
+        assert_eq!(metrics.performance_metrics.total_calls, 0);
     }
 }

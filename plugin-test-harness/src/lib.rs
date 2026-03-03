@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Plugin Test Harness - V2 ABI Compatible
 //!
 //! A comprehensive testing framework for Skylet plugins with:
@@ -80,10 +83,10 @@ pub struct MockServiceConfig {
 }
 
 /// Main plugin test harness
-#[allow(dead_code)]
 pub struct PluginTestHarness {
     config: PluginTestConfig,
     plugin: Option<Arc<LoadedPluginV2>>,
+    #[allow(dead_code)] // Retained for mock service injection in integration tests
     mock_services: Arc<Mutex<MockServiceRegistry>>,
     test_results: Vec<TestResult>,
     context: Option<Box<MockPluginContextV2>>,

@@ -1,12 +1,12 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::Result;
 use flate2::read::GzDecoder;
 use plugin_packager::{
     pack_dir, pack_dir_with_target, verify_artifact, BackupManager, DependencyResolver,
-    LocalRegistry, MarketplaceClient, PluginDependency, PluginRegistryEntry, PublishStatus,
-    RegistryPersistence, SearchQuery, SearchSort, SemanticVersion, UpgradeInfo, VersionRequirement,
+    LocalRegistry, PluginDependency, PluginRegistryEntry, RegistryPersistence, SemanticVersion,
+    UpgradeInfo, VersionRequirement,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -722,143 +722,6 @@ fn test_metadata_abi_validation() -> Result<()> {
     Ok(())
 }
 
-// Marketplace API Client Integration Tests
-
-#[test]
-fn test_marketplace_client_initialization() -> Result<()> {
-    let client = MarketplaceClient::new("https://marketplace.example.com".to_string());
-
-    // Verify client can be created
-    assert_eq!(client.base_url(), "https://marketplace.example.com");
-    assert!(!client.has_auth());
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_client_with_authentication() -> Result<()> {
-    let client = MarketplaceClient::with_auth(
-        "https://marketplace.example.com".to_string(),
-        "test-token-123".to_string(),
-    );
-
-    // Verify client is initialized with auth
-    assert_eq!(client.base_url(), "https://marketplace.example.com");
-    assert!(client.has_auth());
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_search_query_construction() -> Result<()> {
-    let query = SearchQuery {
-        query: Some("web server".to_string()),
-        category: Some("integration".to_string()),
-        tags: Some(vec!["api".to_string(), "http".to_string()]),
-        min_maturity: Some("stable".to_string()),
-        sort: Some(SearchSort::Rating),
-        limit: Some(20),
-        offset: Some(0),
-    };
-
-    // Serialize to verify query can be serialized
-    let json = serde_json::to_string(&query)?;
-    assert!(json.contains("web server"));
-    assert!(json.contains("integration"));
-    assert!(json.contains("api"));
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_search_sorting_options() -> Result<()> {
-    let sorts = vec![
-        SearchSort::Relevance,
-        SearchSort::Downloads,
-        SearchSort::Rating,
-        SearchSort::Recent,
-    ];
-
-    for sort in sorts {
-        let json = serde_json::to_string(&sort)?;
-        assert!(!json.is_empty());
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_publish_status_values() -> Result<()> {
-    let statuses = vec![
-        PublishStatus::Pending,
-        PublishStatus::Verified,
-        PublishStatus::Active,
-        PublishStatus::Rejected,
-        PublishStatus::Suspended,
-    ];
-
-    for status in statuses {
-        let json = serde_json::to_string(&status)?;
-        assert!(!json.is_empty());
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_plugin_rating_calculation() -> Result<()> {
-    use plugin_packager::marketplace::{PluginRating, RatingDistribution};
-
-    let distribution = RatingDistribution {
-        five_star: 100,
-        four_star: 50,
-        three_star: 20,
-        two_star: 5,
-        one_star: 2,
-    };
-
-    let rating = PluginRating {
-        average: 4.45,
-        count: 177,
-        distribution,
-    };
-
-    // Verify ratings can be serialized
-    let json = serde_json::to_string(&rating)?;
-    assert!(json.contains("4.45"));
-    assert!(json.contains("177"));
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_multiple_category_search() -> Result<()> {
-    let categories = vec![
-        "integration",
-        "workflow",
-        "database",
-        "devops",
-        "communication",
-    ];
-
-    for category in categories {
-        let query = SearchQuery {
-            query: None,
-            category: Some(category.to_string()),
-            tags: None,
-            min_maturity: None,
-            sort: Some(SearchSort::Downloads),
-            limit: Some(10),
-            offset: Some(0),
-        };
-
-        let json = serde_json::to_string(&query)?;
-        assert!(json.contains(category));
-    }
-
-    Ok(())
-}
-
 // RFC-0003: Cross-Platform Plugin Packaging Tests
 
 #[test]
@@ -1349,7 +1212,7 @@ fn test_publish_config_creation() {
     use plugin_packager::publish::{ArtifactPublisher, PublishConfig};
 
     let config = PublishConfig {
-        registry_url: "https://marketplace.example.com".to_string(),
+        registry_url: "https://registry.example.com".to_string(),
         auth_token: "test-token".to_string(),
         skip_verify: false,
         as_draft: false,
@@ -1579,20 +1442,4 @@ abi_version = "2"
         .all(|c| c.is_ascii_hexdigit()));
 
     Ok(())
-}
-
-/// Test: ArtifactPublisher with_client constructor
-#[test]
-fn test_publish_with_client() {
-    use plugin_packager::marketplace::MarketplaceClient;
-    use plugin_packager::publish::ArtifactPublisher;
-
-    let client = MarketplaceClient::new("https://example.com".to_string());
-    let publisher = ArtifactPublisher::with_client(client);
-
-    // Without auth token, should not be authenticated
-    assert!(
-        !publisher.is_authenticated(),
-        "Should not be authenticated without token"
-    );
 }

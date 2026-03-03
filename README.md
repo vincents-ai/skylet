@@ -6,7 +6,7 @@
 
 A secure, extensible, open-source plugin runtime for autonomous agents and microservices.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE-APACHE)
 [![CI](https://github.com/vincents-ai/skylet/actions/workflows/test.yml/badge.svg)](https://github.com/vincents-ai/skylet/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/vincents-ai/skylet/branch/main/graph/badge.svg)](https://codecov.io/gh/vincents-ai/skylet)
 ![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
@@ -37,7 +37,6 @@ Perfect for building:
 **Security** | Best Practices → [Security Guide](docs/SECURITY.md)
 **Performance** | Optimize → [Performance Tuning](docs/PERFORMANCE.md)
 **Specification** | Technical → [ABI Contract](docs/PLUGIN_CONTRACT.md)
-**Migration** | Upgrade from V1 → [Migration Guide](docs/MIGRATION_GUIDE.md)
 📊 **Stability** | Guarantees → [ABI Stability](docs/ABI_STABILITY.md)
 
 ## ✨ Features
@@ -148,14 +147,11 @@ See [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) for complete tutorial
 ### Build the Engine
 
 ```bash
-# Default (standalone, no proprietary dependencies)
+# Default (standalone)
 cargo build --release
 
 # With optional distributed tracing
 cargo build --release --features opentelemetry
-
-# Full build (includes proprietary extensions)
-cargo build --release --features proprietary
 ```
 
 ## Documentation
@@ -201,12 +197,6 @@ cargo build --release --features proprietary
    - Compatibility promises
    - Support timeline
 
-### Migration
-7. **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Upgrade from V1
-   - Step-by-step instructions
-   - Common issues
-   - Dual compatibility patterns
-
 ## 🏗️ Architecture
 
 ```
@@ -246,11 +236,10 @@ execution-engine/
 
 ## 📊 Project Statistics
 
-- **12 crates** with clear separation of concerns
-- **125 source files** all with Apache 2.0 license headers
-- **1,079 tests** with comprehensive coverage
-- **Zero proprietary dependencies** in standalone mode
-- **Feature-gated support** for advanced features
+- **13 crates** with clear separation of concerns
+- **186 source files** all with MIT OR Apache-2.0 license headers
+- **1,218+ tests** with comprehensive coverage
+- **Zero external dependencies** beyond open-source ecosystem
 - **2,500+ lines of documentation**
 
 ## 🔒 Security
@@ -312,7 +301,7 @@ cargo doc --no-deps --open
 ### Feature Flags
 
 ```bash
-# Standalone mode (default) - no proprietary dependencies
+# Standalone mode (default)
 cargo build --features standalone
 
 # With distributed tracing
@@ -320,9 +309,7 @@ cargo build --features opentelemetry
 
 # Both
 cargo build --features standalone,opentelemetry
-
-# All features (requires proprietary dependencies)
-cargo build --all-features
+```
 ```
 
 ### Supported Platforms
@@ -366,16 +353,16 @@ We welcome contributions! Please:
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0**.
+This project is dual-licensed under **MIT OR Apache-2.0**.
 
-- Full license text: See [LICENSE](LICENSE) file
+- Full license text: See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) files
 - Third-party attributions: See [NOTICE](NOTICE) file
-- All source files include Apache 2.0 header
+- All source files include SPDX license headers
 
 ### Summary
 - ✅ Open source and free for commercial use
-- ✅ Patent protection included
-- ✅ Derivatives must be licensed under Apache 2.0
+- ✅ Patent protection included (Apache-2.0)
+- ✅ Permissive licensing for maximum flexibility
 - ✅ No liability or warranty (use as-is)
 
 ## 📞 Support
@@ -393,22 +380,22 @@ This project is licensed under the **Apache License 2.0**.
 
 ## Roadmap
 
-### v2.1 (Q3 2024)
+### v2.1 (Completed)
 - WebAssembly (WASM) plugin support
 - Enhanced metrics collection
 - Additional example plugins
 
-### v2.2 (Q4 2024)
+### v2.2 (Completed)
 - Distributed tracing defaults
-- Plugin marketplace integration
+- Plugin registry integration
 - Performance optimizations
 
-### v2.3 (Q1 2025)
+### v2.3 (Completed)
 - Peer-to-peer plugin distribution
 - Cross-instance replication
 - Advanced security policies
 
-### v3.0 (2026+)
+### v3.0 (Planned)
 - Breaking changes allowed
 - Next-generation ABI
 - Enhanced clustering
@@ -424,12 +411,12 @@ Special thanks to:
 
 ## 📊 Statistics
 
-- **125 source files** - All with Apache 2.0 headers
-- **1,079 tests** - Comprehensive coverage
+- **213 source files** - All with MIT OR Apache-2.0 headers
+- **1,079+ tests** - Comprehensive coverage
 - **2,500+ lines** of documentation
 - **14+ configuration** field types
 - **7+ security** best practice guides
-- **Zero** proprietary dependencies (standalone mode)
+- **Zero** external dependencies beyond open-source ecosystem
 
 ---
 

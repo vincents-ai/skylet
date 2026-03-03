@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -33,20 +33,12 @@ pub use remote::{CacheStats, HybridRegistry, RemoteRegistry, RemoteRegistryConfi
 pub mod upgrade;
 pub use upgrade::{BackupManager, BackupRecord, SemanticVersion, UpgradeInfo, UpgradeResult};
 
-// Marketplace ABI v2.0 compatibility module
+// ABI v2.0 compatibility module
 pub mod abi_compat;
 pub use abi_compat::{
     ABICompatibleInfo, ABIValidationResult, ABIValidator, ABIVersion, CapabilityInfo,
-    DependencyInfo, MarketplaceMetadata, MaturityLevel, MonetizationModel, PluginCategory,
+    DependencyInfo, MaturityLevel, PluginCategory,
     ResourceRequirements,
-};
-
-// Marketplace API client module
-pub mod marketplace;
-pub use marketplace::{
-    MarketplaceClient, MarketplacePlugin, PluginRating, PluginVersionInfo, PublishRequest,
-    PublishResponse, PublishSignature, PublishStatus, RatingDistribution, SearchQuery,
-    SearchResults, SearchSort,
 };
 
 // Plugin signature verification and cryptographic signing module

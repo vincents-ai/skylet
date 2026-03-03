@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! V2 ABI FFI Interface for Config Manager Plugin
 //!
@@ -120,12 +120,7 @@ fn init_plugin_info() {
         supports_streaming: false,
         max_concurrency: 1,
 
-        // Marketplace (not sold)
-        monetization_model: MonetizationModel::Free,
-        price_usd: 0.0,
-        purchase_url: ptr::null(),
-        subscription_url: ptr::null(),
-        marketplace_category: ptr::null(),
+        // Plugin presentation
         tagline: ptr::null(),
         icon_url: ptr::null(),
 
@@ -328,7 +323,6 @@ pub extern "C" fn plugin_create_v2() -> *const PluginApiV2 {
         get_metrics: Some(plugin_get_metrics_v2),
         query_capability: Some(plugin_query_capability_v2),
         get_config_schema: None,
-        get_billing_metrics: None,
         serialize_state: None,
         deserialize_state: None,
         free_state: None,

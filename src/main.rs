@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Parser;
 mod bootstrap;
@@ -27,6 +27,12 @@ use permissions::http::{auth_router, AuthState};
 
 // CQ-003: Import dynamic plugin discovery
 use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
+
+// Wire PluginManager for application plugins (provides real FFI services)
+use plugin_manager::manager::PluginManager;
+
+// CQ-004: Plugin dependency resolution for load ordering
+use plugin_manager::dependency_resolver::PluginDependencyResolver;
 
 #[derive(Parser)]
 #[command(name = "skylet")]
@@ -161,7 +167,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_server(config: AppConfig) -> Result<()> {
-    info!("Starting autonomous marketplace server...");
+    info!("Starting Skylet server...");
 
     let app_state = Arc::new(AppState::new());
 
@@ -199,7 +205,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
     };
 
     let discovery = PluginDiscovery::new(discovery_config);
-    let app_plugins = match discovery.discover_for_loading() {
+    let app_plugins = match discovery.discover_plugins() {
         Ok(plugins) => {
             info!("Discovered {} application plugins", plugins.len());
             plugins
@@ -210,19 +216,108 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     };
 
-    let loader = bootstrap::DynamicPluginLoader::new();
-    for (plugin_name, abi_version) in app_plugins {
-        match loader.load_plugin(&plugin_name) {
+    // CQ-004: Resolve plugin loading order via dependency graph
+    // Probe each discovered plugin for its declared dependencies, then
+    // topologically sort so that dependencies load before dependents.
+    let ordered_plugins = {
+        use skylet_abi::AbiV2PluginLoader;
+        use std::collections::HashMap;
+
+        let mut resolver = PluginDependencyResolver::new();
+        let mut plugin_map: HashMap<String, &plugin_manager::discovery::DiscoveredPlugin> =
+            HashMap::new();
+
+        for discovered in &app_plugins {
+            plugin_map.insert(discovered.name.clone(), discovered);
+
+            // Probe plugin library once for both dependency metadata and version
+            let (deps, version) = match AbiV2PluginLoader::load(&discovered.path) {
+                Ok(loader) => {
+                    let deps: Vec<String> = match loader.get_dependencies() {
+                        Ok(entries) => entries
+                            .into_iter()
+                            .filter(|d| d.required)
+                            .map(|d| match d.version_range {
+                                Some(ver) => format!("{}@{}", d.name, ver),
+                                None => d.name,
+                            })
+                            .collect(),
+                        Err(e) => {
+                            warn!(
+                                "Could not read dependencies for plugin '{}': {}",
+                                discovered.name, e
+                            );
+                            vec![]
+                        }
+                    };
+                    let version = loader.get_info().ok().map(|m| m.version);
+                    (deps, version)
+                }
+                Err(e) => {
+                    warn!(
+                        "Could not probe plugin '{}' for dependencies: {}",
+                        discovered.name, e
+                    );
+                    (vec![], None)
+                }
+            };
+
+            resolver.register_plugin(
+                &discovered.name,
+                &discovered.abi_version,
+                deps,
+                version.as_deref(),
+            );
+        }
+
+        match resolver.resolve_loading_order() {
+            Ok(order) => {
+                // resolve_loading_order() returns dependencies-first order (via
+                // Kahn's algorithm starting from nodes with zero dependencies).
+                // This is already the correct loading order: each plugin's
+                // prerequisites are loaded before the plugin itself.
+
+                info!(
+                    "Resolved plugin loading order: {:?}",
+                    order.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>()
+                );
+                // Map back to DiscoveredPlugin references in resolved order
+                order
+                    .into_iter()
+                    .filter_map(|(name, _)| plugin_map.remove(&name).cloned())
+                    .collect::<Vec<_>>()
+            }
+            Err(e) => {
+                warn!(
+                    "Dependency resolution failed, loading in discovery order: {}",
+                    e
+                );
+                app_plugins.clone()
+            }
+        }
+    };
+
+    // Load application plugins via PluginManager (provides real FFI services:
+    // logging, config, event bus, RPC, tracing, secrets, HTTP routing)
+    let plugin_manager = PluginManager::new();
+    for discovered in &ordered_plugins {
+        match plugin_manager
+            .load_plugin_instance_v2(&discovered.name, &discovered.path)
+            .await
+        {
             Ok(_) => {
-                info!("Loaded application plugin: {}", plugin_name);
+                info!("Loaded application plugin: {}", discovered.name);
                 app_state
-                    .add_plugin(&plugin_name, "healthy", &abi_version)
+                    .add_plugin(&discovered.name, "healthy", &discovered.abi_version)
                     .await;
             }
             Err(e) => {
-                warn!("Failed to load application plugin '{}': {}", plugin_name, e);
+                warn!(
+                    "Failed to load application plugin '{}': {}",
+                    discovered.name, e
+                );
                 app_state
-                    .add_plugin(&plugin_name, "failed", &abi_version)
+                    .add_plugin(&discovered.name, "failed", &discovered.abi_version)
                     .await;
             }
         }
@@ -290,6 +385,10 @@ async fn run_server(config: AppConfig) -> Result<()> {
             info!("Shutdown signal received");
         }
     }
+
+    // Shutdown application plugins before bootstrap
+    info!("Shutting down application plugins...");
+    plugin_manager.shutdown_all().await;
 
     // Shutdown bootstrap plugins before exiting
     info!("Shutting down bootstrap plugins...");

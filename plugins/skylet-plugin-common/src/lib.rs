@@ -1,10 +1,13 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Common utilities for Skylet plugins - eliminates boilerplate and ensures consistency
 // v0.5.0 - V2 ABI only: capability builders, service info builders, and improved V2 ABI macros
 #![allow(dead_code, unused_imports, unused_variables)]
 use anyhow::Result;
 // Import specific types to avoid ambiguity - V2 ABI only
 use skylet_abi::v2_spec::{
-    CapabilityInfo, HealthStatus, MaturityLevel, MonetizationModel, PluginApiV2, PluginCategory,
+    CapabilityInfo, HealthStatus, MaturityLevel, PluginApiV2, PluginCategory,
     PluginContextV2, PluginInfoV2, PluginResultV2, RequestV2, ResponseV2, ServiceInfo,
 };
 use skylet_abi::{HttpResponse, PluginType};
@@ -78,9 +81,9 @@ impl CapabilityBuilder {
     /// Add a capability with name, description, and optional required permission.
     pub fn add(mut self, name: &str, description: &str, required_permission: Option<&str>) -> Self {
         self.capabilities.push((
-            CString::new(name).unwrap(),
-            CString::new(description).unwrap(),
-            required_permission.map(|p| CString::new(p).unwrap()),
+            CString::new(name).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            CString::new(description).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            required_permission.map(|p| CString::new(p).unwrap_or_else(|_| CString::new("invalid").unwrap())),
         ));
         self
     }
@@ -137,20 +140,20 @@ pub struct ServiceInfoBuilder {
 impl ServiceInfoBuilder {
     pub fn new(name: &str, version: &str) -> Self {
         Self {
-            name: CString::new(name).unwrap(),
-            version: CString::new(version).unwrap(),
+            name: CString::new(name).unwrap_or_else(|_| CString::new("invalid").unwrap()),
+            version: CString::new(version).unwrap_or_else(|_| CString::new("invalid").unwrap()),
             description: None,
             interface_spec: None,
         }
     }
 
     pub fn description(mut self, desc: &str) -> Self {
-        self.description = Some(CString::new(desc).unwrap());
+        self.description = Some(CString::new(desc).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
     pub fn interface_spec(mut self, spec: &str) -> Self {
-        self.interface_spec = Some(CString::new(spec).unwrap());
+        self.interface_spec = Some(CString::new(spec).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
@@ -191,7 +194,7 @@ impl TagsBuilder {
     }
 
     pub fn add(mut self, tag: &str) -> Self {
-        self.tags.push(CString::new(tag).unwrap());
+        self.tags.push(CString::new(tag).unwrap_or_else(|_| CString::new("invalid").unwrap()));
         self
     }
 
@@ -1334,7 +1337,6 @@ pub struct PluginInfoV2Holder {
     _license: CString,
     _abi_version: CString,
     _skylet_version_min: CString,
-    _marketplace_category: CString,
     _tagline: CString,
 }
 
@@ -1357,7 +1359,6 @@ pub fn create_plugin_info_v2(
     let license_cstring = CString::new(license).unwrap();
     let abi_version_cstring = CString::new("2.0").unwrap();
     let skylet_version_min_cstring = CString::new("0.2.0").unwrap();
-    let marketplace_category_cstring = CString::new("Core").unwrap();
     let tagline_cstring = CString::new(tagline).unwrap();
 
     let info = skylet_abi::v2_spec::PluginInfoV2 {
@@ -1387,11 +1388,6 @@ pub fn create_plugin_info_v2(
         supports_async,
         supports_streaming: false,
         max_concurrency,
-        monetization_model: skylet_abi::v2_spec::MonetizationModel::Free,
-        price_usd: 0.0,
-        purchase_url: std::ptr::null(),
-        subscription_url: std::ptr::null(),
-        marketplace_category: marketplace_category_cstring.as_ptr(),
         tagline: tagline_cstring.as_ptr(),
         icon_url: std::ptr::null(),
         maturity_level: skylet_abi::v2_spec::MaturityLevel::Stable,
@@ -1411,7 +1407,6 @@ pub fn create_plugin_info_v2(
         _license: license_cstring,
         _abi_version: abi_version_cstring,
         _skylet_version_min: skylet_version_min_cstring,
-        _marketplace_category: marketplace_category_cstring,
         _tagline: tagline_cstring,
     }
 }
@@ -1775,7 +1770,6 @@ macro_rules! skylet_plugin_v2_impl {
                 get_metrics: None,
                 query_capability: Some(plugin_query_capability_v2),
                 get_config_schema: None,
-                get_billing_metrics: None,
                 // State transfer for epoch-based hot-reload (not implemented by default)
                 serialize_state: None,
                 deserialize_state: None,

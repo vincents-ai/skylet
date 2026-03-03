@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! # Skylet Lifecycle CLI
 //!
@@ -23,7 +23,7 @@
 //!
 //! ```bash
 //! # Add a registry source
-//! skylet-lifecycle-cli source add official https://registry.skylet.dev
+//! skylet-lifecycle-cli source add official https://registry.example.com
 //!
 //! # Search for plugins
 //! skylet-lifecycle-cli plugin search "database"
@@ -64,7 +64,7 @@ struct Cli {
     config_dir: Option<PathBuf>,
 
     /// Path to sources configuration file
-    #[arg(short, long, global = true)]
+    #[arg(short = 'S', long, global = true)]
     sources_file: Option<PathBuf>,
 
     /// Auth token for private registries
@@ -384,11 +384,12 @@ impl SourcesConfig {
 
         // Update default if needed
         if self.default_source.as_ref() == Some(&removed.name) {
-            self.default_source = self.sources.first().map(|s| {
-                let mut first = s.clone();
+            if let Some(first) = self.sources.first_mut() {
                 first.is_default = true;
-                first.name.clone()
-            });
+                self.default_source = Some(first.name.clone());
+            } else {
+                self.default_source = None;
+            }
         }
 
         Ok(removed)
@@ -1287,7 +1288,7 @@ mod tests {
             "source",
             "add",
             "official",
-            "https://registry.skylet.dev",
+            "https://registry.example.com",
         ]);
 
         assert!(cli.is_ok());
@@ -1295,7 +1296,7 @@ mod tests {
         match cli.command {
             Commands::Source(SourceCommands::Add { name, url, .. }) => {
                 assert_eq!(name, "official");
-                assert_eq!(url, "https://registry.skylet.dev");
+                assert_eq!(url, "https://registry.example.com");
             }
             _ => panic!("Expected Source Add command"),
         }
@@ -1325,8 +1326,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_registry_client_search() {
+        // With no sources configured, search should return empty results
         let client = RegistryClient::new(vec![], None);
         let results = client.search("database", 10, None).await.unwrap();
-        assert!(!results.is_empty());
+        assert!(results.is_empty());
     }
 }

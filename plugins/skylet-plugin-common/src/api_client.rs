@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Enhanced API client with authentication support for skylet-plugin-common v0.3.0
 use crate::PluginCommonError;
 use base64::Engine;

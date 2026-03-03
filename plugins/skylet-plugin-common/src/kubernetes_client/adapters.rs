@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Kubernetes client adapters for different implementations
 // Provides mock and real implementations for Kubernetes cluster management
 use super::*;

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Hot-Reload Service Tests - RFC-0007
 //!
@@ -9,8 +9,7 @@
 mod hot_reload_tests {
     use std::path::PathBuf;
 
-    // Note: These tests require the marketplace-app crate to be available
-    // which provides the HotReloadService. The tests verify:
+    // Note: These tests verify the HotReloadService functionality:
     // 1. Service creation and configuration
     // 2. Plugin watching registration
     // 3. Event subscription

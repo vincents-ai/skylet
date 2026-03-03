@@ -16,7 +16,7 @@ default-theme = "light"
 preferred-dark-theme = "coal"
 smart-punctuation = true
 mathjax-support = true
-edit-url-template = "https://github.com/vincents-ai/execution-engine/edit/main/{path}"
+edit-url-template = "https://github.com/vincents-ai/skylet/edit/main/{path}"
 
 [preprocessor.index]
 

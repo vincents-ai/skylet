@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Authentication Providers - RFC-0023
 //!
@@ -10,6 +10,7 @@
 
 use anyhow::Result;
 use argon2::{self, Algorithm, Argon2, Params, Version};
+use ed25519_dalek::Verifier;
 use parking_lot::RwLock;
 use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use rand::rngs::OsRng;
@@ -67,6 +68,56 @@ pub enum Credentials {
 // Local Auth Provider (AGE Keys + Password)
 // ============================================================================
 
+/// Rate limiter for authentication attempts
+pub struct AuthRateLimiter {
+    attempts: RwLock<HashMap<String, Vec<std::time::Instant>>>,
+    max_attempts: usize,
+    window_seconds: u64,
+}
+
+impl AuthRateLimiter {
+    pub fn new(max_attempts: usize, window_seconds: u64) -> Self {
+        Self {
+            attempts: RwLock::new(HashMap::new()),
+            max_attempts,
+            window_seconds,
+        }
+    }
+
+    pub fn check_rate_limit(&self, identifier: &str) -> bool {
+        let now = std::time::Instant::now();
+        let window = std::time::Duration::from_secs(self.window_seconds);
+
+        let mut attempts = self.attempts.write();
+        let entry = attempts
+            .entry(identifier.to_string())
+            .or_insert_with(Vec::new);
+
+        // Remove old attempts outside the window
+        entry.retain(|&time| now.duration_since(time) < window);
+
+        // Check if over limit
+        if entry.len() >= self.max_attempts {
+            return false; // Rate limited
+        }
+
+        // Record this attempt
+        entry.push(now);
+        true
+    }
+
+    pub fn reset(&self, identifier: &str) {
+        let mut attempts = self.attempts.write();
+        attempts.remove(identifier);
+    }
+}
+
+impl Default for AuthRateLimiter {
+    fn default() -> Self {
+        Self::new(5, 300) // 5 attempts per 5 minutes
+    }
+}
+
 /// Local authentication provider supporting AGE keys and passwords
 pub struct LocalAuthProvider {
     /// User store
@@ -77,6 +128,8 @@ pub struct LocalAuthProvider {
     passwords: RwLock<HashMap<String, String>>,
     /// Default session TTL
     default_ttl: i64,
+    /// Rate limiter for failed auth attempts
+    rate_limiter: AuthRateLimiter,
 }
 
 impl LocalAuthProvider {
@@ -86,6 +139,21 @@ impl LocalAuthProvider {
             sessions: RwLock::new(HashMap::new()),
             passwords: RwLock::new(HashMap::new()),
             default_ttl: default_ttl_seconds,
+            rate_limiter: AuthRateLimiter::default(),
+        }
+    }
+
+    pub fn with_rate_limit(
+        default_ttl_seconds: i64,
+        max_attempts: usize,
+        window_seconds: u64,
+    ) -> Self {
+        Self {
+            users: RwLock::new(HashMap::new()),
+            sessions: RwLock::new(HashMap::new()),
+            passwords: RwLock::new(HashMap::new()),
+            default_ttl: default_ttl_seconds,
+            rate_limiter: AuthRateLimiter::new(max_attempts, window_seconds),
         }
     }
 
@@ -104,6 +172,16 @@ impl LocalAuthProvider {
         password: String,
         display_name: Option<String>,
     ) -> Result<UserId> {
+        // Check for duplicate username before proceeding
+        let passwords = self.passwords.read();
+        if passwords.contains_key(&username) {
+            return Err(anyhow::anyhow!(
+                "User with username '{}' already exists",
+                username
+            ));
+        }
+        drop(passwords);
+
         let user = UserIdentity::new(format!("age-{}", &username))
             .with_display_name(display_name.clone().unwrap_or_else(|| username.clone()));
 
@@ -209,7 +287,21 @@ impl AuthProvider for LocalAuthProvider {
     }
 
     fn authenticate(&self, credentials: &Credentials) -> AuthResult {
-        match credentials {
+        // Determine rate limit identifier based on credential type
+        let rate_limit_id = match credentials {
+            Credentials::Password { username, .. } => format!("password:{}", username),
+            Credentials::AgeKey { age_public_key, .. } => format!("age:{}", age_public_key),
+            Credentials::ApiKey { key, .. } => format!("apikey:{}", key),
+            Credentials::Jwt { token } => format!("jwt:{}", &token[..token.len().min(32)]),
+            _ => "unknown".to_string(),
+        };
+
+        // Check rate limit before processing
+        if !self.rate_limiter.check_rate_limit(&rate_limit_id) {
+            return AuthResult::RateLimited;
+        }
+
+        let result = match credentials {
             Credentials::Password { username, password } => {
                 let passwords = self.passwords.read();
                 let stored_hash = passwords.get(username);
@@ -254,30 +346,71 @@ impl AuthProvider for LocalAuthProvider {
                     Err(_) => return AuthResult::InvalidCredentials,
                 };
 
-                // Decode signature from base64
-                use base64::Engine;
-                let engine = base64::engine::general_purpose::STANDARD;
-                let sig_bytes = match engine.decode(signature) {
-                    Ok(b) => b,
-                    Err(_) => return AuthResult::InvalidCredentials,
-                };
-
-                // For AGE keys, we verify using Ed25519 over the challenge
-                // The signature should be created by the corresponding private identity
-                // NOTE: Full cryptographic verification requires the private key to sign
-                // For now, we verify the key format is valid and exists in our user store
-                // Production should implement challenge-response with the client
-
+                // Find user by AGE public key
                 let users = self.users.read();
                 let user = users.values().find(|u| u.age_public_key == *age_public_key);
 
                 match user {
                     Some(user) => {
-                        // In production: verify Ed25519 signature over challenge using derived pubkey
-                        // For now: require signature length matches Ed25519 (64 bytes)
-                        if sig_bytes.len() != 64 {
-                            return AuthResult::InvalidCredentials;
+                        // If Ed25519 public key is stored, verify the signature
+                        if let Some(ref ed25519_key_hex) = user.ed25519_public_key {
+                            // Decode signature from base64
+                            use base64::Engine;
+                            let engine = base64::engine::general_purpose::STANDARD;
+                            let sig_bytes = match engine.decode(signature) {
+                                Ok(b) => b,
+                                Err(_) => return AuthResult::InvalidCredentials,
+                            };
+
+                            // Verify signature length
+                            if sig_bytes.len() != 64 {
+                                return AuthResult::InvalidCredentials;
+                            }
+
+                            // Decode public key
+                            let key_bytes = match hex::decode(ed25519_key_hex) {
+                                Ok(b) => b,
+                                Err(_) => return AuthResult::InvalidCredentials,
+                            };
+
+                            if key_bytes.len() != 32 {
+                                return AuthResult::InvalidCredentials;
+                            }
+
+                            // Verify Ed25519 signature
+                            use ed25519_dalek::{Signature as DalekSignature, VerifyingKey};
+                            let verifying_key =
+                                match VerifyingKey::from_bytes(key_bytes[..32].try_into().unwrap())
+                                {
+                                    Ok(k) => k,
+                                    Err(_) => return AuthResult::InvalidCredentials,
+                                };
+
+                            let dalek_signature =
+                                DalekSignature::from_bytes(sig_bytes[..64].try_into().unwrap());
+
+                            // Verify the signature over the challenge
+                            if verifying_key
+                                .verify(challenge.as_bytes(), &dalek_signature)
+                                .is_err()
+                            {
+                                return AuthResult::InvalidCredentials;
+                            }
+                        } else {
+                            // Fallback: if no Ed25519 key stored, only validate format
+                            // This is less secure but maintains backward compatibility
+                            use base64::Engine;
+                            let engine = base64::engine::general_purpose::STANDARD;
+                            let sig_bytes = match engine.decode(signature) {
+                                Ok(b) => b,
+                                Err(_) => return AuthResult::InvalidCredentials,
+                            };
+
+                            if sig_bytes.len() != 64 {
+                                return AuthResult::InvalidCredentials;
+                            }
                         }
+
                         let session = self.create_session(&user.user_id, vec![user_role()]);
                         AuthResult::Success(Box::new(session))
                     }
@@ -328,7 +461,14 @@ impl AuthProvider for LocalAuthProvider {
             }
 
             _ => AuthResult::ProviderUnavailable,
+        };
+
+        // Reset rate limit on successful authentication
+        if matches!(result, AuthResult::Success(_)) {
+            self.rate_limiter.reset(&rate_limit_id);
         }
+
+        result
     }
 
     fn validate_token(&self, token: &str) -> Option<Session> {
@@ -351,13 +491,23 @@ impl AuthProvider for LocalAuthProvider {
     fn refresh_token(&self, token: &str, ttl_seconds: i64) -> Option<SessionToken> {
         let mut sessions = self.sessions.write();
 
-        if let Some(session) = sessions.get_mut(token) {
+        // Remove the old session (if valid) and re-insert under a new token
+        if let Some(mut session) = sessions.remove(token) {
             if !session.token.is_expired() {
+                // Generate a fresh token with a new UUID
+                let new_token = SessionToken::new(session.token.user_id.clone(), ttl_seconds);
+                let new_token_str = new_token.token.clone();
+
+                // Update session with new token and refreshed claims
                 let now = chrono::Utc::now();
-                session.token.expires_at = now + chrono::Duration::seconds(ttl_seconds);
+                session.token = new_token;
                 session.claims.exp = now.timestamp() + ttl_seconds;
-                return Some(session.token.clone());
+
+                let result = session.token.clone();
+                sessions.insert(new_token_str, session);
+                return Some(result);
             }
+            // Token was expired — don't re-insert, effectively revoking it
         }
         None
     }

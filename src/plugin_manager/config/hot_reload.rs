@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(unused_imports)]
 use anyhow::{Context, Result};
@@ -29,6 +29,7 @@ pub enum ReloadStatus {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ReloadConfig {
     pub enabled: bool,
     pub debounce_duration: Duration,
@@ -49,18 +50,22 @@ impl Default for ReloadConfig {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub type ReloadCallback = Arc<dyn Fn(ConfigReloadEvent) + Send + Sync>;
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ConfigHotReload {
     config_dir: PathBuf,
     reload_config: ReloadConfig,
     configs: Arc<RwLock<HashMap<String, serde_json::Value>>>,
+    #[allow(dead_code)]
     watchers: Arc<RwLock<HashMap<String, RecommendedWatcher>>>,
     callbacks: Arc<RwLock<Vec<ReloadCallback>>>,
     event_history: Arc<RwLock<Vec<ConfigReloadEvent>>>,
     _watcher: RecommendedWatcher,
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl ConfigHotReload {
     pub fn new(config_dir: PathBuf) -> Result<Self> {
         let reload_config = ReloadConfig::default();

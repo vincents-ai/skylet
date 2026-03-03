@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::types::*;
 use anyhow::Result;
@@ -8,6 +8,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Metrics collector for gathering system and plugin metrics
+#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsCollector {
     interval: Duration,
     sample_rate: f64,
@@ -72,6 +73,7 @@ impl MetricsCollector {
         Ok(metrics)
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn collect_plugin_metrics(
         &self,
         plugin_name: &str,
@@ -196,14 +198,17 @@ impl MetricsCollector {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_collected_count(&self) -> u64 {
         *self.collected_count.read().await
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn interval(&self) -> Duration {
         self.interval
     }
 
+    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn sample_rate(&self) -> f64 {
         self.sample_rate
     }
@@ -230,7 +235,7 @@ mod tests {
     async fn test_collector_collect_all() {
         let collector = MetricsCollector::default();
 
-        let metrics = collector.collect_all().await;
+        let metrics = collector.collect_all().await.unwrap();
         assert!(!metrics.is_empty());
     }
 
@@ -238,10 +243,10 @@ mod tests {
     async fn test_collector_collect_system_metrics() {
         let collector = MetricsCollector::default();
 
-        let metrics = collector.collect_system_metrics().await;
+        let metrics = collector.collect_system_metrics().await.unwrap();
         assert!(!metrics.is_empty());
 
-        for metric in metrics {
+        for metric in &metrics {
             assert_eq!(metric.labels.get("source"), Some(&"metrics_collector".to_string()));
         }
     }
@@ -255,11 +260,12 @@ mod tests {
 
         let metrics = collector
             .collect_plugin_metrics("test_plugin", &performance, &resource)
-            .await;
+            .await
+            .unwrap();
 
         assert!(!metrics.is_empty());
 
-        for metric in metrics {
+        for metric in &metrics {
             assert_eq!(metric.labels.get("plugin"), Some(&"test_plugin".to_string()));
         }
     }

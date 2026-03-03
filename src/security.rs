@@ -1,4 +1,9 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use signature::{Signer, Verifier};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -208,165 +213,6 @@ impl PluginSigner {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignedManifest {
-    pub plugin_id: String,
-    pub version: String,
-    pub checksum: String,
-    pub signature: Signature,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyPair {
-    pub public_key_id: String,
-    pub public_key: String,
-}
-
-pub struct PluginSigner;
-
-impl PluginSigner {
-    pub fn sign_plugin(plugin_path: &Path, key_pair: &KeyPair) -> Result<SignedManifest, String> {
-        let manifest_path = plugin_path.join("manifest.json");
-        let content = fs::read_to_string(&manifest_path)
-            .map_err(|e| format!("Failed to read manifest: {}", e))?;
-
-        let checksum = Self::calculate_checksum(plugin_path)?;
-
-        let manifest: serde_json::Value =
-            serde_json::from_str(&content).map_err(|e| format!("Invalid manifest JSON: {}", e))?;
-
-        let plugin_id = manifest["id"]
-            .as_str()
-            .ok_or("Missing plugin ID in manifest")?
-            .to_string();
-        let version = manifest["version"]
-            .as_str()
-            .ok_or("Missing version in manifest")?
-            .to_string();
-
-        let signature_data = format!("{}:{}:{}", plugin_id, version, checksum);
-        let signature = Self::sign_data(&signature_data, key_pair)?;
-
-        Ok(SignedManifest {
-            plugin_id,
-            version,
-            checksum,
-            signature,
-        })
-    }
-
-    pub fn verify_plugin(plugin_path: &Path, trusted_keys: &[KeyPair]) -> Result<bool, String> {
-        let signature_path = plugin_path.join(".signature");
-        if !signature_path.exists() {
-            return Ok(false);
-        }
-
-        let signature_content = fs::read_to_string(&signature_path)
-            .map_err(|e| format!("Failed to read signature: {}", e))?;
-
-        let signed_manifest: SignedManifest = serde_json::from_str(&signature_content)
-            .map_err(|e| format!("Invalid signature format: {}", e))?;
-
-        let trusted_key = trusted_keys
-            .iter()
-            .find(|k| k.public_key_id == signed_manifest.signature.public_key_id)
-            .ok_or("No trusted key found for this plugin")?;
-
-        let checksum = Self::calculate_checksum(plugin_path)?;
-        if checksum != signed_manifest.checksum {
-            return Err("Plugin checksum mismatch".to_string());
-        }
-
-        let signature_data = format!(
-            "{}:{}:{}",
-            signed_manifest.plugin_id, signed_manifest.version, signed_manifest.checksum
-        );
-
-        Ok(Self::verify_signature(
-            &signature_data,
-            &signed_manifest.signature,
-            trusted_key,
-        )?)
-    }
-
-    fn calculate_checksum(plugin_path: &Path) -> Result<String, String> {
-        let mut files: Vec<_> = fs::read_dir(plugin_path)
-            .map_err(|e| format!("Failed to read plugin directory: {}", e))?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_file() && e.file_name() != ".signature")
-            .collect();
-
-        files.sort_by_key(|e| e.file_name());
-
-        let mut hasher = sha2::Sha256::new();
-        for file in files {
-            let content =
-                fs::read(file.path()).map_err(|e| format!("Failed to read file: {}", e))?;
-            hasher.update(&content);
-        }
-
-        Ok(hex::encode(hasher.finalize()))
-    }
-
-    fn sign_data(data: &str, key_pair: &KeyPair) -> Result<Signature, String> {
-        use ed25519_dalek::SigningKey;
-        use rand::rngs::OsRng;
-
-        let key_bytes = hex::decode(&key_pair.public_key)
-            .map_err(|e| format!("Invalid public key hex: {}", e))?;
-
-        if key_bytes.len() != 32 {
-            return Err("Invalid key length".to_string());
-        }
-
-        let signing_key = SigningKey::generate(&mut OsRng);
-
-        let signature = signing_key.sign(data.as_bytes());
-
-        Ok(Signature {
-            algorithm: "ed25519".to_string(),
-            public_key_id: key_pair.public_key_id.clone(),
-            signature: hex::encode(signature.to_bytes()),
-            timestamp: chrono::Utc::now().timestamp(),
-        })
-    }
-
-    fn verify_signature(
-        data: &str,
-        signature: &Signature,
-        key_pair: &KeyPair,
-    ) -> Result<bool, String> {
-        use ed25519_dalek::{Signature as DalekSignature, VerifyingKey};
-
-        if signature.algorithm != "ed25519" {
-            return Err("Unsupported signature algorithm".to_string());
-        }
-
-        let key_bytes = hex::decode(&key_pair.public_key)
-            .map_err(|e| format!("Invalid public key hex: {}", e))?;
-
-        let verifying_key = VerifyingKey::from_bytes(
-            key_bytes[..32]
-                .try_into()
-                .map_err(|_| "Invalid key length")?,
-        )
-        .map_err(|e| format!("Invalid verifying key: {}", e))?;
-
-        let sig_bytes = hex::decode(&signature.signature)
-            .map_err(|e| format!("Invalid signature hex: {}", e))?;
-
-        let dalek_signature = DalekSignature::from_bytes(
-            sig_bytes[..64]
-                .try_into()
-                .map_err(|_| "Invalid signature length")?,
-        );
-
-        Ok(verifying_key
-            .verify(data.as_bytes(), &dalek_signature)
-            .is_ok())
-    }
-}
-
 pub struct SecurityPolicy {
     trusted_signers: HashMap<String, KeyPair>,
     require_signature: bool,
@@ -377,8 +223,8 @@ impl SecurityPolicy {
     pub fn new() -> Self {
         Self {
             trusted_signers: HashMap::new(),
-            require_signature: false,
-            allow_unsigned: true,
+            require_signature: true,
+            allow_unsigned: false,
         }
     }
 
@@ -399,7 +245,7 @@ impl SecurityPolicy {
             return Ok(self.allow_unsigned);
         }
 
-        let trusted_keys: Vec<_> = self.trusted_signers.values().collect();
+        let trusted_keys: Vec<_> = self.trusted_signers.values().cloned().collect();
 
         match PluginSigner::verify_plugin(plugin_path, &trusted_keys) {
             Ok(result) => Ok(result),
@@ -429,8 +275,8 @@ mod tests {
     #[test]
     fn test_security_policy_defaults() {
         let policy = SecurityPolicy::new();
-        assert!(!policy.require_signature);
-        assert!(policy.allow_unsigned);
+        assert!(policy.require_signature);
+        assert!(!policy.allow_unsigned);
     }
 
     #[test]
@@ -438,6 +284,7 @@ mod tests {
         let key_pair = KeyPair {
             public_key_id: "test-key".to_string(),
             public_key: "a".repeat(64),
+            signing_key: None,
         };
 
         let policy = SecurityPolicy::new()

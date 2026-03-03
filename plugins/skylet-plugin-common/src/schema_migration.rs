@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Schema migration system for database plugins
 // Provides version-controlled database schema management with rollback support
 use crate::database::{DatabaseConnection, DatabaseError, DatabaseRow, DatabaseValue, ToSql};

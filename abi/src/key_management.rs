@@ -1,11 +1,11 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Key Management Abstraction - RFC-0100 (Phase 2.1)
 //!
 //! This module provides trait-based abstractions for cryptographic key management,
 //! allowing the execution engine to work with different key backends without
-//! being tightly coupled to proprietary implementations.
+//! being tightly coupled to any specific implementation.
 //!
 //! # Overview
 //!
@@ -18,21 +18,20 @@
 //! # Default Implementation
 //!
 //! A `DefaultKeyManagement` implementation is provided using standard cryptographic
-//! libraries (ed25519-dalek, sha2, etc.) for standalone operation without proprietary
-//! key management systems.
+//! libraries (ed25519-dalek, sha2, etc.) for standalone operation.
 //!
-//! # Feature-Gated Proprietary Support
+//! # Extensible Design
 //!
-//! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary key management systems like Skylet's AGE-based key hierarchy.
+//! Custom implementations can be swapped in to use alternative key management
+//! systems (e.g., HSMs, cloud KMS, or other key hierarchies).
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```rust,ignore
 //! # use skylet_abi::key_management::{KeyManagement, KeyType};
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
-//! // Create a key manager (default or proprietary based on features)
+//! // Create a key manager (uses default implementation)
 //! let key_manager = skylet_abi::key_management::DefaultKeyManagement::new();
 //!
 //! // Generate a key
@@ -235,7 +234,7 @@ pub trait KeyManagement: Send + Sync {
 /// Default key management implementation for standalone operation
 ///
 /// This implementation uses standard cryptographic libraries and does not depend
-/// on any proprietary key management systems. It's suitable for development,
+/// on any external key management systems. It's suitable for development,
 /// testing, and standalone deployments.
 pub struct DefaultKeyManagement {
     // In-memory key storage (for standalone mode)

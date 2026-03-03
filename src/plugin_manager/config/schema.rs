@@ -1,11 +1,12 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ValidationError {
     pub path: String,
     pub message: String,
@@ -13,6 +14,7 @@ pub struct ValidationError {
 }
 
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ValidationResult {
     pub is_valid: bool,
     pub errors: Vec<ValidationError>,
@@ -28,6 +30,7 @@ impl ValidationResult {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn invalid(errors: Vec<ValidationError>) -> Self {
         Self {
             is_valid: false,
@@ -36,11 +39,13 @@ impl ValidationResult {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_warning(mut self, warning: String) -> Self {
         self.warnings.push(warning);
         self
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_warnings(mut self, warnings: Vec<String>) -> Self {
         self.warnings.extend(warnings);
         self
@@ -85,6 +90,7 @@ impl SchemaType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct SchemaProperty {
     pub schema_type: SchemaType,
     pub required: bool,
@@ -115,9 +121,11 @@ impl Default for SchemaProperty {
     }
 }
 
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub type CustomValidator = fn(value: &Value) -> Result<()>;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct SchemaValidator {
     pub properties: HashMap<String, SchemaProperty>,
     pub required: Vec<String>,
@@ -411,10 +419,12 @@ impl SchemaValidator {
         }
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn add_property(&mut self, name: String, property: SchemaProperty) {
         self.properties.insert(name, property);
     }
 
+    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn set_required(&mut self, required: Vec<String>) {
         self.required = required;
     }
