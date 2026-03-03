@@ -10,7 +10,6 @@ Complete API reference for the Config Manager Plugin v2 ABI (RFC-0004) and confi
 - **Category:** Development
 - **Maturity:** Stable
 - **License:** MIT OR Apache-2.0
-- **Monetization:** Free
 - **Capabilities:** `config.get`, `config.set`, `config.export`, `config.validate`
 - **Services Provided:** `ConfigService` (interface: `config-service-v2`)
 - **Tags:** config, settings, bootstrap, core

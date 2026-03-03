@@ -147,14 +147,11 @@ See [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) for complete tutorial
 ### Build the Engine
 
 ```bash
-# Default (standalone, no proprietary dependencies)
+# Default (standalone)
 cargo build --release
 
 # With optional distributed tracing
 cargo build --release --features opentelemetry
-
-# Full build (includes proprietary extensions)
-cargo build --release --features proprietary
 ```
 
 ## Documentation

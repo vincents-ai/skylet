@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod arena;

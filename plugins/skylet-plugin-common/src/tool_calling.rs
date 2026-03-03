@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Tool calling framework for skylet-plugin-common v0.3.0
 use crate::llm_provider::{ToolDefinition, ToolParameters, ToolProperty};
 use crate::PluginCommonError;

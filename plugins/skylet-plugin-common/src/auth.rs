@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Authentication plugin abstraction for Skylet
 // Provides common interface for authentication and authorization plugins
 

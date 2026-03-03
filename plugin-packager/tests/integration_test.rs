@@ -1212,7 +1212,7 @@ fn test_publish_config_creation() {
     use plugin_packager::publish::{ArtifactPublisher, PublishConfig};
 
     let config = PublishConfig {
-        registry_url: "https://marketplace.example.com".to_string(),
+        registry_url: "https://registry.example.com".to_string(),
         auth_token: "test-token".to_string(),
         skip_verify: false,
         as_draft: false,

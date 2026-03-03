@@ -3,7 +3,7 @@
 
 //! Registry integration for plugin-packager
 //!
-//! This module provides integration with the marketplace registry system,
+//! This module provides integration with the plugin registry system,
 //! allowing plugins to be registered, discovered, and managed through the registry.
 
 use anyhow::{Context, Result};

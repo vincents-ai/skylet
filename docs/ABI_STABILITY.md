@@ -210,24 +210,24 @@ struct PluginContextV2 {
 };
 ```
 
-### Example: Skylet Extensions
+### Example: Vendor Extensions
 
-Skylet plugins can use proprietary features through the `vendor_context`:
+Plugins can access vendor-specific features through the `vendor_context`:
 
 ```rust
 unsafe {
     if let Some(context) = PLUGIN_CONTEXT {
         if !(*context).vendor_context.is_null() {
-            // Cast to Skylet-specific context
-            let skylet_ctx = *(context).vendor_context as *mut SkyletExtensionContext;
-            // Use Skylet-specific services
+            // Cast to vendor-specific context
+            let ext_ctx = *(context).vendor_context as *mut VendorExtensionContext;
+            // Use vendor-specific services
         }
     }
 }
 ```
 
 This allows:
-- Skylet-specific plugins to use Skylet services
+- Vendor-specific plugins to use extended services
 - General plugins to remain portable
 - No conflicts or version skew
 

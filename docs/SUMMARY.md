@@ -36,5 +36,4 @@
 
 ## Resources
 
-- [Video Tutorials (Outline)](VIDEO_TUTORIALS.md)
 - [Examples](../examples/README.md)

@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Common utilities for Skylet plugins - eliminates boilerplate and ensures consistency
 // v0.5.0 - V2 ABI only: capability builders, service info builders, and improved V2 ABI macros
 #![allow(dead_code, unused_imports, unused_variables)]

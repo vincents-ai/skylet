@@ -23,7 +23,7 @@ Complete API reference for the Logging Plugin FFI (Foreign Function Interface) a
 Initializes the Logging plugin and creates a LoggingService instance.
 
 **Parameters:**
-- `context`: Plugin context pointer (PluginContext structure from marketplace ABI)
+- `context`: Plugin context pointer (PluginContext structure from Skylet ABI)
 
 **Behavior:**
 - Initializes LoggingService with default INFO log level

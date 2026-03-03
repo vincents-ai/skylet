@@ -64,7 +64,6 @@ New to Skylet? Start here:
 
 | Resource | Description |
 |----------|-------------|
-| [Video Tutorials](VIDEO_TUTORIALS.md) | Planned video series outline |
 | [Examples](../examples/README.md) | Example plugins |
 | [Branding Guide](BRANDING.md) | Visual identity guidelines |
 

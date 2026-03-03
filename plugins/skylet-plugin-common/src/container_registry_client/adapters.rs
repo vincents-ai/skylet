@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Container registry adapters for different registry implementations
 // Provides implementations for Docker Hub, GCR, ECR, ACR, and other registries
 use super::*;

@@ -139,7 +139,7 @@ pub struct ABICompatibleInfo {
     /// Semantic version (e.g., "1.2.3")
     pub version: String,
 
-    /// Marketplace ABI version required
+    /// ABI version required
     pub abi_version: ABIVersion,
 
     /// Minimum Skylet version required
@@ -353,7 +353,7 @@ impl ABIValidator {
         // Validate license
         if info.license.is_none() {
             result.add_recommendation(
-                "No license specified. Add a license for marketplace publishing.".to_string(),
+                "No license specified. Add a license for registry publishing.".to_string(),
             );
         }
 

@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! BDD Test World for Plugin Testing
 //!
 //! Provides cucumber-rs integration for behavior-driven plugin testing.

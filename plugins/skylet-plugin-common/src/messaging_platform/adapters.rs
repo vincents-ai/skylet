@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Platform-specific adapters for messaging platforms
 // Provides implementations for Telegram, Discord, Slack, etc.
 use super::*;

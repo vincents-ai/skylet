@@ -1,3 +1,6 @@
+// Copyright 2024 Vincents AI
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // Bot command framework with middleware support
 // Provides command parsing, routing, and middleware pipeline
 use super::*;

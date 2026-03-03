@@ -44,17 +44,10 @@ This is the first public beta release of the Skylet Execution Engine. The core p
   - Multi-instance deployment support
 
 #### Feature Flags
-- **`standalone` flag (default)**: Run without proprietary dependencies
-  - No external dependencies beyond open-source ecosystem
-  - Complete feature parity with proprietary mode
-  - Suitable for production open-source deployments
+- **`standalone` flag (default)**: Run with no external dependencies
+  - Full plugin execution capabilities
+  - Suitable for production deployments
   - `cargo build --features standalone --release`
-
-- **`proprietary` flag**: Enable Skylet-specific extensions
-  - Additional clustering features
-  - Proprietary service implementations
-  - Enterprise-grade monitoring
-  - Gated behind feature flag for flexibility
 
 - **`opentelemetry` flag**: Distributed tracing support
   - OpenTelemetry API integration
