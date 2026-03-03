@@ -58,7 +58,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tokio-test = "0.4"
 rusqlite = { version = "0.30", features = ["bundled"] }
-lru = "0.12"
+lru = "0.16"
 futures = "0.3"
 notify = "6.1"
 regex = "1.10"
