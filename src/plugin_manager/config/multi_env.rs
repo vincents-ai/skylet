@@ -29,7 +29,6 @@ impl Default for EnvironmentConfig {
     }
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl EnvironmentConfig {
     pub fn new(environment: ConfigEnvironment) -> Self {
         Self {
@@ -38,7 +37,7 @@ impl EnvironmentConfig {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn with_environment(mut self, env: ConfigEnvironment) -> Self {
         self.environment = env;
         self
@@ -58,7 +57,7 @@ impl EnvironmentConfig {
         self.overrides.insert(key, value);
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn add_default_value(&mut self, key: String, value: serde_json::Value) {
         self.default_values.insert(key, value);
     }
@@ -77,7 +76,7 @@ impl EnvironmentConfig {
         self.enabled_features.contains(&feature.to_string())
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn get_config_path(&self, plugin_name: &str) -> PathBuf {
         if let Some(path) = self.env_specific_paths.get(&self.environment) {
             path.join(format!("{}.toml", plugin_name))
@@ -96,14 +95,13 @@ impl EnvironmentConfig {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct MultiEnvConfigManager {
+    #[allow(dead_code)] // Public API — not yet called from production code
     base_dir: PathBuf,
     environments: HashMap<ConfigEnvironment, EnvironmentConfig>,
     current_environment: ConfigEnvironment,
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl MultiEnvConfigManager {
     pub fn new(base_dir: PathBuf) -> Self {
         let mut manager = Self {
@@ -124,6 +122,7 @@ impl MultiEnvConfigManager {
         manager
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn with_environment(mut self, env: ConfigEnvironment) -> Result<Self> {
         if !self.environments.contains_key(&env) {
             return Err(anyhow!("Environment {:?} not configured", env));
@@ -144,18 +143,22 @@ impl MultiEnvConfigManager {
         Ok(())
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn get_env_config(&self, env: ConfigEnvironment) -> Option<&EnvironmentConfig> {
         self.environments.get(&env)
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn get_current_env_config(&self) -> Option<&EnvironmentConfig> {
         self.environments.get(&self.current_environment)
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn get_current_env_config_mut(&mut self) -> Option<&mut EnvironmentConfig> {
         self.environments.get_mut(&self.current_environment)
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub async fn load_plugin_config(&self, plugin_name: &str) -> Result<serde_json::Value> {
         let env_config = self
             .get_current_env_config()
@@ -195,6 +198,7 @@ impl MultiEnvConfigManager {
         Ok(config)
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     async fn load_config_file(path: &PathBuf) -> Result<serde_json::Value> {
         let content = tokio::fs::read_to_string(path)
             .await
@@ -214,6 +218,7 @@ impl MultiEnvConfigManager {
         }
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     fn toml_to_json(toml: toml::Value) -> serde_json::Value {
         match toml {
             toml::Value::String(s) => serde_json::Value::String(s),
@@ -239,6 +244,7 @@ impl MultiEnvConfigManager {
         }
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn compare_env_configs(
         &self,
         plugin_name: &str,
@@ -270,16 +276,16 @@ impl MultiEnvConfigManager {
     }
 }
 
+#[allow(dead_code)] // Public API — not yet called from production code
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct EnvironmentComparison {
     pub plugin_name: String,
     pub environments: HashMap<String, serde_json::Value>,
     pub differences: Vec<ConfigDiff>,
 }
 
+#[allow(dead_code)] // Public API — not yet called from production code
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ConfigDiff {
     pub key: String,
     pub env1: String,
@@ -288,8 +294,8 @@ pub struct ConfigDiff {
     pub value2: serde_json::Value,
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 impl MultiEnvConfigManager {
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn compare_configs_for_plugin(&self, plugin_name: &str) -> EnvironmentComparison {
         let configs = self.compare_env_configs(plugin_name);
         let mut differences = Vec::new();

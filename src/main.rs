@@ -9,7 +9,10 @@ mod plugin_manager;
 
 use crate::config::AppConfig;
 use anyhow::Result;
-use axum::{extract::Path, extract::State, http::StatusCode, response::Json, routing::get, Router};
+use axum::{
+    extract::Path, extract::State, http::StatusCode, response::Json, routing::get, routing::post,
+    Router,
+};
 use serde_json::json;
 
 use bootstrap::{load_bootstrap_plugins, shutdown_bootstrap_plugins, BootstrapContext};
@@ -29,6 +32,9 @@ use plugin_manager::lifecycle::{LifecycleConfig, PluginLifecycleManager};
 // Discovery config to build LifecycleConfig from AppConfig
 use plugin_manager::discovery::DiscoveryConfig;
 
+// Hot-reload service (Phase 7)
+use plugin_manager::hot_reload::{HotReloadConfig, HotReloadService};
+
 #[derive(Parser)]
 #[command(name = "skylet")]
 #[command(about = "Execution Engine of Skylet")]
@@ -45,16 +51,27 @@ enum Commands {
     Maintenance,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppState {
     pub lifecycle: Arc<PluginLifecycleManager>,
+    pub hot_reload: Arc<HotReloadService>,
     pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("lifecycle", &self.lifecycle)
+            .field("started_at", &self.started_at)
+            .finish_non_exhaustive()
+    }
+}
+
 impl AppState {
-    pub fn new(lifecycle: Arc<PluginLifecycleManager>) -> Self {
+    pub fn new(lifecycle: Arc<PluginLifecycleManager>, hot_reload: Arc<HotReloadService>) -> Self {
         Self {
             lifecycle,
+            hot_reload,
             started_at: chrono::Utc::now(),
         }
     }
@@ -157,6 +174,113 @@ async fn plugin_detail_handler(
     }
 }
 
+// ============================================================================
+// Phase 3: Config endpoint
+// ============================================================================
+
+async fn config_plugin_handler(
+    State(state): State<Arc<AppState>>,
+    Path(plugin_name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let backend = state.lifecycle.config_backend();
+    match backend.load_plugin_config(&plugin_name).await {
+        Ok(config_val) => Ok(Json(json!({
+            "plugin": plugin_name,
+            "config": config_val,
+            "environment": format!("{:?}", backend.environment()),
+        }))),
+        Err(_) => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// ============================================================================
+// Phase 4: Metrics endpoint
+// ============================================================================
+
+async fn metrics_handler(State(state): State<Arc<AppState>>) -> Result<String, StatusCode> {
+    let manager = state.lifecycle.metrics_manager();
+    match manager.export_metrics().await {
+        Ok(outputs) => Ok(outputs.join("\n")),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+// ============================================================================
+// Phase 5: Events stats endpoint
+// ============================================================================
+
+async fn events_stats_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let event_system = state.lifecycle.event_system();
+    let stats = event_system.get_statistics().await;
+    let storage_stats = event_system.storage().get_storage_stats().await;
+
+    Json(json!({
+        "event_statistics": stats,
+        "storage_statistics": storage_stats,
+    }))
+}
+
+// ============================================================================
+// Phase 6: Circuit breakers endpoint
+// ============================================================================
+
+async fn circuit_breakers_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let failover = state.lifecycle.failover();
+    let failover_guard = failover.read().await;
+    let states = failover_guard.get_all_service_states();
+
+    let services: Vec<serde_json::Value> = states
+        .iter()
+        .map(|(name, circuit_state)| {
+            json!({
+                "service": name,
+                "state": format!("{}", circuit_state),
+            })
+        })
+        .collect();
+
+    Json(json!({
+        "circuit_breakers": services,
+        "total": services.len(),
+    }))
+}
+
+// ============================================================================
+// Phase 7: Hot-reload endpoint
+// ============================================================================
+
+// Static assertion: AppState must be Send + Sync for axum handlers
+const _: () = {
+    fn _assert_send_sync<T: Send + Sync>() {}
+    fn _check() {
+        _assert_send_sync::<AppState>();
+        _assert_send_sync::<HotReloadService>();
+    }
+};
+
+async fn reload_plugin_handler(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match state.hot_reload.reload_plugin(&name).await {
+        Ok(result) => Ok(Json(json!({
+            "plugin_id": result.plugin_id,
+            "success": result.success,
+            "old_version": result.old_version,
+            "new_version": result.new_version,
+            "state_preserved": result.state_preserved,
+            "duration_ms": result.duration_ms,
+            "error": result.error,
+            "rolled_back": result.rolled_back,
+        }))),
+        Err(e) => Ok(Json(json!({
+            "plugin_id": name,
+            "success": false,
+            "error": e.to_string(),
+        }))),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize structured JSON logging per RFC-0018
@@ -231,7 +355,37 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     }
 
-    let app_state = Arc::new(AppState::new(lifecycle_manager.clone()));
+    // Phase 7: Create hot-reload service and register active plugins
+    let hot_reload_service = Arc::new(HotReloadService::new(
+        HotReloadConfig::default(),
+        lifecycle_manager.clone(),
+    ));
+
+    // Register active plugins for hot-reload watching
+    let active_plugins = lifecycle_manager.list_plugins().await;
+    for plugin in &active_plugins {
+        if format!("{}", plugin.status) == "Active" {
+            if let Err(e) = hot_reload_service
+                .watch_plugin(&plugin.name, &plugin.path)
+                .await
+            {
+                warn!(
+                    "Failed to register plugin '{}' for hot-reload: {}",
+                    plugin.name, e
+                );
+            }
+        }
+    }
+
+    // Start hot-reload service
+    if let Err(e) = hot_reload_service.start().await {
+        warn!("Failed to start hot-reload service: {}", e);
+    }
+
+    let app_state = Arc::new(AppState::new(
+        lifecycle_manager.clone(),
+        hot_reload_service.clone(),
+    ));
 
     // Simplified server startup, relying on plugins for networking
     let app = Router::new()
@@ -239,6 +393,11 @@ async fn run_server(config: AppConfig) -> Result<()> {
         .route("/ready", get(ready_handler))
         .route("/plugins", get(plugins_list_handler))
         .route("/plugins/:name", get(plugin_detail_handler))
+        .route("/config/:plugin", get(config_plugin_handler))
+        .route("/metrics", get(metrics_handler))
+        .route("/events/stats", get(events_stats_handler))
+        .route("/circuit-breakers", get(circuit_breakers_handler))
+        .route("/reload/:name", post(reload_plugin_handler))
         .with_state(app_state.clone())
         .layer(
             ServiceBuilder::new()
@@ -296,6 +455,12 @@ async fn run_server(config: AppConfig) -> Result<()> {
         _ = shutdown_signal => {
             info!("Shutdown signal received");
         }
+    }
+
+    // Phase 7: Stop hot-reload service before shutting down plugins
+    info!("Stopping hot-reload service...");
+    if let Err(e) = hot_reload_service.stop().await {
+        error!("Error stopping hot-reload service: {}", e);
     }
 
     // Shutdown application plugins (reverse dependency order) before bootstrap

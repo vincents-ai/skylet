@@ -27,9 +27,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
+use super::config::AdvancedConfigBackend;
 use super::dependency_resolver::PluginDependencyResolver;
 use super::discovery::{DiscoveryConfig, PluginDiscovery};
+use super::events::{EventSystem, EventSystemConfig};
+use super::failover::FailoverStrategy;
 use super::manager::PluginManager;
+use super::metrics::{MetricsConfig, MetricsManager};
 
 use skylet_abi::AbiV2PluginLoader;
 
@@ -126,6 +130,14 @@ pub struct PluginLifecycleManager {
     loading_order: Arc<RwLock<Vec<String>>>,
     /// Configuration
     config: LifecycleConfig,
+    /// Advanced config backend for plugin configuration (Phase 3)
+    config_backend: Arc<AdvancedConfigBackend>,
+    /// Metrics manager for plugin metrics collection (Phase 4)
+    metrics_manager: Arc<MetricsManager>,
+    /// Event system for lifecycle events and plugin communication (Phase 5)
+    event_system: Arc<EventSystem>,
+    /// Failover strategy with per-plugin circuit breakers (Phase 6)
+    failover: Arc<RwLock<FailoverStrategy>>,
 }
 
 impl std::fmt::Debug for PluginLifecycleManager {
@@ -140,12 +152,34 @@ impl PluginLifecycleManager {
     /// Create a new lifecycle manager with the given configuration.
     ///
     /// The `PluginManager` is created internally with default services.
+    /// Also initializes:
+    /// - `AdvancedConfigBackend` from the first plugin search path (Phase 3)
+    /// - `MetricsManager` with default metrics config (Phase 4)
+    /// - `EventSystem` with default event config (Phase 5)
+    /// - `FailoverStrategy` (Phase 6)
     pub fn new(config: LifecycleConfig) -> Self {
+        // Use the first plugin search path as the config base directory
+        let config_dir = config
+            .discovery
+            .search_paths
+            .first()
+            .cloned()
+            .unwrap_or_else(|| PathBuf::from("./plugins"));
+
+        let config_backend = Arc::new(AdvancedConfigBackend::new(config_dir));
+        let metrics_manager = Arc::new(MetricsManager::new(MetricsConfig::default()));
+        let event_system = Arc::new(EventSystem::new(EventSystemConfig::default()));
+        let failover = Arc::new(RwLock::new(FailoverStrategy::new()));
+
         Self {
             plugin_manager: PluginManager::new(),
             plugins: Arc::new(RwLock::new(HashMap::new())),
             loading_order: Arc::new(RwLock::new(Vec::new())),
             config,
+            config_backend,
+            metrics_manager,
+            event_system,
+            failover,
         }
     }
 
@@ -153,11 +187,27 @@ impl PluginLifecycleManager {
     ///
     /// Useful when you need custom `PluginServices` configuration.
     pub fn with_plugin_manager(config: LifecycleConfig, plugin_manager: PluginManager) -> Self {
+        let config_dir = config
+            .discovery
+            .search_paths
+            .first()
+            .cloned()
+            .unwrap_or_else(|| PathBuf::from("./plugins"));
+
+        let config_backend = Arc::new(AdvancedConfigBackend::new(config_dir));
+        let metrics_manager = Arc::new(MetricsManager::new(MetricsConfig::default()));
+        let event_system = Arc::new(EventSystem::new(EventSystemConfig::default()));
+        let failover = Arc::new(RwLock::new(FailoverStrategy::new()));
+
         Self {
             plugin_manager,
             plugins: Arc::new(RwLock::new(HashMap::new())),
             loading_order: Arc::new(RwLock::new(Vec::new())),
             config,
+            config_backend,
+            metrics_manager,
+            event_system,
+            failover,
         }
     }
 
@@ -300,6 +350,12 @@ impl PluginLifecycleManager {
     /// Calls `discover()` and `resolve_dependencies()` if not already done,
     /// then loads each plugin via `PluginManager::load_plugin_instance_v2()`.
     ///
+    /// For each plugin, this also:
+    /// - Loads plugin config via `AdvancedConfigBackend` (Phase 3)
+    /// - Registers the plugin with `MetricsManager` (Phase 4)
+    /// - Publishes a lifecycle event via `EventSystem` (Phase 5)
+    /// - Registers a circuit breaker via `FailoverStrategy` (Phase 6)
+    ///
     /// Returns a summary of (loaded_count, failed_count).
     pub async fn activate_all(&self) -> Result<(usize, usize)> {
         // Discover if not done yet
@@ -339,6 +395,30 @@ impl PluginLifecycleManager {
                 }
             };
 
+            // Phase 6: Register circuit breaker for this plugin
+            {
+                let mut failover = self.failover.write().await;
+                failover.register_service(name.clone(), 5, 30);
+            }
+
+            // Phase 3: Attempt to load plugin config (non-fatal if missing)
+            match self.config_backend.load_plugin_config(name).await {
+                Ok(config_val) => {
+                    info!(
+                        "Loaded config for plugin '{}': {} keys",
+                        name,
+                        config_val.as_object().map(|o| o.len()).unwrap_or(0)
+                    );
+                }
+                Err(e) => {
+                    info!(
+                        "No config for plugin '{}' (non-fatal): {}",
+                        name,
+                        e.to_string().split('\n').next().unwrap_or("unknown")
+                    );
+                }
+            }
+
             // Mark as loading
             {
                 let mut plugins = self.plugins.write().await;
@@ -361,6 +441,31 @@ impl PluginLifecycleManager {
                         state.error = None;
                     }
                     loaded += 1;
+
+                    // Phase 4: Register plugin with metrics manager
+                    self.metrics_manager.register_plugin(name.clone()).await;
+
+                    // Phase 5: Publish plugin activated event
+                    let event = super::events::types::Event::new(
+                        "plugin.activated".to_string(),
+                        "lifecycle_manager".to_string(),
+                        serde_json::json!({
+                            "plugin_name": name,
+                            "path": path.display().to_string(),
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                        }),
+                    );
+                    if let Err(e) = self.event_system.publish(event).await {
+                        warn!("Failed to publish activation event for '{}': {}", name, e);
+                    }
+
+                    // Phase 6: Record success on circuit breaker
+                    {
+                        let failover = self.failover.read().await;
+                        if let Some(state) = failover.get_service_state(name) {
+                            info!("Circuit breaker for '{}': {:?}", name, state);
+                        }
+                    }
                 }
                 Err(e) => {
                     let error_msg = format!("{}", e);
@@ -368,9 +473,23 @@ impl PluginLifecycleManager {
                     let mut plugins = self.plugins.write().await;
                     if let Some(state) = plugins.get_mut(name) {
                         state.status = PluginStatus::Failed(error_msg.clone());
-                        state.error = Some(error_msg);
+                        state.error = Some(error_msg.clone());
                     }
                     failed += 1;
+
+                    // Phase 5: Publish plugin failed event
+                    let event = super::events::types::Event::new(
+                        "plugin.failed".to_string(),
+                        "lifecycle_manager".to_string(),
+                        serde_json::json!({
+                            "plugin_name": name,
+                            "error": error_msg,
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                        }),
+                    );
+                    if let Err(e) = self.event_system.publish(event).await {
+                        warn!("Failed to publish failure event for '{}': {}", name, e);
+                    }
 
                     if !self.config.continue_on_failure {
                         return Err(anyhow!(
@@ -392,8 +511,10 @@ impl PluginLifecycleManager {
 
     /// Activate a single plugin by name.
     ///
-    /// The plugin must already be in `Discovered` state (via `discover()`).
+    /// The plugin must already be in `Discovered` or `Stopped` state.
     /// Does NOT check dependencies -- use `activate_all()` for dependency ordering.
+    ///
+    /// Also registers with metrics, publishes lifecycle event, and loads config.
     pub async fn activate(&self, plugin_name: &str) -> Result<()> {
         let path = {
             let plugins = self.plugins.read().await;
@@ -429,6 +550,28 @@ impl PluginLifecycleManager {
                     state.error = None;
                 }
                 info!("Activated plugin: {}", plugin_name);
+
+                // Phase 4: Register plugin with metrics manager
+                self.metrics_manager
+                    .register_plugin(plugin_name.to_string())
+                    .await;
+
+                // Phase 5: Publish plugin activated event
+                let event = super::events::types::Event::new(
+                    "plugin.activated".to_string(),
+                    "lifecycle_manager".to_string(),
+                    serde_json::json!({
+                        "plugin_name": plugin_name,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                    }),
+                );
+                if let Err(e) = self.event_system.publish(event).await {
+                    warn!(
+                        "Failed to publish activation event for '{}': {}",
+                        plugin_name, e
+                    );
+                }
+
                 Ok(())
             }
             Err(e) => {
@@ -454,7 +597,8 @@ impl PluginLifecycleManager {
     /// Shut down all active plugins in reverse dependency order.
     ///
     /// Plugins that depend on others are shut down first, then their
-    /// dependencies.
+    /// dependencies. Also unregisters from metrics, publishes lifecycle
+    /// events, and logs circuit breaker states.
     pub async fn shutdown_all(&self) {
         let order = {
             let order = self.loading_order.read().await;
@@ -490,6 +634,22 @@ impl PluginLifecycleManager {
                         if let Some(state) = plugins.get_mut(name) {
                             state.status = PluginStatus::Stopped;
                         }
+
+                        // Phase 4: Unregister plugin from metrics
+                        self.metrics_manager.unregister_plugin(name).await;
+
+                        // Phase 5: Publish plugin deactivated event
+                        let event = super::events::types::Event::new(
+                            "plugin.deactivated".to_string(),
+                            "lifecycle_manager".to_string(),
+                            serde_json::json!({
+                                "plugin_name": name,
+                                "timestamp": chrono::Utc::now().to_rfc3339(),
+                            }),
+                        );
+                        if let Err(e) = self.event_system.publish(event).await {
+                            warn!("Failed to publish deactivation event for '{}': {}", name, e);
+                        }
                     }
                     Err(e) => {
                         error!("Error shutting down plugin '{}': {}", name, e);
@@ -513,6 +673,8 @@ impl PluginLifecycleManager {
     ///
     /// Does NOT check for active dependents -- the caller must ensure
     /// no other active plugin depends on this one.
+    ///
+    /// Also unregisters from metrics and publishes a lifecycle event.
     pub async fn deactivate(&self, plugin_name: &str) -> Result<()> {
         {
             let plugins = self.plugins.read().await;
@@ -564,6 +726,26 @@ impl PluginLifecycleManager {
                     state.status = PluginStatus::Stopped;
                 }
                 info!("Deactivated plugin: {}", plugin_name);
+
+                // Phase 4: Unregister plugin from metrics
+                self.metrics_manager.unregister_plugin(plugin_name).await;
+
+                // Phase 5: Publish plugin deactivated event
+                let event = super::events::types::Event::new(
+                    "plugin.deactivated".to_string(),
+                    "lifecycle_manager".to_string(),
+                    serde_json::json!({
+                        "plugin_name": plugin_name,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                    }),
+                );
+                if let Err(e) = self.event_system.publish(event).await {
+                    warn!(
+                        "Failed to publish deactivation event for '{}': {}",
+                        plugin_name, e
+                    );
+                }
+
                 Ok(())
             }
             Err(e) => {
@@ -637,6 +819,30 @@ impl PluginLifecycleManager {
             .values()
             .filter(|s| s.status == PluginStatus::Active)
             .count()
+    }
+
+    // ========================================================================
+    // Subsystem Accessors (Phases 3-6)
+    // ========================================================================
+
+    /// Get a reference to the config backend (Phase 3).
+    pub fn config_backend(&self) -> &Arc<AdvancedConfigBackend> {
+        &self.config_backend
+    }
+
+    /// Get a reference to the metrics manager (Phase 4).
+    pub fn metrics_manager(&self) -> &Arc<MetricsManager> {
+        &self.metrics_manager
+    }
+
+    /// Get a reference to the event system (Phase 5).
+    pub fn event_system(&self) -> &Arc<EventSystem> {
+        &self.event_system
+    }
+
+    /// Get a reference to the failover strategy (Phase 6).
+    pub fn failover(&self) -> &Arc<RwLock<FailoverStrategy>> {
+        &self.failover
     }
 }
 

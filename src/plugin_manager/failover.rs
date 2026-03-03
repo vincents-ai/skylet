@@ -9,13 +9,14 @@
 //! - Automatic recovery detection
 //! - Request queuing during failures
 
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Circuit breaker states as per State Machine Design Pattern
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum CircuitState {
     /// Normal operation - requests pass through to primary
     Closed = 0,
@@ -62,7 +63,6 @@ impl CircuitBreaker {
     /// # Arguments
     /// * `failure_threshold` - How many failures before opening (e.g., 5)
     /// * `timeout_seconds` - How long to wait before HalfOpen (e.g., 30)
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn new(failure_threshold: usize, timeout_seconds: u64) -> Self {
         Self {
             failures: AtomicUsize::new(0),
@@ -158,14 +158,13 @@ impl CircuitBreaker {
     }
 
     /// Get failure count
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn failure_count(&self) -> usize {
         self.failures.load(Ordering::SeqCst)
     }
 }
 
 /// Service response type for failover handling
-#[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
 #[derive(Debug, Clone)]
 pub struct ServiceResponse {
     pub success: bool,
@@ -175,7 +174,6 @@ pub struct ServiceResponse {
 }
 
 impl ServiceResponse {
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn ok(data: impl Into<String>) -> Self {
         Self {
             success: true,
@@ -185,7 +183,6 @@ impl ServiceResponse {
         }
     }
 
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn error(status: u32, msg: impl Into<String>) -> Self {
         Self {
             success: false,
@@ -197,7 +194,6 @@ impl ServiceResponse {
 }
 
 /// Fallback service definition
-#[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
 #[derive(Debug, Clone)]
 pub struct FallbackService {
     pub name: String,
@@ -206,7 +202,6 @@ pub struct FallbackService {
 }
 
 impl FallbackService {
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -215,7 +210,6 @@ impl FallbackService {
         }
     }
 
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn with_reduced_functions(mut self, functions: Vec<String>) -> Self {
         self.reduced_functionality = functions;
         self
@@ -230,7 +224,6 @@ impl FallbackService {
 /// - Request queuing during failures
 /// - Automatic recovery detection
 /// - Degraded mode alerting
-#[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
 pub struct FailoverStrategy {
     /// Circuit breakers per service
     circuit_breakers: HashMap<String, CircuitBreaker>,
@@ -251,7 +244,6 @@ impl FailoverStrategy {
     }
 
     /// Register a service with circuit breaker
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn register_service(
         &mut self,
         service_name: impl Into<String>,
@@ -266,7 +258,6 @@ impl FailoverStrategy {
     }
 
     /// Register a fallback service
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn register_fallback(&mut self, fallback: FallbackService) {
         self.fallback_services
             .insert(fallback.name.clone(), fallback);
@@ -275,7 +266,6 @@ impl FailoverStrategy {
     /// Call a service with automatic failover
     ///
     /// Returns the service response, falling back if primary fails
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn call_with_failover(&self, service_name: &str) -> ServiceResponse {
         // Get or create circuit breaker
         let circuit_breaker = match self.circuit_breakers.get(service_name) {
@@ -324,7 +314,6 @@ impl FailoverStrategy {
     }
 
     /// Get circuit breaker state for monitoring
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn get_service_state(&self, service_name: &str) -> Option<CircuitState> {
         self.circuit_breakers
             .get(service_name)
@@ -332,23 +321,30 @@ impl FailoverStrategy {
     }
 
     /// Queue a request during failure
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn queue_request(&self, request: String) {
         let mut queue = self.request_queue.lock().unwrap();
         queue.push(request);
     }
 
     /// Get queued request count
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn queued_request_count(&self) -> usize {
         self.request_queue.lock().unwrap().len()
     }
 
     /// Drain queued requests (for retry after recovery)
-    #[allow(dead_code)] // Circuit breaker infrastructure — not yet wired up
     pub fn drain_queued_requests(&self) -> Vec<String> {
         let mut queue = self.request_queue.lock().unwrap();
         std::mem::take(&mut *queue)
+    }
+
+    /// Get all circuit breaker states for monitoring.
+    ///
+    /// Returns a map of service name → circuit state.
+    pub fn get_all_service_states(&self) -> HashMap<String, CircuitState> {
+        self.circuit_breakers
+            .iter()
+            .map(|(name, cb)| (name.clone(), cb.get_state()))
+            .collect()
     }
 }
 

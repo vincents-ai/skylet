@@ -8,7 +8,6 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Metrics collector for gathering system and plugin metrics
-#[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
 pub struct MetricsCollector {
     interval: Duration,
     sample_rate: f64,
@@ -73,7 +72,6 @@ impl MetricsCollector {
         Ok(metrics)
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn collect_plugin_metrics(
         &self,
         plugin_name: &str,
@@ -190,17 +188,14 @@ impl MetricsCollector {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub async fn get_collected_count(&self) -> u64 {
         *self.collected_count.read().await
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn interval(&self) -> Duration {
         self.interval
     }
 
-    #[allow(dead_code)] // Phase 2 metrics infrastructure — not yet wired up
     pub fn sample_rate(&self) -> f64 {
         self.sample_rate
     }

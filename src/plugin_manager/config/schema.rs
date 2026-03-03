@@ -6,7 +6,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ValidationError {
     pub path: String,
     pub message: String,
@@ -14,7 +13,6 @@ pub struct ValidationError {
 }
 
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ValidationResult {
     pub is_valid: bool,
     pub errors: Vec<ValidationError>,
@@ -30,7 +28,6 @@ impl ValidationResult {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn invalid(errors: Vec<ValidationError>) -> Self {
         Self {
             is_valid: false,
@@ -39,13 +36,11 @@ impl ValidationResult {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_warning(mut self, warning: String) -> Self {
         self.warnings.push(warning);
         self
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn with_warnings(mut self, warnings: Vec<String>) -> Self {
         self.warnings.extend(warnings);
         self
@@ -90,10 +85,10 @@ impl SchemaType {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct SchemaProperty {
     pub schema_type: SchemaType,
     pub required: bool,
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub default: Option<Value>,
     pub min_length: Option<usize>,
     pub max_length: Option<usize>,
@@ -101,6 +96,7 @@ pub struct SchemaProperty {
     pub maximum: Option<f64>,
     pub enum_values: Option<Vec<String>>,
     pub pattern: Option<String>,
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub description: Option<String>,
 }
 
@@ -121,14 +117,14 @@ impl Default for SchemaProperty {
     }
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+#[allow(dead_code)] // Public API — not yet called from production code
 pub type CustomValidator = fn(value: &Value) -> Result<()>;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct SchemaValidator {
     pub properties: HashMap<String, SchemaProperty>,
     pub required: Vec<String>,
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub custom_validators: HashMap<String, String>,
     pub allow_additional: bool,
 }
@@ -419,12 +415,11 @@ impl SchemaValidator {
         }
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
     pub fn add_property(&mut self, name: String, property: SchemaProperty) {
         self.properties.insert(name, property);
     }
 
-    #[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn set_required(&mut self, required: Vec<String>) {
         self.required = required;
     }

@@ -29,9 +29,9 @@ pub enum ReloadStatus {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
 pub struct ReloadConfig {
     pub enabled: bool,
+    #[allow(dead_code)] // Config field — future debounce support
     pub debounce_duration: Duration,
     pub validate_after_reload: bool,
     pub backup_on_failure: bool,
@@ -50,22 +50,22 @@ impl Default for ReloadConfig {
     }
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+#[allow(dead_code)] // Public API — not yet called from production code
 pub type ReloadCallback = Arc<dyn Fn(ConfigReloadEvent) + Send + Sync>;
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+#[allow(dead_code)] // Public API — not yet called from production code
 pub struct ConfigHotReload {
     config_dir: PathBuf,
     reload_config: ReloadConfig,
     configs: Arc<RwLock<HashMap<String, serde_json::Value>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for future per-plugin watcher support
     watchers: Arc<RwLock<HashMap<String, RecommendedWatcher>>>,
     callbacks: Arc<RwLock<Vec<ReloadCallback>>>,
     event_history: Arc<RwLock<Vec<ConfigReloadEvent>>>,
     _watcher: RecommendedWatcher,
 }
 
-#[allow(dead_code)] // Phase 2 config infrastructure — not yet wired up
+#[allow(dead_code)] // Public API — not yet called from production code
 impl ConfigHotReload {
     pub fn new(config_dir: PathBuf) -> Result<Self> {
         let reload_config = ReloadConfig::default();
