@@ -148,13 +148,8 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
 /// Shutdown plugin
 #[no_mangle]
 pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
-
-    // Call the cleanup function from lib.rs
+    let _ = context;
     crate::cleanup_plugin();
-
     PluginResultV2::Success
 }
 

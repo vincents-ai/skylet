@@ -218,24 +218,19 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
-    if context.is_null() {
-        return PluginResultV2::InvalidRequest;
-    }
+    if !context.is_null() {
+        unsafe {
+            let ctx = &*context;
 
-    unsafe {
-        let ctx = &*context;
-
-        // Log shutdown
-        if !ctx.logger.is_null() {
-            let logger = &*ctx.logger;
-            let msg = CString::new("config-manager v2 plugin shutting down").unwrap();
-            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
+            if !ctx.logger.is_null() {
+                let logger = &*ctx.logger;
+                let msg = CString::new("config-manager v2 plugin shutting down").unwrap();
+                let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
+            }
         }
     }
 
-    // Shutdown ConfigService
     shutdown_config_service();
-
     PluginResultV2::Success
 }
 
