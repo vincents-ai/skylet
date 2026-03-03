@@ -27,7 +27,7 @@ hex = "0.4"
 aes-gcm = "0.10"
 rand = "0.8"
 zeroize = { version = "1.7", features = ["derive"] }
-md5 = "0.7"
+md5 = "0.8"
 sha1 = "0.10"
 tokio = { workspace = true }
 async-trait = { workspace = true }
@@ -36,7 +36,7 @@ url = "2.5"
 regex-lite = "0.1"
 thiserror = { workspace = true }
 semver = { workspace = true }
-jsonschema = "0.42.0"
+jsonschema = "0.44"
 chrono = { workspace = true }
 uuid = { workspace = true }
 blake3 = "1.5"

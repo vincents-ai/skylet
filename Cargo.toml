@@ -35,7 +35,7 @@ serde_json = "1.0"
 tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
-thiserror = "1.0"
+thiserror = "2.0"
 sha2 = "0.10"
 ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
 dirs = "5.0"
@@ -58,7 +58,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tokio-test = "0.4"
 rusqlite = { version = "0.30", features = ["bundled"] }
-lru = "0.12"
+lru = "0.16"
 futures = "0.3"
 notify = "6.1"
 regex = "1.10"

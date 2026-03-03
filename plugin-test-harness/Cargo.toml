@@ -11,7 +11,7 @@ repository = "https://github.com/vincents-ai/skylet"
 skylet-abi = { path = "../abi" }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-cucumber = { version = "0.21", features = ["output-json", "output-junit"] }
+cucumber = { version = "0.22", features = ["output-json", "output-junit"] }
 async-trait = "0.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
