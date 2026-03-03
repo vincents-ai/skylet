@@ -13,7 +13,7 @@
 - **Secure Plugin Runtime**: Sandboxed execution of untrusted plugins
 - **ABI Stability**: v2.0.0 frozen for backwards compatibility
 - **Well Tested**: 1,079+ tests, zero compiler warnings
-- **Open Source**: Apache 2.0, zero proprietary dependencies
+- **Open Source**: MIT OR Apache-2.0, zero external dependencies
 - **Performance**: Async/await, efficient job queue, hot reload
 
 ## Getting Started

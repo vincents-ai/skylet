@@ -238,9 +238,8 @@ execution-engine/
 
 - **13 crates** with clear separation of concerns
 - **186 source files** all with MIT OR Apache-2.0 license headers
-- **1,676+ tests** with comprehensive coverage
-- **Zero proprietary dependencies** in standalone mode
-- **Feature-gated support** for advanced features
+- **1,218+ tests** with comprehensive coverage
+- **Zero external dependencies** beyond open-source ecosystem
 - **2,500+ lines of documentation**
 
 ## 🔒 Security
@@ -302,7 +301,7 @@ cargo doc --no-deps --open
 ### Feature Flags
 
 ```bash
-# Standalone mode (default) - no proprietary dependencies
+# Standalone mode (default)
 cargo build --features standalone
 
 # With distributed tracing
@@ -310,9 +309,7 @@ cargo build --features opentelemetry
 
 # Both
 cargo build --features standalone,opentelemetry
-
-# All features (requires proprietary dependencies)
-cargo build --all-features
+```
 ```
 
 ### Supported Platforms
@@ -419,7 +416,7 @@ Special thanks to:
 - **2,500+ lines** of documentation
 - **14+ configuration** field types
 - **7+ security** best practice guides
-- **Zero** proprietary dependencies (standalone mode)
+- **Zero** external dependencies beyond open-source ecosystem
 
 ---
 
