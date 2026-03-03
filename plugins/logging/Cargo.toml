@@ -16,21 +16,21 @@ skylet-abi = { path = "../../abi" }
 skylet-plugin-common = { path = "../skylet-plugin-common" }
 
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 
 # Logging and tracing
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
-chrono = { version = "0.4", features = ["serde"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
 
 # Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Utilities
-anyhow = "1"
-thiserror = "1"
-lazy_static = "1.4"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+lazy_static = { workspace = true }
 
 [features]
 default = []

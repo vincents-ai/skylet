@@ -43,7 +43,7 @@ blake3 = "1.5"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
-ed25519-dalek = "2.2"
+ed25519-dalek = { workspace = true }
 parking_lot = { workspace = true }
  
 # OpenTelemetry (feature-gated)
