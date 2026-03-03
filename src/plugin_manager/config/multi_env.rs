@@ -1,6 +1,8 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(dead_code)] // Infrastructure for multi-environment config - not yet wired into production
+
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

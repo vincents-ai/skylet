@@ -211,6 +211,7 @@ pub enum EventPattern {
     Regex(String),
 }
 
+#[allow(dead_code)] // Event pattern matching - not yet wired into production
 impl EventPattern {
     pub fn matches(&self, event_type: &str) -> bool {
         match self {

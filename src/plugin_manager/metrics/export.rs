@@ -1,6 +1,8 @@
 // Copyright 2024 Vincents AI
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(dead_code)] // Metrics export infrastructure - not yet wired into production
+
 use super::types::*;
 use anyhow::Result;
 use async_trait::async_trait;

@@ -415,6 +415,7 @@ impl SchemaValidator {
         }
     }
 
+    #[allow(dead_code)] // Public API — not yet called from production code
     pub fn add_property(&mut self, name: String, property: SchemaProperty) {
         self.properties.insert(name, property);
     }

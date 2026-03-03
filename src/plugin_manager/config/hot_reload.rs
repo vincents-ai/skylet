@@ -34,7 +34,9 @@ pub struct ReloadConfig {
     #[allow(dead_code)] // Config field — future debounce support
     pub debounce_duration: Duration,
     pub validate_after_reload: bool,
+    #[allow(dead_code)] // Config field — future backup/retry support
     pub backup_on_failure: bool,
+    #[allow(dead_code)] // Config field — future backup/retry support
     pub max_retries: usize,
 }
 
