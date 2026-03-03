@@ -49,7 +49,7 @@ parking_lot = { workspace = true }
 # OpenTelemetry (feature-gated)
 opentelemetry = { version = "0.27", optional = true }
 opentelemetry_sdk = { version = "0.27", optional = true, features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.27", optional = true, features = ["trace", "metrics", "tokio"] }
+opentelemetry-otlp = { version = "0.31", optional = true, features = ["trace", "metrics", "tokio"] }
 opentelemetry-jaeger-propagator = { version = "0.27", optional = true }
 opentelemetry-semantic-conventions = { version = "0.27", optional = true }
 
