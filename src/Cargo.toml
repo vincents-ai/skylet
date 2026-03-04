@@ -69,6 +69,7 @@ regex = { workspace = true }
 # System monitoring for metrics
 sysinfo = { workspace = true }
 rand = { workspace = true }
+prometheus = { workspace = true }
 
 # Security
 ed25519-dalek = { workspace = true }

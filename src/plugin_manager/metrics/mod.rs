@@ -18,6 +18,7 @@ pub mod types;
 
 pub use types::{Metric, MetricQuery, MetricsError, PluginMetrics};
 
+use prometheus::{self, Registry, TextEncoder, process_collector::ProcessCollector};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -58,6 +59,7 @@ pub struct MetricsManager {
     collector: Arc<collector::MetricsCollector>,
     exporters: Arc<RwLock<Vec<Box<dyn export::MetricsExporter>>>>,
     plugin_metrics: Arc<RwLock<HashMap<String, PluginMetrics>>>,
+    prometheus_registry: Arc<Registry>,
 }
 
 impl MetricsManager {
@@ -71,12 +73,18 @@ impl MetricsManager {
             config.sample_rate,
         ));
 
+        let prometheus_registry = Arc::new(Registry::new());
+        if let Err(e) = prometheus_registry.register(Box::new(ProcessCollector::for_self())) {
+            tracing::warn!("Failed to register prometheus process collector: {}", e);
+        }
+
         Self {
             config,
             storage,
             collector,
             exporters: Arc::new(RwLock::new(Vec::new())),
             plugin_metrics: Arc::new(RwLock::new(HashMap::new())),
+            prometheus_registry,
         }
     }
 
@@ -140,6 +148,19 @@ impl MetricsManager {
     pub async fn export_metrics(&self) -> Result<Vec<String>, MetricsError> {
         let mut results = Vec::new();
 
+        let encoder = TextEncoder::new();
+        let metric_families = self.prometheus_registry.gather();
+        match encoder.encode_to_string(&metric_families) {
+            Ok(prometheus_output) => {
+                if !prometheus_output.is_empty() {
+                    results.push(prometheus_output);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to encode prometheus metrics: {}", e);
+            }
+        }
+
         let metrics = self.storage.query(MetricQuery::default()).await;
         if !metrics.is_empty() {
             let mut latest: HashMap<String, (&Metric, String)> = HashMap::new();
@@ -192,6 +213,10 @@ impl MetricsManager {
         }
 
         Ok(results)
+    }
+
+    pub fn prometheus_registry(&self) -> Arc<Registry> {
+        self.prometheus_registry.clone()
     }
 
     pub fn storage(&self) -> Arc<storage::MetricsStorage> {
