@@ -64,7 +64,7 @@ notify = "6.1"
 regex = "1.10"
 hex = "0.4"
 base64 = "0.22"
-prometheus = { version = "0.13", features = ["process"] }
+prometheus = { version = "0.14", features = ["process"] }
 
 [profile.release]
 opt-level = 3
