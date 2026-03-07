@@ -533,7 +533,6 @@ unsafe fn call_plugin_init_impl(library: &Library, name: &str) -> Result<()> {
             http_router: std::ptr::null(), // RFC-0019: HttpRouterV2
             tracer: std::ptr::null(),
             secrets: std::ptr::null(),
-            rotation_notifications: std::ptr::null(),
             user_data: std::ptr::null_mut(),
             user_context_json: std::ptr::null(),
         };

@@ -1040,7 +1040,6 @@ impl PluginManager {
             http_router: http_router_v2,
             tracer: tracer_v2 as *const skylet_abi::PluginTracer,
             secrets: secrets_v2 as *const skylet_abi::PluginSecrets,
-            rotation_notifications: std::ptr::null(),
             user_data: services_ptr as *mut std::ffi::c_void,
             user_context_json: std::ptr::null(),
         };
