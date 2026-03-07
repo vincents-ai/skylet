@@ -156,45 +156,17 @@ pub use network_transport::{
 
 // Re-export key security types for convenience
 pub use security::{
-    rotation_topics,
     secret_topics,
-    AuditEvent,
-    AuditLogger,
-    BackupCodeProvider,
-    CredentialRotationManager,
-    CredentialStatus,
-    CredentialType,
-    CredentialVersion,
     DefaultSecretsProvider,
-    // RFC-0077 types
-    KeyAlgorithm,
-    KeyUsage,
     ListSecretsOptions,
-    MFAChallenge,
-    MFAFactor,
-    MFAManager,
-    MFAMethod,
-    PluginAuthenticator,
-    PluginCredential,
-    PluginPermissions,
-    PluginRole,
-    RotationEvent,
-    RotationEventSeverity,
-    RotationEventType,
-    RotationHistory,
-    RotationNotificationService,
-    RotationNotifier,
-    RotationNotifyCallback,
-    RotationPolicy,
     RotationResult,
     SecretAuditEntry,
     SecretMetadata,
     SecretOperation,
-    SecretVersion,
+    SecretVersionEntry,
     // RFC-0029: Secrets Provider Interface
     SecretsProvider,
     SecurityError,
-    TOTPProvider,
 };
 
 #[repr(C)]
@@ -295,9 +267,6 @@ pub struct PluginContext {
     // Optional secrets service (optional). Points to a PluginSecrets implementation
     // which plugins can call to get/put secrets via the host's secrets backend.
     pub secrets: *const PluginSecrets,
-    // Optional rotation notification service. Points to a RotationNotificationService
-    // implementation which plugins can use to register for rotation events.
-    pub rotation_notifications: *const RotationNotificationService,
 }
 
 // A handle that uniquely identifies a span within a trace.

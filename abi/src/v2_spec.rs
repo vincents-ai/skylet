@@ -457,7 +457,6 @@ pub struct PluginContextV2 {
     pub user_context_json: *const c_char,
     pub secrets: *const crate::PluginSecrets,
     pub tracer: *const crate::PluginTracer,
-    pub rotation_notifications: *const crate::RotationNotificationService,
 }
 
 impl Default for PluginContextV2 {
@@ -473,7 +472,6 @@ impl Default for PluginContextV2 {
             user_context_json: std::ptr::null(),
             secrets: std::ptr::null(),
             tracer: std::ptr::null(),
-            rotation_notifications: std::ptr::null(),
         }
     }
 }
@@ -1160,7 +1158,6 @@ pub struct PluginContextV2Builder {
     user_context_json: *const std::ffi::c_char,
     secrets: *const crate::PluginSecrets,
     tracer: *const crate::PluginTracer,
-    rotation_notifications: *const crate::RotationNotificationService,
 }
 
 impl PluginContextV2Builder {
@@ -1177,7 +1174,6 @@ impl PluginContextV2Builder {
             user_context_json: std::ptr::null(),
             secrets: std::ptr::null(),
             tracer: std::ptr::null(),
-            rotation_notifications: std::ptr::null(),
         }
     }
 
@@ -1243,15 +1239,6 @@ impl PluginContextV2Builder {
         self
     }
 
-    /// Set rotation notifications service
-    pub fn rotation_notifications(
-        mut self,
-        notifications: *const crate::RotationNotificationService,
-    ) -> Self {
-        self.rotation_notifications = notifications;
-        self
-    }
-
     /// Build the PluginContextV2
     ///
     /// # Safety
@@ -1269,7 +1256,6 @@ impl PluginContextV2Builder {
             user_context_json: self.user_context_json,
             secrets: self.secrets,
             tracer: self.tracer,
-            rotation_notifications: self.rotation_notifications,
         }
     }
 }

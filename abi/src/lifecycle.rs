@@ -12,7 +12,6 @@
 use crate::abi_compat::{AbiCompatibility, SemanticVersion};
 use crate::loaders::{CrossPlatformLoader, PlatformLoaderError};
 use crate::symbols::{FunctionSignature, SymbolRegistry};
-use crate::{PluginPermissions, PluginRole};
 use std::fmt;
 use std::path::Path;
 
@@ -302,12 +301,6 @@ impl Default for PluginLoadConfig {
 /// Security validation configuration for plugin loading
 #[derive(Debug, Clone)]
 pub struct SecurityValidationConfig {
-    /// Required role for the plugin
-    pub required_role: Option<PluginRole>,
-
-    /// Required permissions for the plugin
-    pub required_permissions: Option<PluginPermissions>,
-
     /// Whether to validate plugin capabilities against declared permissions
     pub validate_capabilities: bool,
 
@@ -319,23 +312,9 @@ impl SecurityValidationConfig {
     /// Create a new security validation config with defaults
     pub fn new() -> Self {
         Self {
-            required_role: None,
-            required_permissions: None,
             validate_capabilities: true,
             strict_mode: false,
         }
-    }
-
-    /// Set required role
-    pub fn with_role(mut self, role: PluginRole) -> Self {
-        self.required_role = Some(role);
-        self
-    }
-
-    /// Set required permissions
-    pub fn with_permissions(mut self, perms: PluginPermissions) -> Self {
-        self.required_permissions = Some(perms);
-        self
     }
 
     /// Enable strict security mode
@@ -2206,27 +2185,8 @@ mod tests {
     async fn test_security_validation_config_new() {
         let config = SecurityValidationConfig::new();
 
-        assert!(config.required_role.is_none());
-        assert!(config.required_permissions.is_none());
         assert!(config.validate_capabilities);
         assert!(!config.strict_mode);
-    }
-
-    #[tokio::test]
-    async fn test_security_validation_config_with_role() {
-        let config = SecurityValidationConfig::new().with_role(PluginRole::Admin);
-
-        assert!(config.required_role.is_some());
-        assert_eq!(config.required_role.unwrap(), PluginRole::Admin);
-    }
-
-    #[tokio::test]
-    async fn test_security_validation_config_with_permissions() {
-        let perms = PluginPermissions::from_role(PluginRole::Editor);
-        let config = SecurityValidationConfig::new().with_permissions(perms.clone());
-
-        assert!(config.required_permissions.is_some());
-        assert!(config.required_permissions.unwrap().read_config);
     }
 
     #[tokio::test]
@@ -2234,15 +2194,6 @@ mod tests {
         let config = SecurityValidationConfig::new().strict();
 
         assert!(config.strict_mode);
-    }
-
-    #[tokio::test]
-    async fn test_security_validation_independent_configs() {
-        let config1 = SecurityValidationConfig::new().with_role(PluginRole::Admin);
-
-        let config2 = SecurityValidationConfig::new().with_role(PluginRole::Viewer);
-
-        assert_ne!(config1.required_role, config2.required_role);
     }
 
     // ===== Performance Metrics Tests =====
