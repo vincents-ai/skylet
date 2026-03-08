@@ -136,7 +136,6 @@ async fn main() -> Result<()> {
         user_data: std::ptr::null_mut(),
         user_context_json: config_ptr, // Pass the host's config to the plugin via user_context_json
         secrets: std::ptr::null(),
-        rotation_notifications: std::ptr::null(),
     };
 
     match cli.command {

@@ -417,7 +417,6 @@ impl MockPluginContextV2 {
             user_context_json: std::ptr::null(),
             secrets: std::ptr::null(),
             tracer: std::ptr::null(),
-            rotation_notifications: std::ptr::null(),
         };
 
         Self {
