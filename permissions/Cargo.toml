@@ -29,7 +29,7 @@ argon2 = "0.5"
 rand = "0.8"
 password-hash = "0.5"
 subtle = "2.5"
-age = "0.10"
+age = "0.11"
 ed25519-dalek = { workspace = true }
 hex = "0.4"
 
