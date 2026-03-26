@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin signature verification and cryptographic signing
 ///
@@ -33,7 +33,7 @@ impl SignatureAlgorithm {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "ed25519" => Some(SignatureAlgorithm::Ed25519),
             "rsa-2048" => Some(SignatureAlgorithm::Rsa2048),
@@ -349,16 +349,16 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_algorithm_from_str() {
+    fn test_signature_algorithm_try_parse() {
         assert_eq!(
-            SignatureAlgorithm::from_str("ed25519"),
+            SignatureAlgorithm::try_parse("ed25519"),
             Some(SignatureAlgorithm::Ed25519)
         );
         assert_eq!(
-            SignatureAlgorithm::from_str("rsa-2048"),
+            SignatureAlgorithm::try_parse("rsa-2048"),
             Some(SignatureAlgorithm::Rsa2048)
         );
-        assert_eq!(SignatureAlgorithm::from_str("invalid"), None);
+        assert_eq!(SignatureAlgorithm::try_parse("invalid"), None);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Trace Exporters for RFC-0017
 //!
@@ -56,7 +56,7 @@ impl Default for ExporterConfig {
         Self {
             exporter_type: ExporterType::None,
             endpoint: None,
-            service_name: "skynet".to_string(),
+            service_name: "skylet".to_string(),
             sample_rate: 1.0,
             export_timeout_ms: 30000,
             batch_size: 512,
@@ -230,7 +230,7 @@ pub struct NoOpExporter;
 impl NoOpExporter {
     /// Create a new no-op exporter
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

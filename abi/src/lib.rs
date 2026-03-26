@@ -1,5 +1,73 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! # Skylet ABI (Application Binary Interface)
+//!
+//! This crate provides the stable C FFI interface for Skylet plugins. It defines the
+//! contract between the Skylet runtime and dynamically loaded plugin shared libraries.
+//!
+//! ## Overview
+//!
+//! The ABI enables plugins written in any language that can produce C-compatible symbols
+//! to be loaded into the Skylet runtime. All types use `#[repr(C)]` to guarantee memory
+//! layout across compilation units.
+//!
+//! ## Core Types
+//!
+//! - [`PluginContext`] - The plugin's handle to platform services (logger, config, secrets, service registry)
+//! - [`PluginInfo`] - Static metadata about a plugin (name, version, services, dependencies)
+//! - [`PluginResult`] - Status codes returned from plugin operations
+//! - [`PluginType`] - Classification of plugin functionality (Utility, Database, Network, etc.)
+//!
+//! ## Required Plugin Exports
+//!
+//! Every plugin must export these C FFI functions:
+//! - `plugin_init(ctx)` - Initialize the plugin with the platform context
+//! - `plugin_shutdown(ctx)` - Clean up resources on unload
+//! - `plugin_get_info()` - Return static plugin metadata
+//! - `plugin_handle_request(ctx, request, response)` - Handle synchronous operations
+//!
+//! ## Optional Plugin Exports
+//!
+//! Plugins may additionally export:
+//! - `plugin_handle_event(ctx, event)` - Receive events from the EventBus
+//! - `plugin_prepare_hot_reload(ctx)` / `plugin_init_from_state(ctx, state)` - Hot reload support
+//! - `plugin_health_check(ctx)` - Health status reporting
+//! - `plugin_get_metrics(ctx)` - Runtime metrics export
+//! - `plugin_get_billing_metrics()` - Usage metering for marketplace billing
+//!
+//! ## Modules
+//!
+//! - [`config`] - Plugin configuration schema and validation (RFC-0006)
+//! - [`dependencies`] - Plugin dependency resolution (RFC-0005)
+//! - [`security`] - Security policies, secrets, and credential management (RFC-0008)
+//! - [`logging`] - Structured logging schema (RFC-0018)
+//! - [`http`] - Plugin-provided HTTP endpoints (RFC-0019)
+//! - [`tracing_mod`] - Distributed tracing and telemetry (RFC-0017)
+//! - [`network_transport`] - Overlay network plugin unification (RFC-0068)
+//! - [`clustering`] - Service discovery and clustering support
+//! - [`mcp_schema`] - MCP tool schema types for LLM agent integration
+//!
+//! ## Example Plugin
+//!
+//! ```c
+//! // Minimal plugin in C
+//! #include <skylet_abi.h>
+//!
+//! static PluginInfo INFO = {
+//!     .name = "my-plugin",
+//!     .version = "1.0.0",
+//!     // ... other fields
+//! };
+//!
+//! PluginResult plugin_init(const PluginContext* ctx) {
+//!     return PluginResult_Success;
+//! }
+//!
+//! const PluginInfo* plugin_get_info() {
+//!     return &INFO;
+//! }
+//! ```
 
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -10,34 +78,50 @@ use std::sync::{Arc, Mutex, RwLock};
 // RFC-0006: Plugin Configuration Schema
 pub mod config;
 pub use config::{
-    ConfigSchema, ConfigSection, ConfigField, ConfigFieldType, ConfigFormat,
-    ConfigValidator, ValidationError, ValidationWarning,
-    UIGenerator, UIComponent, UIComponentType, UIConstraints,
-    SecretResolver, SecretResolverBackend, SecretError,
-    SecretReference, SecretBackend, ValidationRule, GlobalValidationRule,
-    UIHints, WidgetType, SchemaError, ConfigManager, ConfigError,
-    EnvSecretBackend, FileSecretBackend, VaultSecretBackend,
+    ConfigError, ConfigField, ConfigFieldType, ConfigFormat, ConfigManager, ConfigSchema,
+    ConfigSection, ConfigValidator, EnvSecretBackend, FileSecretBackend, GlobalValidationRule,
+    SchemaError, SecretBackend, SecretError, SecretReference, SecretResolver,
+    SecretResolverBackend, UIComponent, UIComponentType, UIConstraints, UIGenerator, UIHints,
+    ValidationError, ValidationRule, ValidationWarning, VaultSecretBackend, WidgetType,
 };
 
 // RFC-0006: JSON Schema Validation for Plugin Config
 pub mod config_schema;
 pub use config_schema::{
-    ConfigSchemaValidator, ConfigValidationResult, ConfigValidationOptions,
-    ConfigSchemaError, ConfigSchemaResult, validate_config,
+    validate_config, ConfigSchemaError, ConfigSchemaResult, ConfigSchemaValidator,
+    ConfigValidationOptions, ConfigValidationResult,
 };
 
 // RFC-0005: Plugin Dependency Resolution
 pub mod dependencies;
 pub use dependencies::{
-    // Version types
-    Version, VersionError, Prerelease, PrereleaseIdentifier,
-    // Constraints
-    VersionReq, VersionConstraint, Comparator, ConstraintError,
+    Comparator,
+    ConflictRequirement,
+    ConstraintError,
+    Dependency,
+    DependencyEdge,
     // Graph types
-    DependencyGraph, PluginNode, Dependency, DependencyEdge, GraphError, PluginId,
+    DependencyGraph,
     // Resolution
-    DependencyResolver, Resolution, ResolvedPlugin, ResolutionError,
-    ResolutionStrategy, ResolutionWarning, VersionConflict, ConflictRequirement, RequirementSource,
+    DependencyResolver,
+    GraphError,
+    PluginId,
+    PluginNode,
+    Prerelease,
+    PrereleaseIdentifier,
+    RequirementSource,
+    Resolution,
+    ResolutionError,
+    ResolutionStrategy,
+    ResolutionWarning,
+    ResolvedPlugin,
+    // Version types
+    Version,
+    VersionConflict,
+    VersionConstraint,
+    VersionError,
+    // Constraints
+    VersionReq,
 };
 
 // Security validation module for FFI boundaries
@@ -46,11 +130,11 @@ pub mod security;
 // RFC-0008: Security and Capabilities Implementation
 pub mod security_rfc;
 pub use security_rfc::{
-    CapabilityInfo, CapabilityType, FilesystemAccess, FilesystemAccessMode,
-    NetworkAccess, CommandExecution, CapabilityStatus, CapabilityCheckResult,
-    FilesystemEnforcer, PathPermission, FilesystemAccessError,
-    NetworkEnforcer, HostPattern, NetworkAccessError, host_matches_pattern,
-    SecurityPolicyEngine, CapabilityApproval, ApprovalStatus, RiskLevel, SecurityPolicy, PolicyError,
+    host_matches_pattern, ApprovalStatus, CapabilityApproval, CapabilityCheckResult,
+    CapabilityInfo, CapabilityStatus, CapabilityType, CommandExecution, FilesystemAccess,
+    FilesystemAccessError, FilesystemAccessMode, FilesystemEnforcer, HostPattern, NetworkAccess,
+    NetworkAccessError, NetworkEnforcer, PathPermission, PolicyError, RiskLevel, SecurityPolicy,
+    SecurityPolicyEngine,
 };
 
 // Unified MCP tool schema types shared by all plugins
@@ -59,32 +143,50 @@ pub use mcp_schema::{InputSchema, PropertySchema, ToolSchema};
 
 // RFC-0018: Structured Logging Schema
 pub mod logging;
-pub use logging::{ErrorInfo, LogEvent, LogLevel, RequestContext, SourceLocation, TracingContext, RFC0018_JSON_SCHEMA, rfc0018_json_schema};
+pub use logging::{
+    rfc0018_json_schema, ErrorInfo, LogEvent, LogLevel, RequestContext, SourceLocation,
+    TracingContext, RFC0018_JSON_SCHEMA,
+};
 
 // RFC-0100 (Phase 2.1): Key Management Abstraction
 pub mod key_management;
 pub use key_management::{
-    KeyManagement, KeyManagementError, KeyManagementResult, KeyType, KeyPair,
-    DefaultKeyManagement,
+    DefaultKeyManagement, KeyManagement, KeyManagementError, KeyManagementResult, KeyPair, KeyType,
 };
 
 // RFC-0100 (Phase 2.1): Instance Management Abstraction
 pub mod instance_management;
 pub use instance_management::{
-    InstanceManager, InstanceManagementError, InstanceManagementResult, InstanceRole, InstancePeerInfo,
-    StandaloneInstanceManager,
+    InstanceManagementError, InstanceManagementResult, InstanceManager, InstancePeerInfo,
+    InstanceRole, StandaloneInstanceManager,
 };
 
 // RFC-0019: Plugin-Provided API Endpoints
 pub mod http;
 pub use http::{
-    HttpMethod, RouteConfig, RouteHandlerFn, RouteMetadata,
-    MiddlewareConfig, MiddlewareFn, HttpRouter,
+    extract_path_params,
+    path_pattern_to_regex,
+    HttpMethod,
+    HttpRouter,
     // V2 types for ABI v2 compatibility
-    HttpRouterV2, RouteConfigV2, MiddlewareConfigV2, MiddlewareFnV2,
-    OpenApiDocument, OpenApiInfo, OpenApiOperation, OpenApiParameter,
-    OpenApiRequestBody, OpenApiMediaType, OpenApiResponse, OpenApiSchema, OpenApiComponents,
-    extract_path_params, path_pattern_to_regex,
+    HttpRouterV2,
+    MiddlewareConfig,
+    MiddlewareConfigV2,
+    MiddlewareFn,
+    MiddlewareFnV2,
+    OpenApiComponents,
+    OpenApiDocument,
+    OpenApiInfo,
+    OpenApiMediaType,
+    OpenApiOperation,
+    OpenApiParameter,
+    OpenApiRequestBody,
+    OpenApiResponse,
+    OpenApiSchema,
+    RouteConfig,
+    RouteConfigV2,
+    RouteHandlerFn,
+    RouteMetadata,
 };
 
 // RFC-0017: Distributed Tracing and Telemetry
@@ -93,39 +195,74 @@ pub use http::{
 // bringing in a `tracing` module that shadows the `tracing` crate.
 mod tracing_mod;
 pub use tracing_mod::{
-    Span, SpanBuilder, SpanContext, SpanId, SpanManager, TraceId,
-    W3CTraceContext, TraceContextExt,
-    ExporterConfig, TracingExporter,
-    MetricCollector, MetricType,
-    OtelTracer, TracerConfig, SamplerConfig,
-    init_tracing, TracingError,
+    init_tracing, ExporterConfig, MetricCollector, MetricType, OtelTracer, SamplerConfig, Span,
+    SpanBuilder, SpanContext, SpanId, SpanManager, TraceContextExt, TraceId, TracerConfig,
+    TracingError, TracingExporter, W3CTraceContext,
 };
 
 // RFC-0068: Overlay Network Plugin Unification
 pub mod network_transport;
 pub use network_transport::{
-    OverlayTransportType, TunnelConfig, TunnelInfo, TunnelStatus,
-    PeerInfo, ServiceAdvertisement, OverlayMetrics, OverlayResult,
+    OverlayMetrics,
+    OverlayMetricsFFI,
     OverlayNetwork,
-    // FFI types
-    TunnelInfoFFI, PeerInfoFFI, OverlayMetricsFFI,
-    OverlayStringResult, OverlayTunnelListResult, OverlayPeerListResult,
     OverlayNetworkV2,
+    OverlayPeerListResult,
+    OverlayResult,
+    OverlayStringResult,
+    OverlayTransportType,
+    OverlayTunnelListResult,
+    PeerInfo,
+    PeerInfoFFI,
+    ServiceAdvertisement,
+    TunnelConfig,
+    TunnelInfo,
+    // FFI types
+    TunnelInfoFFI,
+    TunnelStatus,
 };
 
 // Re-export key security types for convenience
 pub use security::{
-    AuditEvent, AuditLogger, BackupCodeProvider, CredentialRotationManager, CredentialStatus,
-    CredentialType, CredentialVersion, MFAChallenge, MFAFactor, MFAManager, MFAMethod,
-    PluginAuthenticator, PluginCredential, PluginPermissions, PluginRole, RotationEvent,
-    RotationEventSeverity, RotationEventType, RotationHistory, RotationNotificationService,
-    RotationNotifier, RotationNotifyCallback, RotationPolicy, SecurityError, TOTPProvider,
-    rotation_topics, secret_topics,
+    rotation_topics,
+    secret_topics,
+    AuditEvent,
+    AuditLogger,
+    BackupCodeProvider,
+    CredentialRotationManager,
+    CredentialStatus,
+    CredentialType,
+    CredentialVersion,
+    DefaultSecretsProvider,
     // RFC-0077 types
-    KeyAlgorithm, KeyUsage, SecretVersion,
+    KeyAlgorithm,
+    KeyUsage,
+    ListSecretsOptions,
+    MFAChallenge,
+    MFAFactor,
+    MFAManager,
+    MFAMethod,
+    PluginAuthenticator,
+    PluginCredential,
+    PluginPermissions,
+    PluginRole,
+    RotationEvent,
+    RotationEventSeverity,
+    RotationEventType,
+    RotationHistory,
+    RotationNotificationService,
+    RotationNotifier,
+    RotationNotifyCallback,
+    RotationPolicy,
+    RotationResult,
+    SecretAuditEntry,
+    SecretMetadata,
+    SecretOperation,
+    SecretVersion,
     // RFC-0029: Secrets Provider Interface
-    SecretsProvider, DefaultSecretsProvider, SecretMetadata, SecretOperation, SecretAuditEntry,
-    ListSecretsOptions, RotationResult,
+    SecretsProvider,
+    SecurityError,
+    TOTPProvider,
 };
 
 #[repr(C)]
@@ -238,18 +375,14 @@ pub type SpanHandle = u64;
 pub struct PluginTracer {
     // Starts a new span as a child of the current active span. Returns a handle
     // to the new span which becomes the active one.
-    pub start_span: extern "C" fn(
-        context: *const (),
-        name_ptr: *const c_char,
-        name_len: usize,
-    ) -> SpanHandle,
+    pub start_span:
+        extern "C" fn(context: *const (), name_ptr: *const c_char, name_len: usize) -> SpanHandle,
 
     // Ends the specified span. The parent span becomes active again.
     pub end_span: extern "C" fn(context: *const (), span_handle: SpanHandle),
 
     // Adds a named event to the currently active span.
-    pub add_event:
-        extern "C" fn(context: *const (), name_ptr: *const c_char, name_len: usize),
+    pub add_event: extern "C" fn(context: *const (), name_ptr: *const c_char, name_len: usize),
 
     // Adds a key/value attribute to the currently active span.
     pub set_attribute: extern "C" fn(
@@ -323,8 +456,8 @@ pub struct PluginInfo {
     pub author: *const c_char,
     pub license: *const c_char,
     pub homepage: *const c_char,
-    pub skynet_version_min: *const c_char,
-    pub skynet_version_max: *const c_char,
+    pub skylet_version_min: *const c_char,
+    pub skylet_version_max: *const c_char,
     pub abi_version: *const c_char,
     pub dependencies: *const *const c_char,
     pub num_dependencies: usize,
@@ -364,20 +497,20 @@ pub struct PluginState {
 // ============================================================================
 
 /// Current state format version for RFC-0007
-/// 
+///
 /// This version should be incremented when the state format changes in a way
 /// that requires migration. Plugins can use this to handle state migrations
 /// between different versions of their serialized state.
 pub const HOT_RELOAD_STATE_VERSION: u32 = 1;
 
 /// Magic bytes to identify RFC-0007 state blobs
-/// 
+///
 /// Each state blob should start with these bytes followed by the version number
 /// to allow for state format identification and migration.
 pub const HOT_RELOAD_STATE_MAGIC: &[u8; 4] = b"SKSR"; // "Skylet State"
 
 /// Header for versioned plugin state
-/// 
+///
 /// This header should be prepended to all serialized state blobs to enable
 /// version detection and migration. The format is:
 /// - 4 bytes: magic ("SKSR")
@@ -398,7 +531,7 @@ pub struct StateHeader {
 impl StateHeader {
     /// Size of the state header in bytes
     pub const SIZE: usize = 12;
-    
+
     /// Create a new state header with the current format version
     pub fn new(plugin_version: u32) -> Self {
         Self {
@@ -407,29 +540,33 @@ impl StateHeader {
             plugin_version,
         }
     }
-    
+
     /// Parse a state header from bytes
-    /// 
+    ///
     /// Returns the header and a slice of the remaining data
     pub fn from_bytes(data: &[u8]) -> Option<(Self, &[u8])> {
         if data.len() < Self::SIZE {
             return None;
         }
-        
+
         let magic = [data[0], data[1], data[2], data[3]];
         if &magic != HOT_RELOAD_STATE_MAGIC {
             return None;
         }
-        
+
         let format_version = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
         let plugin_version = u32::from_le_bytes([data[8], data[9], data[10], data[11]]);
-        
+
         Some((
-            Self { magic, format_version, plugin_version },
+            Self {
+                magic,
+                format_version,
+                plugin_version,
+            },
             &data[Self::SIZE..],
         ))
     }
-    
+
     /// Serialize the header to bytes
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         let mut bytes = [0u8; Self::SIZE];
@@ -438,7 +575,7 @@ impl StateHeader {
         bytes[8..12].copy_from_slice(&self.plugin_version.to_le_bytes());
         bytes
     }
-    
+
     /// Check if this header is valid
     pub fn is_valid(&self) -> bool {
         &self.magic == HOT_RELOAD_STATE_MAGIC
@@ -447,21 +584,21 @@ impl StateHeader {
 
 impl PluginState {
     /// Create a new PluginState from a Vec<u8>
-    /// 
+    ///
     /// This allocates memory that must be freed using the `free` function pointer.
     /// The returned state includes a default free function that deallocates the memory.
     pub fn from_vec(data: Vec<u8>) -> Self {
         let len = data.len();
         let boxed = data.into_boxed_slice();
         let data = Box::into_raw(boxed) as *mut u8;
-        
+
         Self {
             data,
             len,
             free: plugin_state_free_default,
         }
     }
-    
+
     /// Create an empty PluginState (no state to preserve)
     pub fn empty() -> Self {
         Self {
@@ -470,28 +607,28 @@ impl PluginState {
             free: plugin_state_free_noop,
         }
     }
-    
+
     /// Create a versioned PluginState with header
-    /// 
+    ///
     /// This prepends the StateHeader to the plugin-specific state data.
     pub fn versioned(plugin_state_version: u32, data: Vec<u8>) -> Self {
         let header = StateHeader::new(plugin_state_version);
         let header_bytes = header.to_bytes();
-        
+
         let mut full_data = Vec::with_capacity(header_bytes.len() + data.len());
         full_data.extend_from_slice(&header_bytes);
         full_data.extend(data);
-        
+
         Self::from_vec(full_data)
     }
-    
+
     /// Check if this state has data
     pub fn has_data(&self) -> bool {
         !self.data.is_null() && self.len > 0
     }
-    
+
     /// Get the state data as a slice
-    /// 
+    ///
     /// # Safety
     /// The caller must ensure the data is valid and properly aligned
     pub unsafe fn as_slice(&self) -> &[u8] {
@@ -501,27 +638,27 @@ impl PluginState {
             std::slice::from_raw_parts(self.data, self.len)
         }
     }
-    
+
     /// Parse the state header and return the plugin-specific data
-    /// 
+    ///
     /// Returns None if the state is empty or doesn't have a valid header
     pub fn parse_header(&self) -> Option<(StateHeader, &[u8])> {
         let data = unsafe { self.as_slice() };
         StateHeader::from_bytes(data)
     }
-    
+
     /// Consume the state and return the data as a Vec
-    /// 
+    ///
     /// This is useful for testing and when you need ownership of the data.
     /// Note: This consumes the state without calling the free function.
-    /// 
+    ///
     /// # Safety
     /// The caller must ensure the data was allocated in a way compatible with Vec
     pub unsafe fn into_vec(self) -> Option<Vec<u8>> {
         if self.data.is_null() || self.len == 0 {
             return None;
         }
-        
+
         // Reconstruct the Vec from the raw pointer
         // Note: This assumes the data was allocated as a Box<[u8]> or Vec<u8>
         let slice = std::slice::from_raw_parts_mut(self.data, self.len);
@@ -532,14 +669,10 @@ impl PluginState {
 // RFC-0003: Security fixes for unsafe FFI (Phase 3)
 // Issue #7: Vec::from_raw_parts validation
 // Maximum size for plugin state allocation (512MB)
-#[allow(dead_code)]
 const MAX_PLUGIN_STATE_SIZE: usize = 512 * 1024 * 1024;
-// Maximum size for service list allocation (100k entries * 8 bytes per ptr)
-#[allow(dead_code)]
-const MAX_SERVICE_LIST_SIZE: usize = 100_000;
 
 /// Default free function for PluginState allocated via Box
-/// 
+///
 /// This function is used when creating PluginState from Rust code.
 /// RFC-0003: Validates allocation before reconstructing Vec (Issue #7)
 extern "C" fn plugin_state_free_default(state: PluginState) {
@@ -555,14 +688,14 @@ extern "C" fn plugin_state_free_default(state: PluginState) {
                 );
                 return;
             }
-            
+
             // Validate pointer alignment - must be at least word-aligned
             let addr = state.data as usize;
             if addr & (std::mem::align_of::<*mut u8>() - 1) != 0 {
                 tracing::error!("PluginState pointer misaligned: 0x{:x}", addr);
                 return;
             }
-            
+
             // Reconstruct the Box and let it drop
             let slice = std::slice::from_raw_parts_mut(state.data, state.len);
             let _ = Vec::from_raw_parts(slice.as_mut_ptr(), state.len, state.len);
@@ -649,6 +782,14 @@ pub struct Plugin {
 }
 
 impl Plugin {
+    /// Load a plugin from a shared library.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The path points to a valid, trusted plugin shared library
+    /// - The plugin implements the expected ABI functions
+    /// - The context outlives the Plugin instance
     pub unsafe fn load<P>(path: P, _context: &PluginContext) -> Result<Self, libloading::Error>
     where
         P: AsRef<std::ffi::OsStr>,
@@ -697,6 +838,10 @@ impl Plugin {
     ///
     /// This method validates the context pointer before calling the plugin's init function,
     /// preventing unsafe memory access at the FFI boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the context pointer is valid and properly initialized.
     pub unsafe fn init(&self, context: *const PluginContext) -> PluginResult {
         // Validate plugin context before calling
         if let Err(err) = security::validate_plugin_context(context) {
@@ -705,8 +850,11 @@ impl Plugin {
         }
         (self.init_fn)(context)
     }
-
     /// Safely validate and call the plugin shutdown function with FFI boundary checks
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the context pointer is valid and properly initialized.
     pub unsafe fn shutdown(&self, context: *const PluginContext) -> PluginResult {
         // Validate plugin context before calling
         if let Err(err) = security::validate_plugin_context(context) {
@@ -716,6 +864,12 @@ impl Plugin {
         (self.shutdown_fn)(context)
     }
 
+    /// Get plugin info from the loaded plugin.
+    ///
+    /// # Safety
+    ///
+    /// The returned pointer is only valid as long as the Plugin instance is alive.
+    /// The caller must not free or modify the returned memory.
     pub unsafe fn get_info(&self) -> *const PluginInfo {
         (self.get_info_fn)()
     }
@@ -730,6 +884,11 @@ impl Plugin {
     /// Returns `None` if the plugin does not export the symbol.
     /// Returns `Some(Err(...))` if the returned JSON is invalid.
     /// Returns `Some(Ok(vec))` on success.
+    ///
+    /// # Safety
+    ///
+    /// The Plugin must remain valid. The returned tool schemas are parsed from
+    /// plugin-provided JSON and should be validated before use.
     pub unsafe fn get_tools(&self) -> Option<Result<Vec<ToolSchema>, String>> {
         let get_fn = self.get_tools_fn?;
         let ptr = (get_fn)();
@@ -753,6 +912,12 @@ impl Plugin {
     ///
     /// This method validates the request pointer and response pointer before calling
     /// the plugin's request handler function, preventing buffer overflow attacks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The request reference is valid
+    /// - The response pointer points to valid, writable memory
     pub unsafe fn handle_request(
         &self,
         request: &HttpRequest,
@@ -763,21 +928,22 @@ impl Plugin {
             tracing::error!("Plugin handle_request: response pointer is null");
             return PluginResult::InvalidRequest;
         }
-
         // Validate request pointer alignment
-        if (request as *const _ as usize) % std::mem::align_of::<HttpRequest>() != 0 {
+        if !(request as *const _ as usize).is_multiple_of(std::mem::align_of::<HttpRequest>()) {
             tracing::error!("Plugin handle_request: misaligned request pointer");
             return PluginResult::InvalidRequest;
         }
 
-        // TODO: Pass actual context
+        // NOTE: Context is passed as null for V1 ABI compatibility.
+        // V2 plugins should use plugin_execute_v2 which receives the full context.
+        // TODO(#github-issue): Store and pass PluginContext for V1 compatibility layer
         (self.handle_request_fn)(std::ptr::null(), request, response)
     }
 
     // ===== RFC-0007: Hot Reload Methods =====
 
     /// Check if this plugin supports hot reload
-    /// 
+    ///
     /// Returns true if the plugin exports both `plugin_prepare_hot_reload` and
     /// `plugin_init_from_state` symbols.
     pub fn supports_hot_reload(&self) -> bool {
@@ -785,37 +951,40 @@ impl Plugin {
     }
 
     /// Prepare for hot reload by serializing plugin state
-    /// 
+    ///
     /// Calls the plugin's `plugin_prepare_hot_reload` function to serialize
     /// its internal state into an opaque byte buffer. The returned state can
     /// be passed to `init_from_state` on the new plugin instance.
-    /// 
+    ///
     /// Returns `None` if the plugin doesn't support hot reload.
-    /// 
+    ///
     /// # Safety
     /// The context pointer must be valid and properly initialized.
     pub unsafe fn prepare_hot_reload(&self, context: *const PluginContext) -> Option<PluginState> {
         let prepare_fn = self.prepare_hot_reload_fn?;
-        
+
         // Validate context
         if let Err(err) = security::validate_plugin_context(context) {
-            tracing::error!("Plugin prepare_hot_reload: context validation failed: {:?}", err);
+            tracing::error!(
+                "Plugin prepare_hot_reload: context validation failed: {:?}",
+                err
+            );
             return None;
         }
-        
+
         Some((prepare_fn)(context))
     }
 
     /// Initialize the plugin from a previous state
-    /// 
+    ///
     /// Calls the plugin's `plugin_init_from_state` function to restore state
     /// from a serialized buffer produced by a previous plugin instance's
     /// `prepare_hot_reload` call.
-    /// 
+    ///
     /// Returns `None` if the plugin doesn't support hot reload.
     /// Returns `Some(PluginResult::Success)` on success.
     /// Returns `Some(PluginResult::Error)` if state restoration fails.
-    /// 
+    ///
     /// # Safety
     /// The context pointer must be valid. The state must have been produced
     /// by a compatible version of the plugin.
@@ -825,18 +994,21 @@ impl Plugin {
         state: PluginState,
     ) -> Option<PluginResult> {
         let init_fn = self.init_from_state_fn?;
-        
+
         // Validate context
         if let Err(err) = security::validate_plugin_context(context) {
-            tracing::error!("Plugin init_from_state: context validation failed: {:?}", err);
+            tracing::error!(
+                "Plugin init_from_state: context validation failed: {:?}",
+                err
+            );
             return Some(PluginResult::Error);
         }
-        
+
         Some((init_fn)(context, state))
     }
 
     /// Free a PluginState that was not consumed
-    /// 
+    ///
     /// If `init_from_state` fails or is not called, the state must be freed
     /// using this method to prevent memory leaks.
     pub fn free_state(state: PluginState) {
@@ -897,8 +1069,15 @@ pub struct EndpointRequest {
 pub struct NetworkManager {
     os_ports: Mutex<HashSet<u16>>,
     overlay_ids: Mutex<HashSet<String>>,
-    // map allocated port -> owner id (for tests we store a string)
     owners: Mutex<HashMap<u16, String>>,
+    firewall_rules: Mutex<Vec<FirewallRule>>,
+    tls_configs: Mutex<HashMap<u16, TlsConfig>>,
+}
+
+impl Default for NetworkManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NetworkManager {
@@ -907,6 +1086,8 @@ impl NetworkManager {
             os_ports: Mutex::new(HashSet::new()),
             overlay_ids: Mutex::new(HashSet::new()),
             owners: Mutex::new(HashMap::new()),
+            firewall_rules: Mutex::new(Vec::new()),
+            tls_configs: Mutex::new(HashMap::new()),
         }
     }
 
@@ -965,16 +1146,30 @@ impl NetworkManager {
         }
     }
 
-    /// Install a firewall rule (stub). Returns true when accepted.
-    pub fn install_firewall_rule(&self, _rule: FirewallRule) -> bool {
-        // No-op in this stub; in real system this would call out to host firewall manager.
+    /// Install a firewall rule. Returns true when accepted.
+    pub fn install_firewall_rule(&self, rule: FirewallRule) -> bool {
+        let mut rules = self.firewall_rules.lock().unwrap();
+        rules.push(rule);
         true
     }
 
-    /// Configure TLS for a given port (stub). Returns true on success.
-    pub fn configure_tls(&self, _port: u16, _cfg: TlsConfig) -> bool {
-        // No-op in this stub. Real implementation would persist and apply certs.
+    /// Configure TLS for a given port. Returns true on success.
+    pub fn configure_tls(&self, port: u16, cfg: TlsConfig) -> bool {
+        let mut configs = self.tls_configs.lock().unwrap();
+        configs.insert(port, cfg);
         true
+    }
+
+    /// List all installed firewall rules.
+    pub fn list_firewall_rules(&self) -> Vec<FirewallRule> {
+        let rules = self.firewall_rules.lock().unwrap();
+        rules.clone()
+    }
+
+    /// Get TLS config for a port.
+    pub fn get_tls_config(&self, port: u16) -> Option<TlsConfig> {
+        let configs = self.tls_configs.lock().unwrap();
+        configs.get(&port).cloned()
     }
 }
 
@@ -991,8 +1186,7 @@ pub use rpc::*;
 // and IDL retrieval for type-safe inter-plugin communication.
 pub mod service_discovery;
 pub use service_discovery::{
-    ServiceDiscovery, ServiceDescriptor, ServiceFilter,
-    ServiceDiscoveryError, VersionCompatibility,
+    ServiceDescriptor, ServiceDiscovery, ServiceDiscoveryError, ServiceFilter, VersionCompatibility,
 };
 
 // ABI v2.0 specification - RFC-0004
@@ -1037,8 +1231,8 @@ pub mod audit;
 #[allow(deprecated)]
 pub use audit::{
     AuditEvent as PluginAuditEvent, AuditEventId, AuditEventType, AuditLogBackend, AuditLogError,
-    AuditLogFilter, AuditSeverity, InMemoryAuditLog, AuditPluginRegistry, DefaultAuditRegistry,
-    BackendRegistrar,
+    AuditLogFilter, AuditPluginRegistry, AuditSeverity, BackendRegistrar, DefaultAuditRegistry,
+    InMemoryAuditLog,
 };
 
 pub mod clustering;
@@ -1117,6 +1311,12 @@ pub struct TypedEventBus {
     inner: Arc<RwLock<HashMap<String, Vec<Subscriber>>>>,
     middlewares: Arc<RwLock<Vec<Arc<dyn Middleware>>>>,
     id_counter: AtomicU64,
+}
+
+impl Default for TypedEventBus {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypedEventBus {
@@ -1402,14 +1602,14 @@ mod tests {
         let header = StateHeader::new(42);
         let bytes = header.to_bytes();
         assert_eq!(bytes.len(), StateHeader::SIZE);
-        
+
         // Check magic bytes
         assert_eq!(&bytes[0..4], HOT_RELOAD_STATE_MAGIC);
-        
+
         // Check format version
         let format_ver = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
         assert_eq!(format_ver, HOT_RELOAD_STATE_VERSION);
-        
+
         // Check plugin version
         let plugin_ver = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         assert_eq!(plugin_ver, 42);
@@ -1419,7 +1619,7 @@ mod tests {
     fn test_state_header_parsing() {
         let header = StateHeader::new(123);
         let bytes = header.to_bytes();
-        
+
         let (parsed, remaining) = StateHeader::from_bytes(&bytes).unwrap();
         assert!(parsed.is_valid());
         // Copy fields to avoid unaligned reference to packed struct
@@ -1435,11 +1635,11 @@ mod tests {
         let header = StateHeader::new(1);
         let header_bytes = header.to_bytes();
         let plugin_data = b"plugin state data here";
-        
+
         let mut full_data = Vec::with_capacity(header_bytes.len() + plugin_data.len());
         full_data.extend_from_slice(&header_bytes);
         full_data.extend_from_slice(plugin_data);
-        
+
         let (parsed, remaining) = StateHeader::from_bytes(&full_data).unwrap();
         assert!(parsed.is_valid());
         assert_eq!(remaining, plugin_data);
@@ -1451,7 +1651,7 @@ mod tests {
         bytes[0..4].copy_from_slice(b"BADM"); // Invalid magic
         bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
         bytes[8..12].copy_from_slice(&1u32.to_le_bytes());
-        
+
         let result = StateHeader::from_bytes(&bytes);
         assert!(result.is_none());
     }
@@ -1475,10 +1675,10 @@ mod tests {
     fn test_plugin_state_from_vec() {
         let data = vec![1, 2, 3, 4, 5];
         let state = PluginState::from_vec(data.clone());
-        
+
         assert!(state.has_data());
         assert_eq!(state.len, 5);
-        
+
         unsafe {
             let slice = state.as_slice();
             assert_eq!(slice, &data[..]);
@@ -1489,12 +1689,12 @@ mod tests {
     fn test_plugin_state_versioned() {
         let plugin_data = b"my plugin state".to_vec();
         let state = PluginState::versioned(2, plugin_data.clone());
-        
+
         assert!(state.has_data());
-        
+
         // Should have header + data
         assert_eq!(state.len, StateHeader::SIZE + plugin_data.len());
-        
+
         // Parse header
         let (header, remaining) = state.parse_header().unwrap();
         assert!(header.is_valid());
@@ -1516,6 +1716,29 @@ mod tests {
         let state = PluginState::from_vec(vec![1, 2, 3]);
         // Just verify free doesn't panic - call the free function directly
         (state.free)(state);
+    }
+
+    #[test]
+    fn test_install_firewall_rule_stores_rule() {
+        let nm = NetworkManager::new();
+        let rule = FirewallRule {
+            allow: true,
+            src: Some("10.0.0.0/8".to_string()),
+            dst_port: Some(8080),
+        };
+        assert!(nm.install_firewall_rule(rule));
+        assert!(!nm.list_firewall_rules().is_empty());
+    }
+
+    #[test]
+    fn test_configure_tls_stores_config() {
+        let nm = NetworkManager::new();
+        let config = TlsConfig {
+            cert_pem: Some("CERT_DATA".to_string()),
+            key_pem: Some("KEY_DATA".to_string()),
+        };
+        assert!(nm.configure_tls(443, config));
+        assert!(nm.get_tls_config(443).is_some());
     }
 }
 

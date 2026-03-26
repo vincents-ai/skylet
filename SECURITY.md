@@ -50,6 +50,5 @@ The execution engine includes several security features:
 
 ## Related Documents
 
-- [Security Architecture Documentation](docs/security.md)
-- [Plugin ABI Security Considerations](abi/README.md)
+- [Security Architecture Documentation](docs/SECURITY.md)
 - [Secrets Management Guide](plugins/secrets-manager/README.md)

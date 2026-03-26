@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Hello World Example Plugin
 //!
@@ -61,7 +61,7 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
     static INFO: PluginInfoV2 = PluginInfoV2 {
         name: b"hello-world\0" as *const u8 as *const i8,
         version: b"0.1.0\0" as *const u8 as *const i8,
-        author: b"Skynet Team\0" as *const u8 as *const i8,
+        author: b"Skylet Team\0" as *const u8 as *const i8,
     };
     &INFO
 }

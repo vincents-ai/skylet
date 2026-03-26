@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Semantic Versioning for Plugin Dependencies
 //!
@@ -53,7 +53,7 @@ impl Prerelease {
 
         let identifiers = s
             .split('.')
-            .map(|part| PrereleaseIdentifier::parse(part))
+            .map(PrereleaseIdentifier::parse)
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self { identifiers })

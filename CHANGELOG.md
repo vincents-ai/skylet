@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Status: Beta Release
 
-This is the first public beta release of the Skynet Execution Engine. The core plugin ABI (v2.0) is stable, but the release versioning follows a path to v1.0.0 stable release where additional APIs may be refined based on community feedback.
+This is the first public beta release of the Skylet Execution Engine. The core plugin ABI (v2.0) is stable, but the release versioning follows a path to v1.0.0 stable release where additional APIs may be refined based on community feedback.
 
 ### Support
 - Beta phase for gathering feedback and real-world usage patterns
@@ -41,20 +41,13 @@ This is the first public beta release of the Skynet Execution Engine. The core p
   - Instance metadata management (name, version, state)
   - Role support (Master, Member, Observer, Replica)
   - Peer discovery and zone management
-  - Multi-instance deployment support
+  - Multi-instance deployment support (paid plugin)
 
 #### Feature Flags
-- **`standalone` flag (default)**: Run without proprietary dependencies
-  - No external dependencies beyond open-source ecosystem
-  - Complete feature parity with proprietary mode
-  - Suitable for production open-source deployments
+- **`standalone` flag (default)**: Run with no external dependencies
+  - Full plugin execution capabilities
+  - Suitable for production deployments
   - `cargo build --features standalone --release`
-
-- **`proprietary` flag**: Enable Skynet-specific extensions
-  - Additional clustering features
-  - Proprietary service implementations
-  - Enterprise-grade monitoring
-  - Gated behind feature flag for flexibility
 
 - **`opentelemetry` flag**: Distributed tracing support
   - OpenTelemetry API integration
@@ -149,7 +142,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
   - Lifecycle event sequences
   - Memory management rules
 
-- **Skynet to OSS Migration Guide**: Step-by-step upgrade path
+- **Skylet to OSS Migration Guide**: Step-by-step upgrade path
   - V1 to V2 migration checklist
   - Cargo.toml updates
   - Import and module changes
@@ -159,14 +152,14 @@ This is the first public beta release of the Skynet Execution Engine. The core p
   - Feature-gated dual compatibility
 
 #### Build and Deployment
-- **Apache 2.0 License Headers**: All 124 source files properly licensed
+- **MIT OR Apache-2.0 License Headers**: All 186 source files properly licensed
 - **NOTICE File**: Comprehensive third-party attribution
 - **Nix Flake Support**: Reproducible builds
 - **cargo-check Integration**: Fast syntax/type checking
 - **Feature Flag Verification**: All feature combinations tested
 
 #### Testing
-- **1,079+ Tests**: Comprehensive test coverage
+- **1,650+ Tests**: Comprehensive test coverage
   - Unit tests for all major components
   - Integration tests for plugin loading
   - Configuration validation tests
@@ -177,7 +170,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
 
 ### Changed
 
-#### Breaking Changes from Skynet V1 (Intentional)
+#### Breaking Changes from Skylet V1 (Intentional)
 - **FFI Entry Points**: Complete redesign
   - Old: `plugin_init`, `plugin_process`, `plugin_get_info`, `plugin_shutdown`
   - New: `plugin_init_v2`, `plugin_process_request`, `plugin_get_info_v2`, `plugin_shutdown_v2`, `plugin_on_config_change`, `plugin_get_metrics`
@@ -199,7 +192,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
   - Reason: Type safety and validation guarantees
 
 #### Internal Improvements
-- **Dependency Cleanup**: Removed proprietary dependencies from default build
+- **Dependency Cleanup**: Removed unnecessary dependencies from default build
 - **Trait-Based Abstractions**: KeyManagement and InstanceManager for flexibility
 - **Resource Pooling**: Connection and object pooling patterns
 - **Memory Safety**: Zero-copy patterns where possible
@@ -207,7 +200,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
 
 ### Deprecated
 
-- **Skynet V1 ABI**: Use V2 for new plugins
+- **Skylet V1 ABI**: Use V2 for new plugins
   - Migration guide available in MIGRATION_GUIDE.md
   - V1 support will be removed in v3.0.0
   - Timeline: v2.0 to v2.4 (minimum 2 years)
@@ -221,7 +214,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
 
 ### Security
 
-- ✅ All 124 source files have Apache 2.0 license headers
+- ✅ All 186 source files have MIT OR Apache-2.0 license headers
 - ✅ No hardcoded secrets in codebase
 - ✅ All dependencies checked for known vulnerabilities
 - ✅ Cryptographic operations use approved algorithms
@@ -256,7 +249,7 @@ This is the first public beta release of the Skynet Execution Engine. The core p
 
 ## Migration Guide
 
-For users upgrading from Skynet V1 plugins:
+For users upgrading from Skylet V1 plugins:
 
 1. Read `docs/MIGRATION_GUIDE.md` for step-by-step instructions
 2. Update Cargo.toml dependencies
@@ -270,15 +263,15 @@ See `docs/MIGRATION_GUIDE.md` for detailed examples.
 ## Known Limitations
 
 ### Intentional Design Decisions
-- **Standalone Mode**: No proprietary features (by design)
-- **Single Plugin Instance**: Clustering requires proprietary extensions
+- **Standalone Mode**: Self-contained with no external service dependencies
+- **Single Plugin Instance**: Clustering available via custom `InstanceManager` implementations
 - **Hot Reload**: Requires explicit plugin implementation
 - **Resource Limits**: Defined per deployment configuration
 
 ### Future Roadmap
 - [ ] WebAssembly (WASM) plugin support (v2.1)
 - [ ] Distributed tracing defaults (v2.2)
-- [ ] Plugin marketplace integration (v2.3)
+- [ ] Plugin registry integration (v2.3)
 - [ ] Peer-to-peer plugin distribution (v2.4+)
 
 ## Contributors
@@ -291,11 +284,11 @@ Special thanks to:
 ## Feedback
 
 Found a bug or have a feature request? Please open an issue on GitHub:
-https://github.com/vincents-ai/skynet/issues
+https://github.com/vincents-ai/skylet/issues
 
 ## License
 
-This project is licensed under the Apache License 2.0. See LICENSE and NOTICE files for details.
+This project is dual-licensed under MIT OR Apache-2.0. See LICENSE-APACHE, LICENSE-MIT, and NOTICE files for details.
 
 ---
 
@@ -303,7 +296,7 @@ This project is licensed under the Apache License 2.0. See LICENSE and NOTICE fi
 
 ### v1.0.0 (Legacy - No Longer Supported)
 
-This was the initial Skynet release with proprietary dependencies.
+This was the initial Skylet release with external dependencies.
 Migration to v2.0.0 is strongly recommended for all users.
 
 See `docs/MIGRATION_GUIDE.md` for upgrade instructions.

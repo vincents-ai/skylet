@@ -1,0 +1,35 @@
+# Default configuration for Skylet in production
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+
+[plugins]
+directory = "/app/plugins"
+auto_load = true
+hot_reload = true
+
+[logging]
+level = "info"
+format = "json"
+output = "stdout"
+
+[metrics]
+enabled = true
+port = 9090
+path = "/metrics"
+
+[security]
+sandbox_enabled = true
+max_memory_mb = 256
+max_cpu_percent = 50
+
+[database]
+type = "sqlite"
+path = "/app/data/skylet.db"
+
+[api]
+cors_enabled = true
+cors_origins = ["*"]
+rate_limit = 1000

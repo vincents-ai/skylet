@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin composition and meta-package support
 ///
@@ -299,7 +299,7 @@ impl CompositionManager {
         for component in &composite.components {
             version_map
                 .entry(component.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(component.version.clone());
         }
 

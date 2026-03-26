@@ -1,10 +1,10 @@
-# Contributing to Skynet Execution Engine
+# Contributing to Skylet Execution Engine
 
-Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to the Skynet Execution Engine.
+Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to the Skylet Execution Engine.
 
 ## Code of Conduct
 
-We are committed to providing a welcoming and inspiring community for all. Please read and follow our Code of Conduct (coming soon).
+We are committed to providing a welcoming and inspiring community for all. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Getting Started
 
@@ -18,8 +18,8 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 ```bash
 # Clone the repository
-git clone https://github.com/vincents-ai/skynet.git
-cd skynet/execution-engine
+git clone https://github.com/vincents-ai/skylet.git
+cd skylet/execution-engine
 
 # Verify build
 cargo check --features standalone
@@ -482,12 +482,48 @@ Contributors will be:
 - Credited in release notes
 - Recognized in project statistics
 
+## Project Structure
+
+```
+skylet/
+├── abi/                    # Plugin ABI definitions (FFI)
+├── src/                    # Core engine implementation
+├── core/                   # Test framework and utilities
+├── plugins/                # Built-in plugins
+│   ├── logging/           # Logging service
+│   ├── registry/          # Service registry
+│   ├── config-manager/    # Configuration management
+│   └── secrets-manager/   # Secret management
+├── http-router/           # HTTP routing
+├── job-queue/             # Background job queue
+├── permissions/           # Permission system
+├── plugin-packager/       # Plugin packaging utilities
+├── docs/                  # Documentation
+└── examples/              # Example plugins and code
+```
+
+## Good First Issues
+
+New to the project? Look for issues labeled:
+- `good first issue` - Great for newcomers
+- `help wanted` - Extra attention needed
+- `documentation` - Documentation improvements
+
+## Communication Channels
+
+| Channel | Purpose |
+|---------|---------|
+| [GitHub Discussions](https://github.com/vincents-ai/skylet/discussions) | Questions, ideas, show & tell |
+| [GitHub Issues](https://github.com/vincents-ai/skylet/issues) | Bug reports, feature requests |
+| 📧 Email: `shift+skylet@someone.section.me` | General inquiries |
+| 🔒 Security: `shift+security@someone.section.me` | Security issues (private) |
+
 ## Questions?
 
 - 📧 Email: `shift+skylet@someone.section.me`
-- 💬 GitHub Discussions: [Link]
+- 💬 GitHub Discussions: [Link](https://github.com/vincents-ai/skylet/discussions)
 - 🔒 Security: `shift+security@someone.section.me` (not public)
 
 ---
 
-**Thank you for contributing to making Skynet better!** ❤️
+**Thank you for contributing to making Skylet better!** ❤️

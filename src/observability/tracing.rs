@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Distributed tracing support for plugin system
 //
@@ -51,7 +51,7 @@ pub struct TraceContext {
 #[derive(Clone)]
 pub struct SkyletPluginTracer {
     spans: Arc<std::sync::Mutex<HashMap<u64, Span>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for distributed trace context propagation
     context: Arc<std::sync::Mutex<Option<TraceContext>>>,
     active_span: Arc<std::sync::Mutex<Option<u64>>>,
 }
@@ -81,26 +81,30 @@ impl SkyletPluginTracer {
             events: Vec::new(),
         };
 
+        // Lock ordering: always acquire active_span before spans to prevent deadlock
+        // with set_attribute/add_event which also acquire active_span then spans.
+        let mut active = self.active_span.lock().unwrap();
         let mut spans = self.spans.lock().unwrap();
         spans.insert(span_id, span);
-
-        // Update active span
-        *self.active_span.lock().unwrap() = Some(span_id);
+        *active = Some(span_id);
 
         span_id
     }
 
     /// End a span
     pub fn end_span(&self, span_id: u64) {
-        let mut spans = self.spans.lock().unwrap();
-        if let Some(span) = spans.get_mut(&span_id) {
-            span.end_time = Some(current_time_nanos());
-        }
+        // Get the parent_id first, then release spans lock before acquiring active_span lock
+        // This prevents deadlock with set_attribute which acquires locks in opposite order
+        let parent_id = {
+            let mut spans = self.spans.lock().unwrap();
+            if let Some(span) = spans.get_mut(&span_id) {
+                span.end_time = Some(current_time_nanos());
+            }
+            spans.get(&span_id).and_then(|s| s.parent_id)
+        };
 
-        // Restore parent as active span
-        if let Some(span) = spans.get(&span_id) {
-            *self.active_span.lock().unwrap() = span.parent_id;
-        }
+        // Now safely update active_span without holding spans lock
+        *self.active_span.lock().unwrap() = parent_id;
     }
 
     /// Add an event to the active span

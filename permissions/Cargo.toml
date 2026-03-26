@@ -1,11 +1,12 @@
 [package]
 name = "permissions"
 version = "0.2.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "User-Level Permissions and Context plugin implementing RFC-0023"
-license = "MIT OR Apache-2.0"
-authors = ["Skylet Team"]
-repository = "https://github.com/vincents-ai/skylet"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -30,6 +31,8 @@ rand = "0.8"
 password-hash = "0.5"
 subtle = "2.5"
 age = "0.10"
+ed25519-dalek = { workspace = true }
+hex = "0.4"
 
 # HTTP handlers for authentication endpoints
 axum = { workspace = true }

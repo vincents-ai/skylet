@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Secret Reference Resolver - RFC-0006
 //!
@@ -143,7 +143,7 @@ impl SecretResolver {
         if reference.cache && self.caching_enabled {
             let ttl = reference
                 .cache_ttl_seconds
-                .map(|s| Duration::from_secs(s))
+                .map(Duration::from_secs)
                 .unwrap_or(self.default_ttl);
 
             let mut cache = self.cache.write().unwrap();
@@ -246,6 +246,12 @@ impl EnvSecretBackend {
     }
 }
 
+impl Default for EnvSecretBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SecretResolverBackend for EnvSecretBackend {
     fn resolve(&self, path: &str, _key: Option<&str>) -> Result<String, SecretError> {
         std::env::var(path).map_err(|_| SecretError::SecretNotFound {
@@ -269,7 +275,15 @@ impl FileSecretBackend {
             base_path: std::path::PathBuf::from("./secrets"),
         }
     }
+}
 
+impl Default for FileSecretBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileSecretBackend {
     pub fn with_base_path(path: impl Into<std::path::PathBuf>) -> Self {
         Self {
             base_path: path.into(),
@@ -330,7 +344,10 @@ impl SecretResolverBackend for FileSecretBackend {
     }
 }
 
-/// Vault secret backend (stub for HashiCorp Vault integration)
+/// Vault secret backend for HashiCorp Vault integration
+///
+/// Uses Vault KV v2 secret engine. Expects secrets at paths like `secret/data/myapp`.
+/// The response format is `{data: {data: {key: value}}}`.
 pub struct VaultSecretBackend {
     address: Option<String>,
     token: Option<String>,
@@ -354,20 +371,56 @@ impl VaultSecretBackend {
 
 impl SecretResolverBackend for VaultSecretBackend {
     fn resolve(&self, path: &str, key: Option<&str>) -> Result<String, SecretError> {
-        // This is a stub implementation
-        // Real implementation would use vault client
-        let _ = (path, key);
+        let address = self.address.as_ref().ok_or_else(|| SecretError::BackendUnavailable {
+            backend: "vault".to_string(),
+        })?;
+        let token = self.token.as_ref().ok_or_else(|| SecretError::BackendUnavailable {
+            backend: "vault".to_string(),
+        })?;
 
-        if self.address.is_none() || self.token.is_none() {
-            return Err(SecretError::BackendUnavailable {
-                backend: "vault".to_string(),
-            });
+        let url = format!("{}/v1/{}", address.trim_end_matches('/'), path);
+
+        let response = ureq::get(&url)
+            .set("X-Vault-Token", token)
+            .set("X-Vault-Request", "true")
+            .call()
+            .map_err(|e| SecretError::ReadError {
+                path: url.clone(),
+                error: e.to_string(),
+            })?;
+
+        if !(200..300).contains(&response.status()) {
+            return Err(SecretError::SecretNotFound { path: url });
         }
 
-        // In a real implementation, this would make an HTTP request to Vault
-        Err(SecretError::BackendUnavailable {
-            backend: "vault (not implemented)".to_string(),
-        })
+        let json: serde_json::Value = response.into_json().map_err(|e| SecretError::ReadError {
+            path: url.clone(),
+            error: e.to_string(),
+        })?;
+
+        let data: &serde_json::Value = json.get("data").and_then(|d: &serde_json::Value| d.get("data")).ok_or_else(|| {
+            SecretError::ReadError {
+                path: url.clone(),
+                error: "No data field in response".to_string(),
+            }
+        })?;
+
+        if let Some(k) = key {
+            data.get(k)
+                .and_then(|v: &serde_json::Value| v.as_str())
+                .map(|s: &str| s.to_string())
+                .ok_or_else(|| SecretError::KeyNotFound {
+                    path: url,
+                    key: k.to_string(),
+                })
+        } else {
+            data.as_str()
+                .map(|s: &str| s.to_string())
+                .ok_or_else(|| SecretError::ReadError {
+                    path: url,
+                    error: "Secret value is not a string".to_string(),
+                })
+        }
     }
 
     fn is_available(&self) -> bool {
@@ -519,5 +572,29 @@ mod tests {
 
         let cache = resolver.cache.read().unwrap();
         assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_vault_backend_is_available_with_config() {
+        let backend = VaultSecretBackend::with_config("http://localhost:8200", "test-token");
+        assert!(backend.is_available());
+    }
+
+    #[test]
+    fn test_vault_backend_not_available_without_config() {
+        let backend = VaultSecretBackend::new();
+        assert!(!backend.is_available());
+    }
+
+    #[test]
+    fn test_vault_backend_resolve_makes_http_request() {
+        let backend = VaultSecretBackend::with_config("http://localhost:8200", "test-token");
+        let result = backend.resolve("secret/data/myapp", Some("password"));
+        assert!(result.is_err());
+        if let Err(e) = result {
+            if let SecretError::BackendUnavailable { backend } = e {
+                assert!(!backend.contains("not implemented"));
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Dependency Graph Builder and Topological Sort
 //!
@@ -278,15 +278,20 @@ impl DependencyGraph {
         }
 
         // Kahn's algorithm
+        // Edges go from dependent -> dependency (from = dependent, to = dependency).
+        // We want dependencies first, so count in-degree based on the "from" side
+        // (i.e., how many dependencies a node has). Nodes with no dependencies
+        // (root dependencies) start with in-degree 0 and are processed first.
         let mut in_degree: HashMap<PluginId, usize> =
             self.nodes.keys().map(|id| (id.clone(), 0)).collect();
 
-        // Count incoming edges
+        // Count incoming edges: each edge means "from depends on to",
+        // so increment in-degree for the dependent (from) side
         for edge in &self.edges {
-            *in_degree.entry(edge.to.clone()).or_insert(0) += 1;
+            *in_degree.entry(edge.from.clone()).or_insert(0) += 1;
         }
 
-        // Queue of nodes with no incoming edges
+        // Queue of nodes with no dependencies (in-degree 0 = root dependencies)
         let mut queue: VecDeque<PluginId> = in_degree
             .iter()
             .filter(|(_, &deg)| deg == 0)
@@ -298,13 +303,13 @@ impl DependencyGraph {
         while let Some(node_id) = queue.pop_front() {
             result.push(node_id.clone());
 
-            // Reduce in-degree for all dependents
-            if let Some(node) = self.nodes.get(&node_id) {
-                for dep in &node.dependencies {
-                    if let Some(deg) = in_degree.get_mut(&dep.name) {
+            // For each node that depends on the current node, reduce its in-degree
+            if let Some(dependent_ids) = self.dependents.get(&node_id) {
+                for dep_id in dependent_ids {
+                    if let Some(deg) = in_degree.get_mut(dep_id) {
                         *deg -= 1;
                         if *deg == 0 {
-                            queue.push_back(dep.name.clone());
+                            queue.push_back(dep_id.clone());
                         }
                     }
                 }
@@ -321,18 +326,18 @@ impl DependencyGraph {
         Ok(result)
     }
 
-    /// Get the activation order (reverse topological sort)
-    /// This gives the order to activate plugins (dependents before dependencies)
+    /// Get the activation order (topological sort — dependencies before dependents)
+    /// This gives the order to activate plugins (dependencies activated first)
     pub fn activation_order(&self) -> Result<Vec<PluginId>, GraphError> {
+        self.topological_sort()
+    }
+
+    /// Get the deactivation order (reverse topological sort — dependents before dependencies)
+    /// This gives the order to deactivate plugins (dependents deactivated first)
+    pub fn deactivation_order(&self) -> Result<Vec<PluginId>, GraphError> {
         let mut order = self.topological_sort()?;
         order.reverse();
         Ok(order)
-    }
-
-    /// Get the deactivation order (topological sort)
-    /// This gives the order to deactivate plugins (dependencies before dependents)
-    pub fn deactivation_order(&self) -> Result<Vec<PluginId>, GraphError> {
-        self.topological_sort()
     }
 
     /// Find all transitive dependencies of a plugin
@@ -628,7 +633,7 @@ mod tests {
         let mut graph = DependencyGraph::new();
 
         // Dependencies: A -> B -> C
-        // Activation should be: C, B, A (dependents activated first)
+        // Activation should be: C, B, A (dependencies activated first)
         graph.add_plugin(PluginNode::new("c", Version::new(1, 0, 0)));
         graph.add_plugin(
             PluginNode::new("b", Version::new(1, 0, 0)).with_dependency(make_dep("c", "^1.0.0")),
@@ -638,7 +643,7 @@ mod tests {
         );
 
         let order = graph.activation_order().unwrap();
-        assert_eq!(order, vec!["a", "b", "c"]);
+        assert_eq!(order, vec!["c", "b", "a"]);
     }
 
     #[test]
@@ -646,7 +651,7 @@ mod tests {
         let mut graph = DependencyGraph::new();
 
         // Dependencies: A -> B -> C
-        // Deactivation should be: A, B, C (dependencies deactivated first)
+        // Deactivation should be: A, B, C (dependents deactivated first)
         graph.add_plugin(PluginNode::new("c", Version::new(1, 0, 0)));
         graph.add_plugin(
             PluginNode::new("b", Version::new(1, 0, 0)).with_dependency(make_dep("c", "^1.0.0")),
@@ -656,6 +661,6 @@ mod tests {
         );
 
         let order = graph.deactivation_order().unwrap();
-        assert_eq!(order, vec!["c", "b", "a"]);
+        assert_eq!(order, vec!["a", "b", "c"]);
     }
 }

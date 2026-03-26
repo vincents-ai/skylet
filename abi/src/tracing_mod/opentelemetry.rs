@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! OpenTelemetry Integration for RFC-0017
 //!
@@ -28,7 +28,7 @@ pub struct TracerConfig {
 impl Default for TracerConfig {
     fn default() -> Self {
         Self {
-            service_name: "skynet".to_string(),
+            service_name: "skylet".to_string(),
             sampler: SamplerConfig::AlwaysOn,
             exporter: ExporterConfig::disabled(),
         }

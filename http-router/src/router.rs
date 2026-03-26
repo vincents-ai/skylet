@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -39,6 +39,12 @@ pub struct HttpRouter {
 }
 
 static PATH_PARAM_RE: Lazy<Regex> = Lazy::new(|| Regex::new("\\{([a-zA-Z0-9_]+)\\}").unwrap());
+
+impl Default for HttpRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl HttpRouter {
     pub fn new() -> Self {
@@ -316,7 +322,7 @@ mod tests {
             router.register_route(RouteConfig {
                 method: method.clone(),
                 path: "/api/resource".to_string(),
-                handler: create_test_handler(200 + i as u32),
+                handler: create_test_handler(200 + i as i32),
                 description: None,
             });
         }

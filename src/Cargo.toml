@@ -11,6 +11,14 @@ repository = "https://github.com/vincents-ai/skylet"
 name = "skylet"
 path = "main.rs"
 
+[[bin]]
+name = "skylet-lifecycle-cli"
+path = "bin/skylet-lifecycle-cli.rs"
+
+[[bin]]
+name = "skylet-chat"
+path = "bin/skylet-chat.rs"
+
 [lib]
 name = "execution_engine_lib"
 path = "lib.rs"
@@ -28,6 +36,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 clap = { workspace = true }
+async-trait = { workspace = true }
 
 # Time and parsing
 chrono = { workspace = true }
@@ -47,6 +56,38 @@ dirs = { workspace = true }
 
 # Plugin loading
 libloading = { workspace = true }
+
+# Epoch-based memory reclamation for safe hot-reload
+crossbeam-epoch = { workspace = true }
+
+# Lazy static for global registry
+lazy_static = { workspace = true }
+
+# LRU cache for plugin path caching
+lru = { workspace = true }
+
+# Async utilities
+futures = { workspace = true }
+
+# File watching and regex for config hot-reload
+notify = { workspace = true }
+regex = { workspace = true }
+
+# System monitoring for metrics
+sysinfo = "0.30"
+rand = "0.8"
+
+# Security
+ed25519-dalek = { workspace = true }
+signature = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+
+# Additional
+uuid = { workspace = true }
+parking_lot = { workspace = true }
+glob = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

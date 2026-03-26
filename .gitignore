@@ -34,7 +34,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-.zai-token
+
 
 # Logs
 *.log
@@ -54,3 +54,8 @@ result-*
 # Documentation
 /book/
 book/
+
+# Distribution artifacts
+skylet-dist/
+skylet-dist.tar.gz
+*.tar.gz

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Plugin metadata extraction utilities
 //!
@@ -8,8 +8,8 @@
 
 use crate::abi_compat::{
     ABICompatibleInfo, ABIValidationResult, ABIValidator, ABIVersion,
-    CapabilityInfo as ABICapability, DependencyInfo as ABIDependency, MarketplaceMetadata,
-    MaturityLevel, MonetizationModel, PluginCategory, ResourceRequirements,
+    CapabilityInfo as ABICapability, DependencyInfo as ABIDependency, MaturityLevel,
+    PluginCategory, ResourceRequirements,
 };
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -286,7 +286,7 @@ impl PluginMetadata {
         )
     }
 
-    /// Convert to ABI v2.0 compatible info for marketplace integration
+    /// Convert to ABI v2.0 compatible info for registry integration
     pub fn to_abi_compatible(&self) -> Result<ABICompatibleInfo> {
         // Parse ABI version
         let abi_version = ABIVersion::parse(&self.abi_version)?;
@@ -341,8 +341,8 @@ impl PluginMetadata {
             name: self.name.clone(),
             version: self.version.clone(),
             abi_version,
-            skynet_version_min: None,
-            skynet_version_max: None,
+            skylet_version_min: None,
+            skylet_version_max: None,
             maturity_level: MaturityLevel::Alpha, // Default to alpha until specified
             category: PluginCategory::Utility,    // Default category
             author: self.authors.as_ref().and_then(|a| a.first().cloned()),
@@ -351,15 +351,6 @@ impl PluginMetadata {
             capabilities,
             dependencies,
             resources,
-            marketplace: MarketplaceMetadata {
-                repository: self.repository.clone(),
-                documentation: self.documentation.clone(),
-                support_url: None,
-                monetization: MonetizationModel::Free,
-                price_cents: None,
-                platforms: vec![],
-                custom: Default::default(),
-            },
         })
     }
 

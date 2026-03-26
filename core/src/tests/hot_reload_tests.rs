@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Hot-Reload Service Tests - RFC-0007
 //!
@@ -8,9 +8,8 @@
 #[cfg(test)]
 mod hot_reload_tests {
     use std::path::PathBuf;
-    
-    // Note: These tests require the marketplace-app crate to be available
-    // which provides the HotReloadService. The tests verify:
+
+    // Note: These tests verify the HotReloadService functionality:
     // 1. Service creation and configuration
     // 2. Plugin watching registration
     // 3. Event subscription
@@ -30,7 +29,7 @@ mod hot_reload_tests {
         // - max_retries: 3 for failed reloads
         let expected_debounce = 500u64;
         let expected_retries = 3u32;
-        
+
         assert!(expected_debounce > 0, "Debounce should be positive");
         assert!(expected_retries > 0, "Max retries should be positive");
     }
@@ -43,11 +42,11 @@ mod hot_reload_tests {
         // - timestamp: chrono::DateTime<chrono::Utc>
         // - plugin_version: String
         // - checksum: String
-        
+
         let _plugin_id = "test-plugin".to_string();
         let state_data = br#"{"connections":5}"#.to_vec();
         let _plugin_version = "1.0.0".to_string();
-        
+
         // Verify checksum is deterministic
         let checksum1 = format!("{:x}", simple_hash(&state_data));
         let checksum2 = format!("{:x}", simple_hash(&state_data));
@@ -63,11 +62,11 @@ mod hot_reload_tests {
         // - ReloadCompleted { plugin_id, result }
         // - ReloadFailed { plugin_id, error }
         // - RollbackPerformed { plugin_id, reason }
-        
+
         // Test that we can construct meaningful events
         let _plugin_id = "test-plugin".to_string();
         let _path = PathBuf::from("/plugins/test.so");
-        
+
         // Events should be clonable for broadcast
         // Events should be debuggable for logging
     }
@@ -83,7 +82,7 @@ mod hot_reload_tests {
         // - duration_ms: u64
         // - error: Option<String>
         // - rolled_back: bool
-        
+
         // Test success case
         let success_result = HotReloadResultTest {
             plugin_id: "test".to_string(),
@@ -98,7 +97,7 @@ mod hot_reload_tests {
         assert!(success_result.success);
         assert!(success_result.state_preserved);
         assert!(!success_result.rolled_back);
-        
+
         // Test failure case with rollback
         let failed_result = HotReloadResultTest {
             plugin_id: "test".to_string(),
@@ -119,15 +118,15 @@ mod hot_reload_tests {
         // Verify debouncing logic:
         // 1. Multiple rapid changes should be coalesced
         // 2. Only changes after debounce_ms should trigger reload
-        
+
         use std::time::{Duration, Instant};
-        
+
         let debounce_ms = 500u64;
         let debounce_duration = Duration::from_millis(debounce_ms);
-        
+
         let first_seen = Instant::now();
         let last_seen = first_seen + Duration::from_millis(100);
-        
+
         // Simulate rapid changes within debounce window
         let should_reload = last_seen.elapsed() >= debounce_duration;
         assert!(!should_reload, "Should not reload during debounce window");
@@ -138,11 +137,14 @@ mod hot_reload_tests {
         // Verify checksum detects state corruption
         let original_data = b"original state";
         let modified_data = b"modified state";
-        
+
         let checksum1 = simple_hash(original_data);
         let checksum2 = simple_hash(modified_data);
-        
-        assert_ne!(checksum1, checksum2, "Different data should have different checksums");
+
+        assert_ne!(
+            checksum1, checksum2,
+            "Different data should have different checksums"
+        );
     }
 
     /// Simple hash function for testing

@@ -1,9 +1,9 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Registry integration for plugin-packager
 //!
-//! This module provides integration with the marketplace registry system,
+//! This module provides integration with the plugin registry system,
 //! allowing plugins to be registered, discovered, and managed through the registry.
 
 use anyhow::{Context, Result};
@@ -130,7 +130,7 @@ impl Default for LocalRegistry {
 fn parse_version(version: &str) -> (u32, u32, u32) {
     let parts: Vec<&str> = version.split('.').collect();
     let major = parts
-        .get(0)
+        .first()
         .and_then(|p| p.parse::<u32>().ok())
         .unwrap_or(0);
     let minor = parts
@@ -187,22 +187,22 @@ impl VersionRequirement {
             return version == req;
         }
 
-        let (op, ver) = if req.starts_with(">=") {
-            (">=", req[2..].trim())
-        } else if req.starts_with(">") {
-            (">", req[1..].trim())
-        } else if req.starts_with("<=") {
-            ("<=", req[2..].trim())
-        } else if req.starts_with("<") {
-            ("<", req[1..].trim())
-        } else if req.starts_with("!=") {
-            ("!=", req[2..].trim())
-        } else if req.starts_with("~") {
+        let (op, ver) = if let Some(stripped) = req.strip_prefix(">=") {
+            (">=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix("<=") {
+            ("<=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix("!=") {
+            ("!=", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('>') {
+            (">", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('<') {
+            ("<", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('~') {
             // ~1.2.3 := >=1.2.3, <1.3.0
-            ("~", req[1..].trim())
-        } else if req.starts_with("^") {
+            ("~", stripped.trim())
+        } else if let Some(stripped) = req.strip_prefix('^') {
             // ^1.2.3 := >=1.2.3, <2.0.0 (caret allows minor/patch changes)
-            ("^", req[1..].trim())
+            ("^", stripped.trim())
         } else {
             ("=", req)
         };

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Security and Capabilities Module - RFC-0008
 //!
@@ -19,7 +19,13 @@ pub mod network;
 pub mod policy;
 
 // Re-export main types for convenience
-pub use capabilities::{CapabilityInfo, CapabilityType, FilesystemAccess, FilesystemAccessMode, NetworkAccess, CommandExecution, CapabilityStatus, CapabilityCheckResult};
-pub use filesystem::{FilesystemEnforcer, PathPermission, FilesystemAccessError};
-pub use network::{NetworkEnforcer, HostPattern, NetworkAccessError, host_matches_pattern};
-pub use policy::{SecurityPolicyEngine, CapabilityApproval, ApprovalStatus, RiskLevel, SecurityPolicy, PolicyError};
+pub use capabilities::{
+    CapabilityCheckResult, CapabilityInfo, CapabilityStatus, CapabilityType, CommandExecution,
+    FilesystemAccess, FilesystemAccessMode, NetworkAccess,
+};
+pub use filesystem::{FilesystemAccessError, FilesystemEnforcer, PathPermission};
+pub use network::{host_matches_pattern, HostPattern, NetworkAccessError, NetworkEnforcer};
+pub use policy::{
+    ApprovalStatus, CapabilityApproval, PolicyError, RiskLevel, SecurityPolicy,
+    SecurityPolicyEngine,
+};

@@ -90,9 +90,11 @@ manager.resolve_secrets()?;
 ### 3. Access Configuration in Plugin
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 // In your plugin_init_v2 function:
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         let ctx = (*context);
         
@@ -106,7 +108,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
             // Use api_key...
         }
     }
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -426,7 +428,7 @@ Configuration files are TOML format with sections for each plugin.
 ### Basic Example
 
 ```toml
-# /etc/skynet/plugins/my-plugin.toml
+# /etc/skylet/plugins/my-plugin.toml
 
 [my-plugin]
 # Basic settings
@@ -455,7 +457,7 @@ retry_strategy = "exponential"
 ### Complete Example
 
 ```toml
-# /etc/skynet/plugins/data-processor.toml
+# /etc/skylet/plugins/data-processor.toml
 
 [data-processor]
 # Plugin identification
@@ -633,11 +635,13 @@ When `reload_on_change: true`:
 Plugins should implement graceful reload:
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 #[no_mangle]
 pub extern "C" fn plugin_on_config_change(
     context: *const PluginContextV2,
     config_json: *const c_char,
-) -> PluginResult {
+) -> PluginResultV2 {
     unsafe {
         let config_str = CStr::from_ptr(config_json)
             .to_string_lossy()
@@ -645,12 +649,12 @@ pub extern "C" fn plugin_on_config_change(
         
         // Parse new configuration
         let new_config: MyConfig = serde_json::from_str(&config_str)
-            .map_err(|_| PluginResult::InvalidRequest)?;
+            .map_err(|_| PluginResultV2::InvalidRequest)?;
         
         // Update internal state
         update_plugin_config(new_config);
         
-        PluginResult::Success
+        PluginResultV2::Success
     }
 }
 ```
@@ -769,9 +773,9 @@ Use environment variables to switch configuration:
 // Plugin code
 let env = env::var("ENVIRONMENT").unwrap_or("development".to_string());
 let config_file = if env == "production" {
-    "/etc/skynet/plugins/prod.toml"
+    "/etc/skylet/plugins/prod.toml"
 } else {
-    "/etc/skynet/plugins/dev.toml"
+    "/etc/skylet/plugins/dev.toml"
 };
 ```
 
@@ -829,13 +833,13 @@ let log_level = config.get("logging.level")?;
 ### Configuration File Not Found
 
 ```
-Error: Failed to read file '/etc/skynet/plugins/my-plugin.toml': No such file or directory
+Error: Failed to read file '/etc/skylet/plugins/my-plugin.toml': No such file or directory
 ```
 
 Solution:
 - Verify file path is correct
 - Check file permissions (must be readable)
-- Create file if missing: `touch /etc/skynet/plugins/my-plugin.toml`
+- Create file if missing: `touch /etc/skylet/plugins/my-plugin.toml`
 
 ### Validation Error: Invalid Value
 

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Service Discovery Module - RFC-0021: Cross-Plugin Service Discovery and RPC
 //!
@@ -21,7 +21,7 @@
 //! let descriptor = ServiceDescriptor {
 //!     name: "kv-store::main".to_string(),
 //!     version: "1.2.0".to_string(),
-//!     interface_spec: "skynet.services.key_value.v1.KeyValue".to_string(),
+//!     interface_spec: "skylet.services.key_value.v1.KeyValue".to_string(),
 //!     provider_plugin: "kv-plugin".to_string(),
 //!     idl: Some("proto/key_value.v1.proto".to_string()),
 //!     capabilities: vec!["get".to_string(), "set".to_string(), "delete".to_string()],
@@ -31,7 +31,7 @@
 //!
 //! // Discover services
 //! let filter = ServiceFilter {
-//!     interface: Some("skynet.services.key_value.v1.KeyValue".to_string()),
+//!     interface: Some("skylet.services.key_value.v1.KeyValue".to_string()),
 //!     min_version: Some("1.0.0".to_string()),
 //!     capability: None,
 //! };
@@ -49,7 +49,7 @@ pub struct ServiceDescriptor {
     pub name: String,
     /// Semantic version of this service implementation (e.g., "1.2.0")
     pub version: String,
-    /// Protobuf interface specification (e.g., "skynet.services.key_value.v1.KeyValue")
+    /// Protobuf interface specification (e.g., "skylet.services.key_value.v1.KeyValue")
     pub interface_spec: String,
     /// Plugin ID providing this service
     pub provider_plugin: String,
@@ -64,7 +64,7 @@ pub struct ServiceDescriptor {
 /// Filter criteria for service discovery queries
 #[derive(Clone, Debug, Default)]
 pub struct ServiceFilter {
-    /// Filter by interface specification (e.g., "skynet.services.key_value.v1.KeyValue")
+    /// Filter by interface specification (e.g., "skylet.services.key_value.v1.KeyValue")
     pub interface: Option<String>,
     /// Minimum version requirement (semver compatible)
     pub min_version: Option<String>,
@@ -183,20 +183,14 @@ impl ServiceDiscovery {
         drop(services);
         {
             let mut iface_idx = self.interface_index.write().unwrap();
-            iface_idx
-                .entry(interface)
-                .or_insert_with(Vec::new)
-                .push(name.clone());
+            iface_idx.entry(interface).or_default().push(name.clone());
         }
 
         // Update capability index
         {
             let mut cap_idx = self.capability_index.write().unwrap();
             for cap in capabilities {
-                cap_idx
-                    .entry(cap)
-                    .or_insert_with(Vec::new)
-                    .push(name.clone());
+                cap_idx.entry(cap).or_default().push(name.clone());
             }
         }
 
@@ -457,7 +451,7 @@ mod tests {
         ServiceDescriptor {
             name: name.to_string(),
             version: version.to_string(),
-            interface_spec: "skynet.services.test.v1.TestService".to_string(),
+            interface_spec: "skylet.services.test.v1.TestService".to_string(),
             provider_plugin: "test-plugin".to_string(),
             idl: Some("proto/test.v1.proto".to_string()),
             capabilities: vec!["read".to_string(), "write".to_string()],
@@ -508,20 +502,20 @@ mod tests {
         let discovery = ServiceDiscovery::new();
 
         let mut desc1 = make_test_descriptor("test::service1", "1.0.0");
-        desc1.interface_spec = "skynet.services.kv.v1.KeyValue".to_string();
+        desc1.interface_spec = "skylet.services.kv.v1.KeyValue".to_string();
 
         let mut desc2 = make_test_descriptor("test::service2", "2.0.0");
-        desc2.interface_spec = "skynet.services.kv.v1.KeyValue".to_string();
+        desc2.interface_spec = "skylet.services.kv.v1.KeyValue".to_string();
 
         let mut desc3 = make_test_descriptor("test::service3", "1.0.0");
-        desc3.interface_spec = "skynet.services.other.v1.Other".to_string();
+        desc3.interface_spec = "skylet.services.other.v1.Other".to_string();
 
         discovery.register(desc1).unwrap();
         discovery.register(desc2).unwrap();
         discovery.register(desc3).unwrap();
 
         let filter = ServiceFilter {
-            interface: Some("skynet.services.kv.v1.KeyValue".to_string()),
+            interface: Some("skylet.services.kv.v1.KeyValue".to_string()),
             ..Default::default()
         };
 
@@ -635,13 +629,13 @@ mod tests {
         let discovery = ServiceDiscovery::new();
 
         let mut desc1 = make_test_descriptor("test::v1", "1.0.0");
-        desc1.interface_spec = "skynet.services.kv.v1.KeyValue".to_string();
+        desc1.interface_spec = "skylet.services.kv.v1.KeyValue".to_string();
 
         let mut desc2 = make_test_descriptor("test::v2", "1.5.0");
-        desc2.interface_spec = "skynet.services.kv.v1.KeyValue".to_string();
+        desc2.interface_spec = "skylet.services.kv.v1.KeyValue".to_string();
 
         let mut desc3 = make_test_descriptor("test::v3", "2.0.0");
-        desc3.interface_spec = "skynet.services.kv.v1.KeyValue".to_string();
+        desc3.interface_spec = "skylet.services.kv.v1.KeyValue".to_string();
 
         discovery.register(desc1).unwrap();
         discovery.register(desc2).unwrap();
@@ -649,7 +643,7 @@ mod tests {
 
         // Find best match for ^1.0.0 should return 1.5.0 (highest in 1.x)
         let best = discovery
-            .find_best_match("skynet.services.kv.v1.KeyValue", "1.0.0")
+            .find_best_match("skylet.services.kv.v1.KeyValue", "1.0.0")
             .unwrap();
 
         // Note: With current implementation, 2.0.0 also matches >=1.0.0

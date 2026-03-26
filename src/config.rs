@@ -1,13 +1,11 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub host: String,
@@ -89,7 +87,7 @@ impl Default for PluginConfig {
             exclude_patterns: vec![
                 "test_plugin".to_string(),
                 "simple_v2_plugin".to_string(),
-                "skynet_sdk_macros".to_string(), // proc-macro, not a plugin
+                "skylet_sdk_macros".to_string(), // proc-macro, not a plugin
             ],
             include_patterns: vec![],
             probe_abi_version: true,
@@ -98,23 +96,12 @@ impl Default for PluginConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
     pub data: DataConfig,
     pub plugins: PluginConfig,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            data: DataConfig::default(),
-            plugins: PluginConfig::default(),
-        }
-    }
 }
 
 impl AppConfig {
@@ -152,10 +139,10 @@ impl AppConfig {
         }
 
         // Load from environment variables
-        if let Ok(host) = std::env::var("SKYNET_SERVER_HOST") {
+        if let Ok(host) = std::env::var("SKYLET_SERVER_HOST") {
             app_config.server.host = host;
         }
-        if let Ok(port) = std::env::var("SKYNET_SERVER_PORT") {
+        if let Ok(port) = std::env::var("SKYLET_SERVER_PORT") {
             if let Ok(port) = port.parse() {
                 app_config.server.port = port;
             }
@@ -202,6 +189,7 @@ impl AppConfig {
         Ok(app_config)
     }
 
+    #[allow(dead_code)] // Config validation — not yet wired up
     pub fn validate(&self) -> Result<()> {
         if self.server.port == 0 {
             return Err(anyhow!("Server port must be greater than 0"));
@@ -214,17 +202,19 @@ impl AppConfig {
         Ok(())
     }
 
+    #[allow(dead_code)] // Config export — not yet wired up
     pub fn export_toml(&self) -> Result<String> {
         toml::to_string_pretty(self).map_err(|e| anyhow!("Failed to export config as TOML: {}", e))
     }
 
+    #[allow(dead_code)] // Config export — not yet wired up
     pub fn export_json(&self) -> Result<String> {
         serde_json::to_string_pretty(self)
             .map_err(|e| anyhow!("Failed to export config as JSON: {}", e))
     }
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Default, Parser)]
 pub struct ConfigArgs {
     #[arg(short, long)]
     pub config: Option<PathBuf>,
@@ -243,19 +233,6 @@ pub struct ConfigArgs {
 
     #[arg(long)]
     pub plugins_directory: Option<PathBuf>,
-}
-
-impl Default for ConfigArgs {
-    fn default() -> Self {
-        Self {
-            config: None,
-            server_host: None,
-            server_port: None,
-            server_workers: None,
-            data_directory: None,
-            plugins_directory: None,
-        }
-    }
 }
 
 #[cfg(test)]

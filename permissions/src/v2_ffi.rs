@@ -1,13 +1,13 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! V2 ABI FFI Interface for Permissions Plugin
 //!
 //! This module implements RFC-0004 v2 ABI for permissions plugin.
 //! Permissions provides authentication, authorization, and user context management.
 
-use skylet_abi;
 use skylet_abi::v2_spec::*;
+use skylet_abi::PluginLogLevel;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering, Ordering as AOrdering};
@@ -28,8 +28,8 @@ const PLUGIN_AUTHOR: &[u8] = b"Skylet Team\0";
 const PLUGIN_LICENSE: &[u8] = b"MIT OR Apache-2.0\0";
 const PLUGIN_HOMEPAGE: &[u8] = b"https://github.com/vincents-ai/skylet\0";
 const PLUGIN_ABI_VERSION: &[u8] = b"2.0\0";
-const PLUGIN_SKYNET_MIN: &[u8] = b"1.0.0\0";
-const PLUGIN_SKYNET_MAX: &[u8] = b"2.0.0\0";
+const PLUGIN_SKYLET_MIN: &[u8] = b"1.0.0\0";
+const PLUGIN_SKYLET_MAX: &[u8] = b"2.0.0\0";
 
 // Plugin tags
 const TAG_AUTH: &[u8] = b"auth\0";
@@ -67,43 +67,43 @@ static INITIALIZED: AtomicBool = AtomicBool::new(false);
 fn init_plugin_info() {
     let capabilities = [
         CapabilityInfo {
-            name: b"auth.authenticate\0".as_ptr() as *const c_char,
-            description: b"Authenticate user with credentials\0".as_ptr() as *const c_char,
+            name: c"auth.authenticate".as_ptr(),
+            description: c"Authenticate user with credentials".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"auth.validate\0".as_ptr() as *const c_char,
-            description: b"Validate session token\0".as_ptr() as *const c_char,
+            name: c"auth.validate".as_ptr(),
+            description: c"Validate session token".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"auth.revoke\0".as_ptr() as *const c_char,
-            description: b"Revoke session token\0".as_ptr() as *const c_char,
+            name: c"auth.revoke".as_ptr(),
+            description: c"Revoke session token".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"authz.check\0".as_ptr() as *const c_char,
-            description: b"Check user permission\0".as_ptr() as *const c_char,
+            name: c"authz.check".as_ptr(),
+            description: c"Check user permission".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"authz.assign_role\0".as_ptr() as *const c_char,
-            description: b"Assign role to user\0".as_ptr() as *const c_char,
+            name: c"authz.assign_role".as_ptr(),
+            description: c"Assign role to user".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"user.register\0".as_ptr() as *const c_char,
-            description: b"Register new user\0".as_ptr() as *const c_char,
+            name: c"user.register".as_ptr(),
+            description: c"Register new user".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"user.context\0".as_ptr() as *const c_char,
-            description: b"Get user context for plugin calls\0".as_ptr() as *const c_char,
+            name: c"user.context".as_ptr(),
+            description: c"Get user context for plugin calls".as_ptr(),
             required_permission: ptr::null(),
         },
         CapabilityInfo {
-            name: b"tenant.create\0".as_ptr() as *const c_char,
-            description: b"Create new tenant\0".as_ptr() as *const c_char,
+            name: c"tenant.create".as_ptr(),
+            description: c"Create new tenant".as_ptr(),
             required_permission: ptr::null(),
         },
     ];
@@ -145,8 +145,8 @@ fn init_plugin_info() {
         license: PLUGIN_LICENSE.as_ptr() as *const c_char,
         homepage: PLUGIN_HOMEPAGE.as_ptr() as *const c_char,
 
-        skynet_version_min: PLUGIN_SKYNET_MIN.as_ptr() as *const c_char,
-        skynet_version_max: PLUGIN_SKYNET_MAX.as_ptr() as *const c_char,
+        skylet_version_min: PLUGIN_SKYLET_MIN.as_ptr() as *const c_char,
+        skylet_version_max: PLUGIN_SKYLET_MAX.as_ptr() as *const c_char,
         abi_version: PLUGIN_ABI_VERSION.as_ptr() as *const c_char,
 
         dependencies: ptr::null(),
@@ -171,11 +171,7 @@ fn init_plugin_info() {
         supports_streaming: false,
         max_concurrency: 100,
 
-        monetization_model: MonetizationModel::Free,
-        price_usd: 0.0,
-        purchase_url: ptr::null(),
-        subscription_url: ptr::null(),
-        marketplace_category: ptr::null(),
+        // Plugin presentation
         tagline: ptr::null(),
         icon_url: ptr::null(),
 
@@ -234,6 +230,7 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -249,11 +246,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin initialized").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
 
         if !ctx.service_registry.is_null() {
@@ -276,6 +269,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
         return PluginResultV2::InvalidRequest;
@@ -287,11 +281,7 @@ pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginR
         if !ctx.logger.is_null() {
             let logger = &*ctx.logger;
             let msg = CString::new("permissions v2 plugin shutting down").unwrap();
-            let _ = (logger.log)(
-                context as *const PluginContextV2,
-                skylet_abi::PluginLogLevel::Info,
-                msg.as_ptr(),
-            );
+            let _ = (logger.log)(context, PluginLogLevel::Info, msg.as_ptr());
         }
     }
 
@@ -345,10 +335,13 @@ pub extern "C" fn plugin_get_metrics_v2(_context: *const PluginContextV2) -> *co
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn plugin_query_capability_v2(
     _context: *const PluginContextV2,
     capability: *const c_char,
 ) -> bool {
+    // SAFETY: Caller must ensure capability is a valid null-terminated C string
+    // This is FFI boundary code where the caller is responsible for pointer validity
     unsafe {
         if capability.is_null() {
             return false;
@@ -383,7 +376,9 @@ pub extern "C" fn plugin_create_v2() -> *const PluginApiV2 {
         get_metrics: Some(plugin_get_metrics_v2),
         query_capability: Some(plugin_query_capability_v2),
         get_config_schema: None,
-        get_billing_metrics: None,
+        serialize_state: None,
+        deserialize_state: None,
+        free_state: None,
     };
 
     &API

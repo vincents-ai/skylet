@@ -6,7 +6,9 @@
 
 A secure, extensible, open-source plugin runtime for autonomous agents and microservices.
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0%20OR%20MIT-blue.svg)](LICENSE-APACHE)
+[![CI](https://github.com/vincents-ai/skylet/actions/workflows/test.yml/badge.svg)](https://github.com/vincents-ai/skylet/actions/workflows/test.yml)
+[![Coverage](https://codecov.io/gh/vincents-ai/skylet/branch/main/graph/badge.svg)](https://codecov.io/gh/vincents-ai/skylet)
 ![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 
@@ -19,7 +21,6 @@ The Skylet execution engine is a beta-stage plugin runtime that enables:
 - **Hot reload support** for zero-downtime updates
 - **Distributed tracing** with OpenTelemetry
 - **Cryptographic operations** with industry-standard algorithms
-- **Multi-instance deployments** with standalone mode
 
 Perfect for building:
 - Autonomous agent systems
@@ -35,7 +36,6 @@ Perfect for building:
 **Security** | Best Practices → [Security Guide](docs/SECURITY.md)
 **Performance** | Optimize → [Performance Tuning](docs/PERFORMANCE.md)
 **Specification** | Technical → [ABI Contract](docs/PLUGIN_CONTRACT.md)
-**Migration** | Upgrade from V1 → [Migration Guide](docs/MIGRATION_GUIDE.md)
 📊 **Stability** | Guarantees → [ABI Stability](docs/ABI_STABILITY.md)
 
 ## ✨ Features
@@ -49,7 +49,7 @@ Perfect for building:
 
 ### Security
 - **Cryptographic Operations**: Ed25519 signatures, AES-GCM encryption, SHA-256
-- **Secret Management**: Vault, environment variables, and file-based secrets
+- **Secret Management**: Environment variables, file-based secrets (HashiCorp Vault available as paid plugin)
 - **Input Validation**: Strict FFI boundary validation
 - **Memory Safety**: RAII patterns and zeroization of sensitive data
 - **Access Control**: Capability-based permission system
@@ -61,7 +61,7 @@ Perfect for building:
 - **Testing Support**: Unit and integration test examples
 - **Performance Tools**: Profiling and benchmarking guidance
 
-### Production Ready
+### Runtime Features
 - **Async/Await**: Tokio-based async runtime
 - **Distributed Tracing**: OpenTelemetry integration (optional)
 - **Observability**: Structured logging with correlation IDs
@@ -146,14 +146,11 @@ See [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) for complete tutorial
 ### Build the Engine
 
 ```bash
-# Default (standalone, no proprietary dependencies)
+# Default (standalone)
 cargo build --release
 
 # With optional distributed tracing
 cargo build --release --features opentelemetry
-
-# Full build (includes proprietary extensions)
-cargo build --release --features proprietary
 ```
 
 ## Documentation
@@ -199,12 +196,6 @@ cargo build --release --features proprietary
    - Compatibility promises
    - Support timeline
 
-### Migration
-7. **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Upgrade from V1
-   - Step-by-step instructions
-   - Common issues
-   - Dual compatibility patterns
-
 ## 🏗️ Architecture
 
 ```
@@ -244,11 +235,10 @@ execution-engine/
 
 ## 📊 Project Statistics
 
-- **12 crates** with clear separation of concerns
-- **125 source files** all with Apache 2.0 license headers
-- **1,079 tests** with comprehensive coverage
-- **Zero proprietary dependencies** in standalone mode
-- **Feature-gated support** for advanced features
+- **13 crates** with clear separation of concerns
+- **186 source files** all with MIT OR Apache-2.0 license headers
+- **1,650 tests** with comprehensive coverage
+- **No C library dependencies** - pure Rust with open-source ecosystem
 - **2,500+ lines of documentation**
 
 ## 🔒 Security
@@ -260,10 +250,10 @@ execution-engine/
 - **Argon2**: Password hashing with argon2
 
 ### Secret Management
-- **Vault Integration**: HashiCorp Vault support
 - **Environment Variables**: Development support
 - **File-based Secrets**: Local testing
 - **Memory Zeroization**: Automatic cleanup with zeroize crate
+- **Vault Integration**: HashiCorp Vault support (paid plugin, published separately)
 
 ### FFI Safety
 - **Null Pointer Checking**: All pointers validated
@@ -310,7 +300,7 @@ cargo doc --no-deps --open
 ### Feature Flags
 
 ```bash
-# Standalone mode (default) - no proprietary dependencies
+# Standalone mode (default)
 cargo build --features standalone
 
 # With distributed tracing
@@ -318,9 +308,7 @@ cargo build --features opentelemetry
 
 # Both
 cargo build --features standalone,opentelemetry
-
-# All features (requires proprietary dependencies)
-cargo build --all-features
+```
 ```
 
 ### Supported Platforms
@@ -336,7 +324,7 @@ cargo build --all-features
 
 This project uses [Semantic Versioning](https://semver.org/):
 
-### Current Version: **v0.5.0** (2024-02-20)
+### Current Version: **v0.1.0** (Beta)
 
 #### Stability Guarantees
 - **Beta release** - API may change in v1.0.0
@@ -345,7 +333,7 @@ This project uses [Semantic Versioning](https://semver.org/):
 - **Deprecation grace period**: 1 release minimum
 
 #### Support Timeline
-- **v0.5.0**: Beta release (2024-02-20) - Gather feedback, fix issues
+- **v0.1.0**: Beta release - Gather feedback, fix issues
 - **v1.0.0**: Stable release (TBD) - API stabilization
 - **v2.0.0+**: Future major releases with ABI v2.0 stability
 
@@ -355,34 +343,33 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 We welcome contributions! Please:
 
-1. Read [Security Best Practices](docs/SECURITY.md)
-2. Follow Rust naming conventions (snake_case functions, PascalCase types)
-3. Add tests for new functionality
-4. Update documentation
-5. Sign commits with your GPG key
-
-For detailed guidelines, see CONTRIBUTING.md (coming soon).
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
+2. Read [Security Best Practices](docs/SECURITY.md)
+3. Follow Rust naming conventions (snake_case functions, PascalCase types)
+4. Add tests for new functionality
+5. Update documentation
+6. Sign commits with your GPG key
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0**.
+This project is dual-licensed under **MIT OR Apache-2.0**.
 
-- Full license text: See [LICENSE](LICENSE) file
+- Full license text: See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) files
 - Third-party attributions: See [NOTICE](NOTICE) file
-- All source files include Apache 2.0 header
+- All source files include SPDX license headers
 
 ### Summary
 - ✅ Open source and free for commercial use
-- ✅ Patent protection included
-- ✅ Derivatives must be licensed under Apache 2.0
+- ✅ Patent protection included (Apache-2.0)
+- ✅ Permissive licensing for maximum flexibility
 - ✅ No liability or warranty (use as-is)
 
 ## 📞 Support
 
 ### Getting Help
 - **Documentation**: Start with [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/vincents-ai/skynet/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/vincents-ai/skynet/discussions)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/vincents-ai/skylet/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/vincents-ai/skylet/discussions)
 - **Security**: Report vulnerabilities to `shift+security@someone.section.me` (not public issues)
 
 ### Community
@@ -392,22 +379,17 @@ This project is licensed under the **Apache License 2.0**.
 
 ## Roadmap
 
-### v2.1 (Q3 2024)
+### v1.0 (Planned)
+- API stabilization
+- Production-ready release
+- Comprehensive documentation
+
+### v2.0 (Future)
 - WebAssembly (WASM) plugin support
 - Enhanced metrics collection
-- Additional example plugins
-
-### v2.2 (Q4 2024)
 - Distributed tracing defaults
-- Plugin marketplace integration
-- Performance optimizations
 
-### v2.3 (Q1 2025)
-- Peer-to-peer plugin distribution
-- Cross-instance replication
-- Advanced security policies
-
-### v3.0 (2026+)
+### v3.0 (Future)
 - Breaking changes allowed
 - Next-generation ABI
 - Enhanced clustering
@@ -421,19 +403,10 @@ Special thanks to:
 - **Open Source Maintainers**: Libraries that make this possible
 - **Contributors**: Everyone who helps improve the project
 
-## 📊 Statistics
-
-- **125 source files** - All with Apache 2.0 headers
-- **1,079 tests** - Comprehensive coverage
-- **2,500+ lines** of documentation
-- **14+ configuration** field types
-- **7+ security** best practice guides
-- **Zero** proprietary dependencies (standalone mode)
-
 ---
 
 **Made with ❤️ by Vincents AI**
 
-[Repository](https://github.com/vincents-ai/skynet) | 
-[Issues](https://github.com/vincents-ai/skynet/issues) | 
-[Discussions](https://github.com/vincents-ai/skynet/discussions)
+[Repository](https://github.com/vincents-ai/skylet) | 
+[Issues](https://github.com/vincents-ai/skylet/issues) | 
+[Discussions](https://github.com/vincents-ai/skylet/discussions)

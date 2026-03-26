@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin vulnerability scanning and security auditing
 ///
@@ -33,7 +33,7 @@ impl VulnerabilitySeverity {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "informational" => Some(VulnerabilitySeverity::Informational),
             "low" => Some(VulnerabilitySeverity::Low),
@@ -388,12 +388,12 @@ mod tests {
     }
 
     #[test]
-    fn test_vulnerability_severity_from_str() {
+    fn test_vulnerability_severity_try_parse() {
         assert_eq!(
-            VulnerabilitySeverity::from_str("critical"),
+            VulnerabilitySeverity::try_parse("critical"),
             Some(VulnerabilitySeverity::Critical)
         );
-        assert_eq!(VulnerabilitySeverity::from_str("invalid"), None);
+        assert_eq!(VulnerabilitySeverity::try_parse("invalid"), None);
     }
 
     #[test]

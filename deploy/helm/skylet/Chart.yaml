@@ -1,0 +1,17 @@
+apiVersion: v2
+name: skylet
+description: A secure, extensible plugin runtime for autonomous agents and microservices
+type: application
+version: 0.5.0
+appVersion: "0.5.0"
+keywords:
+  - plugin
+  - runtime
+  - microservices
+  - autonomous-agents
+home: https://github.com/vincents-ai/skylet
+sources:
+  - https://github.com/vincents-ai/skylet
+maintainers:
+  - name: Skylet Team
+    email: team@skylet.dev

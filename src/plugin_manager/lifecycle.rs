@@ -1,7 +1,6 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
 //! Plugin Lifecycle Automation - RFC-0002
 //!
 //! This module implements the complete plugin management workflow with:
@@ -17,6 +16,8 @@
 //! - RFC-0005: Dependency resolution
 //! - RFC-0006: Configuration management
 
+#![allow(dead_code)]
+
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -26,15 +27,12 @@ use tracing::{debug, error, info, warn};
 
 // Integration with RFC-0003 (Package handling)
 use plugin_packager::{
-    extract_artifact, verify_artifact,
-    PluginHealthChecker, PluginRegistryEntry,
-    DependencyResolver, LocalRegistry, SignatureManager,
+    extract_artifact, verify_artifact, DependencyResolver, LocalRegistry, PluginHealthChecker,
+    PluginRegistryEntry, SignatureManager,
 };
 
 // Integration with RFC-0004 (ABI loading)
-use skylet_abi::{
-    PluginLoadPipeline, PluginLoadConfig,
-};
+use skylet_abi::{PluginLoadConfig, PluginLoadPipeline};
 
 /// Plugin status for tracking in the lifecycle manager
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -360,7 +358,10 @@ impl PluginLifecycleManager {
         plugins.insert(plugin_id.clone(), state);
 
         let duration_ms = start.elapsed().as_millis() as u64;
-        info!("Installation complete for '{}' in {}ms", plugin_id, duration_ms);
+        info!(
+            "Installation complete for '{}' in {}ms",
+            plugin_id, duration_ms
+        );
 
         Ok(InstallationResult {
             plugin_id,
@@ -387,23 +388,29 @@ impl PluginLifecycleManager {
         let temp_id = format!("download-{}", chrono::Utc::now().timestamp());
         {
             let mut plugins = self.plugins.write().await;
-            plugins.insert(temp_id.clone(), PluginState {
-                id: temp_id.clone(),
-                name: temp_id.clone(),
-                version: String::new(),
-                status: PluginStatus::Downloading,
-                artifact_path: Some(artifact_path.clone()),
-                install_path: None,
-                dependencies: vec![],
-                health_status: None,
-                last_status_change: chrono::Utc::now(),
-                error_message: None,
-            });
+            plugins.insert(
+                temp_id.clone(),
+                PluginState {
+                    id: temp_id.clone(),
+                    name: temp_id.clone(),
+                    version: String::new(),
+                    status: PluginStatus::Downloading,
+                    artifact_path: Some(artifact_path.clone()),
+                    install_path: None,
+                    dependencies: vec![],
+                    health_status: None,
+                    last_status_change: chrono::Utc::now(),
+                    error_message: None,
+                },
+            );
         }
 
         // Download the artifact
         let client = reqwest::Client::new();
-        let response = client.get(url).send().await
+        let response = client
+            .get(url)
+            .send()
+            .await
             .with_context(|| format!("Downloading from {}", url))?;
 
         if !response.status().is_success() {
@@ -417,7 +424,9 @@ impl PluginLifecycleManager {
             });
         }
 
-        let bytes = response.bytes().await
+        let bytes = response
+            .bytes()
+            .await
             .with_context(|| "Reading download content")?;
 
         std::fs::write(&artifact_path, &bytes)
@@ -444,7 +453,8 @@ impl PluginLifecycleManager {
         // Get current state and install path
         let (install_path, dependencies) = {
             let plugins = self.plugins.read().await;
-            let state = plugins.get(plugin_id)
+            let state = plugins
+                .get(plugin_id)
                 .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
 
             // Check if already active
@@ -458,7 +468,9 @@ impl PluginLifecycleManager {
                 });
             }
 
-            let install_path = state.install_path.clone()
+            let install_path = state
+                .install_path
+                .clone()
                 .ok_or_else(|| anyhow!("Plugin '{}' not installed", plugin_id))?;
 
             (install_path, state.dependencies.clone())
@@ -538,7 +550,10 @@ impl PluginLifecycleManager {
                     }
 
                     let duration_ms = start.elapsed().as_millis() as u64;
-                    info!("Activation complete for '{}' in {}ms", plugin_id, duration_ms);
+                    info!(
+                        "Activation complete for '{}' in {}ms",
+                        plugin_id, duration_ms
+                    );
 
                     Ok(ActivationResult {
                         plugin_id: plugin_id.to_string(),
@@ -602,7 +617,8 @@ impl PluginLifecycleManager {
         // Check current status and get dependencies info
         let dependents = {
             let plugins = self.plugins.read().await;
-            let state = plugins.get(plugin_id)
+            let state = plugins
+                .get(plugin_id)
                 .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
 
             // Check if already deactivated
@@ -616,8 +632,12 @@ impl PluginLifecycleManager {
             }
 
             // Check for dependents
-            plugins.iter()
-                .filter(|(_, s)| s.dependencies.contains(&plugin_id.to_string()) && s.status == PluginStatus::Active)
+            plugins
+                .iter()
+                .filter(|(_, s)| {
+                    s.dependencies.contains(&plugin_id.to_string())
+                        && s.status == PluginStatus::Active
+                })
                 .map(|(id, _)| id.clone())
                 .collect::<Vec<String>>()
         };
@@ -661,7 +681,10 @@ impl PluginLifecycleManager {
         }
 
         let duration_ms = start.elapsed().as_millis() as u64;
-        info!("Deactivation complete for '{}' in {}ms", plugin_id, duration_ms);
+        info!(
+            "Deactivation complete for '{}' in {}ms",
+            plugin_id, duration_ms
+        );
 
         Ok(DeactivationResult {
             plugin_id: plugin_id.to_string(),
@@ -697,7 +720,8 @@ impl PluginLifecycleManager {
         // Get install path before removing
         let (install_path, version) = {
             let mut plugins = self.plugins.write().await;
-            let state = plugins.get_mut(plugin_id)
+            let state = plugins
+                .get_mut(plugin_id)
                 .ok_or_else(|| anyhow!("Plugin '{}' not found", plugin_id))?;
 
             state.status = PluginStatus::Uninstalling;
@@ -728,7 +752,10 @@ impl PluginLifecycleManager {
         }
 
         let duration_ms = start.elapsed().as_millis() as u64;
-        info!("Uninstallation complete for '{}' in {}ms", plugin_id, duration_ms);
+        info!(
+            "Uninstallation complete for '{}' in {}ms",
+            plugin_id, duration_ms
+        );
 
         Ok(UninstallationResult {
             plugin_id: plugin_id.to_string(),
@@ -772,7 +799,8 @@ impl PluginLifecycleManager {
     /// Get plugins by status
     pub async fn get_plugins_by_status(&self, status: PluginStatus) -> Vec<PluginState> {
         let plugins = self.plugins.read().await;
-        plugins.values()
+        plugins
+            .values()
             .filter(|s| s.status == status)
             .cloned()
             .collect()
@@ -926,30 +954,36 @@ mod tests {
         // Manually insert some plugins
         {
             let mut plugins = manager.plugins.write().await;
-            plugins.insert("plugin1".to_string(), PluginState {
-                id: "plugin1".to_string(),
-                name: "plugin1".to_string(),
-                version: "1.0.0".to_string(),
-                status: PluginStatus::Active,
-                artifact_path: None,
-                install_path: None,
-                dependencies: vec![],
-                health_status: None,
-                last_status_change: chrono::Utc::now(),
-                error_message: None,
-            });
-            plugins.insert("plugin2".to_string(), PluginState {
-                id: "plugin2".to_string(),
-                name: "plugin2".to_string(),
-                version: "1.0.0".to_string(),
-                status: PluginStatus::Installed,
-                artifact_path: None,
-                install_path: None,
-                dependencies: vec![],
-                health_status: None,
-                last_status_change: chrono::Utc::now(),
-                error_message: None,
-            });
+            plugins.insert(
+                "plugin1".to_string(),
+                PluginState {
+                    id: "plugin1".to_string(),
+                    name: "plugin1".to_string(),
+                    version: "1.0.0".to_string(),
+                    status: PluginStatus::Active,
+                    artifact_path: None,
+                    install_path: None,
+                    dependencies: vec![],
+                    health_status: None,
+                    last_status_change: chrono::Utc::now(),
+                    error_message: None,
+                },
+            );
+            plugins.insert(
+                "plugin2".to_string(),
+                PluginState {
+                    id: "plugin2".to_string(),
+                    name: "plugin2".to_string(),
+                    version: "1.0.0".to_string(),
+                    status: PluginStatus::Installed,
+                    artifact_path: None,
+                    install_path: None,
+                    dependencies: vec![],
+                    health_status: None,
+                    last_status_change: chrono::Utc::now(),
+                    error_message: None,
+                },
+            );
         }
 
         let active = manager.get_plugins_by_status(PluginStatus::Active).await;

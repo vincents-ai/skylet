@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Network Access Control - RFC-0008
 //!
@@ -61,9 +61,9 @@ impl NetworkEnforcer {
             ],
             blocked_hosts: vec![
                 // Block metadata endpoints that could leak cloud credentials
-                "169.254.169.254".to_string(),  // AWS/GCP/Azure metadata
-                "metadata.google.internal".to_string(),  // GCP metadata
-                "metadata.azure.internal".to_string(),  // Azure metadata
+                "169.254.169.254".to_string(), // AWS/GCP/Azure metadata
+                "metadata.google.internal".to_string(), // GCP metadata
+                "metadata.azure.internal".to_string(), // Azure metadata
             ],
         }
     }
@@ -77,8 +77,9 @@ impl NetworkEnforcer {
     /// Add a single host pattern for a plugin
     pub fn add_permission(&self, plugin_id: &str, pattern: HostPattern) {
         let mut perms = self.permissions.write().unwrap();
-        perms.entry(plugin_id.to_string())
-            .or_insert_with(Vec::new)
+        perms
+            .entry(plugin_id.to_string())
+            .or_default()
             .push(pattern);
     }
 
@@ -105,23 +106,23 @@ impl NetworkEnforcer {
 
         // Check global allowed hosts
         for pattern in &self.global_allowed {
-            if host_matches_pattern(host, &pattern.host) {
-                if pattern.ports.is_empty() || pattern.ports.contains(&port) {
-                    if pattern.protocols.is_empty() || pattern.protocols.iter().any(|p| p == protocol) {
-                        return Ok(());
-                    }
-                }
+            if host_matches_pattern(host, &pattern.host)
+                && (pattern.ports.is_empty() || pattern.ports.contains(&port))
+                && (pattern.protocols.is_empty() || pattern.protocols.iter().any(|p| p == protocol))
+            {
+                return Ok(());
             }
         }
 
         // Check plugin-specific permissions
         let perms = self.permissions.read().unwrap();
-        
+
         if let Some(plugin_perms) = perms.get(plugin_id) {
             for pattern in plugin_perms {
                 // Skip non-approved patterns
-                if pattern.status != CapabilityStatus::Approved 
-                   && pattern.status != CapabilityStatus::AutoApproved {
+                if pattern.status != CapabilityStatus::Approved
+                    && pattern.status != CapabilityStatus::AutoApproved
+                {
                     continue;
                 }
 
@@ -136,8 +137,12 @@ impl NetworkEnforcer {
                 }
 
                 // Check protocol restriction
-                if !pattern.protocols.is_empty() 
-                   && !pattern.protocols.iter().any(|p| p.eq_ignore_ascii_case(protocol)) {
+                if !pattern.protocols.is_empty()
+                    && !pattern
+                        .protocols
+                        .iter()
+                        .any(|p| p.eq_ignore_ascii_case(protocol))
+                {
                     continue;
                 }
 
@@ -202,9 +207,10 @@ pub fn host_matches_pattern(host: &str, pattern: &str) -> bool {
     }
 
     // Wildcard subdomain match (*.example.com)
-    if pattern.starts_with("*.") {
-        let suffix = &pattern[1..]; // Get ".example.com"
-        return host.ends_with(suffix) || host == &pattern[2..]; // matches sub.example.com or example.com
+    if let Some(suffix) = pattern.strip_prefix('*') {
+        // suffix is ".example.com", pattern[2..] would be "example.com"
+        let base_domain = &pattern[2..];
+        return host.ends_with(suffix) || host == base_domain; // matches sub.example.com or example.com
     }
 
     false
@@ -229,11 +235,22 @@ pub enum NetworkAccessError {
 impl std::fmt::Display for NetworkAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NetworkAccessError::PermissionDenied { plugin_id, host, port, protocol } => {
-                write!(f, "Permission denied for plugin {} to connect to {}://{}:{}", plugin_id, protocol, host, port)
+            NetworkAccessError::PermissionDenied {
+                plugin_id,
+                host,
+                port,
+                protocol,
+            } => {
+                write!(
+                    f,
+                    "Permission denied for plugin {} to connect to {}://{}:{}",
+                    plugin_id, protocol, host, port
+                )
             }
             NetworkAccessError::BlockedHost(host) => write!(f, "Host is blocked: {}", host),
-            NetworkAccessError::InvalidPattern(pattern) => write!(f, "Invalid host pattern: {}", pattern),
+            NetworkAccessError::InvalidPattern(pattern) => {
+                write!(f, "Invalid host pattern: {}", pattern)
+            }
         }
     }
 }
@@ -270,56 +287,82 @@ mod tests {
     #[test]
     fn test_check_access_localhost() {
         let enforcer = NetworkEnforcer::new();
-        
+
         // Localhost should be globally allowed
-        assert!(enforcer.check_access("any-plugin", "localhost", 8080, "tcp").is_ok());
-        assert!(enforcer.check_access("any-plugin", "127.0.0.1", 3000, "tcp").is_ok());
+        assert!(enforcer
+            .check_access("any-plugin", "localhost", 8080, "tcp")
+            .is_ok());
+        assert!(enforcer
+            .check_access("any-plugin", "127.0.0.1", 3000, "tcp")
+            .is_ok());
     }
 
     #[test]
     fn test_check_access_blocked() {
         let enforcer = NetworkEnforcer::new();
-        
+
         // Metadata endpoints should be blocked
-        assert!(enforcer.check_access("any-plugin", "169.254.169.254", 80, "tcp").is_err());
-        assert!(enforcer.check_access("any-plugin", "metadata.google.internal", 80, "tcp").is_err());
+        assert!(enforcer
+            .check_access("any-plugin", "169.254.169.254", 80, "tcp")
+            .is_err());
+        assert!(enforcer
+            .check_access("any-plugin", "metadata.google.internal", 80, "tcp")
+            .is_err());
     }
 
     #[test]
     fn test_check_access_with_permission() {
         let enforcer = NetworkEnforcer::new();
-        
-        enforcer.add_permission("github-plugin", HostPattern {
-            host: "api.github.com".to_string(),
-            ports: vec![443],
-            protocols: vec!["https".to_string()],
-            status: CapabilityStatus::Approved,
-        });
-        
+
+        enforcer.add_permission(
+            "github-plugin",
+            HostPattern {
+                host: "api.github.com".to_string(),
+                ports: vec![443],
+                protocols: vec!["https".to_string()],
+                status: CapabilityStatus::Approved,
+            },
+        );
+
         // Should allow approved access
-        assert!(enforcer.check_access("github-plugin", "api.github.com", 443, "https").is_ok());
-        
+        assert!(enforcer
+            .check_access("github-plugin", "api.github.com", 443, "https")
+            .is_ok());
+
         // Should deny wrong port
-        assert!(enforcer.check_access("github-plugin", "api.github.com", 80, "https").is_err());
-        
+        assert!(enforcer
+            .check_access("github-plugin", "api.github.com", 80, "https")
+            .is_err());
+
         // Should deny wrong host
-        assert!(enforcer.check_access("github-plugin", "github.com", 443, "https").is_err());
+        assert!(enforcer
+            .check_access("github-plugin", "github.com", 443, "https")
+            .is_err());
     }
 
     #[test]
     fn test_check_access_wildcard() {
         let enforcer = NetworkEnforcer::new();
-        
-        enforcer.add_permission("google-plugin", HostPattern {
-            host: "*.google.com".to_string(),
-            ports: vec![443],
-            protocols: vec!["https".to_string()],
-            status: CapabilityStatus::Approved,
-        });
-        
+
+        enforcer.add_permission(
+            "google-plugin",
+            HostPattern {
+                host: "*.google.com".to_string(),
+                ports: vec![443],
+                protocols: vec!["https".to_string()],
+                status: CapabilityStatus::Approved,
+            },
+        );
+
         // Should allow any subdomain
-        assert!(enforcer.check_access("google-plugin", "www.google.com", 443, "https").is_ok());
-        assert!(enforcer.check_access("google-plugin", "api.google.com", 443, "https").is_ok());
-        assert!(enforcer.check_access("google-plugin", "google.com", 443, "https").is_ok());
+        assert!(enforcer
+            .check_access("google-plugin", "www.google.com", 443, "https")
+            .is_ok());
+        assert!(enforcer
+            .check_access("google-plugin", "api.google.com", 443, "https")
+            .is_ok());
+        assert!(enforcer
+            .check_access("google-plugin", "google.com", 443, "https")
+            .is_ok());
     }
 }

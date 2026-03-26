@@ -1,11 +1,12 @@
 [package]
 name = "plugin-packager"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Plugin packaging, signing, validation, and distribution utilities"
-license = "MIT OR Apache-2.0"
-authors = ["Skylet Team"]
-repository = "https://github.com/vincents-ai/skylet"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
@@ -28,5 +29,6 @@ ed25519-dalek = "2.2.0"
 ring = "0.17.14"
 base64 = "0.21"
 tracing = { workspace = true }
- 
+skylet-plugin-common = { path = "../plugins/skylet-plugin-common" }
+
 [dev-dependencies]

@@ -1,9 +1,9 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Remote registry integration for plugin-packager
 //!
-//! This module provides integration with the marketplace registry system,
+//! This module provides integration with the plugin registry system,
 //! allowing plugins to be discovered and managed from remote registries
 //! while maintaining compatibility with the local registry.
 
@@ -122,7 +122,7 @@ impl RemoteRegistry {
         // 4. Cache results with TTL
         // 5. Return results
 
-        // This is designed to be compatible with the marketplace-registry API
+        // This is designed to be compatible with the plugin-registry API
         Ok(Vec::new())
     }
 

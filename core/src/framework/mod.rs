@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Framework module for setting up test environments
 
@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-pub mod service;
 pub mod assertions;
 pub mod database;
+pub mod service;
 
 pub struct TestEnvironment {
     name: String,

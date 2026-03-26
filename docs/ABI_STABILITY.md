@@ -158,11 +158,13 @@ unsafe {
 Engine provides version at initialization:
 
 ```rust
+use skylet_abi::v2_spec::{PluginContextV2, PluginResultV2};
+
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         if context.is_null() {
-            return PluginResult::InvalidRequest;
+            return PluginResultV2::InvalidRequest;
         }
         
         let version = CStr::from_ptr((*context).engine_version);
@@ -172,7 +174,7 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
             _ => { /* unknown version, proceed cautiously */ }
         }
     }
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -208,24 +210,24 @@ struct PluginContextV2 {
 };
 ```
 
-### Example: Skylet Extensions
+### Example: Vendor Extensions
 
-Skylet plugins can use proprietary features through the `vendor_context`:
+Plugins can access vendor-specific features through the `vendor_context`:
 
 ```rust
 unsafe {
     if let Some(context) = PLUGIN_CONTEXT {
         if !(*context).vendor_context.is_null() {
-            // Cast to Skylet-specific context
-            let skylet_ctx = *(context).vendor_context as *mut SkyletExtensionContext;
-            // Use Skylet-specific services
+            // Cast to vendor-specific context
+            let ext_ctx = *(context).vendor_context as *mut VendorExtensionContext;
+            // Use vendor-specific services
         }
     }
 }
 ```
 
 This allows:
-- Skylet-specific plugins to use Skylet services
+- Vendor-specific plugins to use extended services
 - General plugins to remain portable
 - No conflicts or version skew
 
@@ -338,6 +340,5 @@ fn test_with_engine_v2_1() {
 ## See Also
 
 - [Plugin Contract](./PLUGIN_CONTRACT.md)
-- [Migration Guide](./MIGRATION_GUIDE.md)
 - [API Reference](./API_REFERENCE.md)
 - [Changelog](../CHANGELOG.md)

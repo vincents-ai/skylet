@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::v2_spec::PluginResultV2;
 use std::collections::HashMap;
@@ -56,9 +56,13 @@ impl RpcRegistry {
     }
 
     pub fn call(&self, name: &str, request: &[u8]) -> Result<Vec<u8>, PluginResultV2> {
-        let m = self.inner.lock().unwrap();
-        if let Some(entry) = m.get(name) {
-            let (res, resp) = (entry.handler)(request);
+        let handler = {
+            let m = self.inner.lock().unwrap();
+            m.get(name).map(|entry| entry.handler.clone())
+        };
+        
+        if let Some(handler) = handler {
+            let (res, resp) = handler(request);
             match res {
                 PluginResultV2::Success => Ok(resp),
                 e => Err(e),

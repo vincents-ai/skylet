@@ -1,0 +1,35 @@
+# These owners will be the default owners for everything in the repo.
+* @vincents-ai/core-team
+
+# Core engine code
+/core/ @vincents-ai/core-team
+/src/ @vincents-ai/core-team
+
+# Plugin ABI
+/abi/ @vincents-ai/core-team
+
+# Security-sensitive areas
+/permissions/ @vincents-ai/core-team @vincents-ai/security
+/plugins/secrets-manager/ @vincents-ai/core-team @vincents-ai/security
+
+# Documentation
+/docs/ @vincents-ai/docs
+/README.md @vincents-ai/docs
+/CONTRIBUTING.md @vincents-ai/docs
+
+# CI/CD
+/.github/ @vincents-ai/core-team
+
+# Built-in plugins
+/plugins/logging/ @vincents-ai/plugins
+/plugins/registry/ @vincents-ai/plugins
+/plugins/config-manager/ @vincents-ai/plugins
+
+# HTTP Router
+/http-router/ @vincents-ai/networking
+
+# Job Queue
+/job-queue/ @vincents-ai/core-team
+
+# Plugin Packager
+/plugin-packager/ @vincents-ai/plugins

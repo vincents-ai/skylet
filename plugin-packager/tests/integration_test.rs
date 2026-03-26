@@ -1,12 +1,12 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use anyhow::Result;
 use flate2::read::GzDecoder;
 use plugin_packager::{
-    pack_dir, pack_dir_with_target, verify_artifact, BackupManager, DependencyResolver, LocalRegistry, MarketplaceClient,
-    PluginDependency, PluginRegistryEntry, PublishStatus, RegistryPersistence, SearchQuery,
-    SearchSort, SemanticVersion, UpgradeInfo, VersionRequirement,
+    pack_dir, pack_dir_with_target, verify_artifact, BackupManager, DependencyResolver,
+    LocalRegistry, PluginDependency, PluginRegistryEntry, RegistryPersistence, SemanticVersion,
+    UpgradeInfo, VersionRequirement,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -722,149 +722,12 @@ fn test_metadata_abi_validation() -> Result<()> {
     Ok(())
 }
 
-// Marketplace API Client Integration Tests
-
-#[test]
-fn test_marketplace_client_initialization() -> Result<()> {
-    let client = MarketplaceClient::new("https://marketplace.example.com".to_string());
-
-    // Verify client can be created
-    assert_eq!(client.base_url(), "https://marketplace.example.com");
-    assert!(!client.has_auth());
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_client_with_authentication() -> Result<()> {
-    let client = MarketplaceClient::with_auth(
-        "https://marketplace.example.com".to_string(),
-        "test-token-123".to_string(),
-    );
-
-    // Verify client is initialized with auth
-    assert_eq!(client.base_url(), "https://marketplace.example.com");
-    assert!(client.has_auth());
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_search_query_construction() -> Result<()> {
-    let query = SearchQuery {
-        query: Some("web server".to_string()),
-        category: Some("integration".to_string()),
-        tags: Some(vec!["api".to_string(), "http".to_string()]),
-        min_maturity: Some("stable".to_string()),
-        sort: Some(SearchSort::Rating),
-        limit: Some(20),
-        offset: Some(0),
-    };
-
-    // Serialize to verify query can be serialized
-    let json = serde_json::to_string(&query)?;
-    assert!(json.contains("web server"));
-    assert!(json.contains("integration"));
-    assert!(json.contains("api"));
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_search_sorting_options() -> Result<()> {
-    let sorts = vec![
-        SearchSort::Relevance,
-        SearchSort::Downloads,
-        SearchSort::Rating,
-        SearchSort::Recent,
-    ];
-
-    for sort in sorts {
-        let json = serde_json::to_string(&sort)?;
-        assert!(!json.is_empty());
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_publish_status_values() -> Result<()> {
-    let statuses = vec![
-        PublishStatus::Pending,
-        PublishStatus::Verified,
-        PublishStatus::Active,
-        PublishStatus::Rejected,
-        PublishStatus::Suspended,
-    ];
-
-    for status in statuses {
-        let json = serde_json::to_string(&status)?;
-        assert!(!json.is_empty());
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_plugin_rating_calculation() -> Result<()> {
-    use plugin_packager::marketplace::{PluginRating, RatingDistribution};
-
-    let distribution = RatingDistribution {
-        five_star: 100,
-        four_star: 50,
-        three_star: 20,
-        two_star: 5,
-        one_star: 2,
-    };
-
-    let rating = PluginRating {
-        average: 4.45,
-        count: 177,
-        distribution,
-    };
-
-    // Verify ratings can be serialized
-    let json = serde_json::to_string(&rating)?;
-    assert!(json.contains("4.45"));
-    assert!(json.contains("177"));
-
-    Ok(())
-}
-
-#[test]
-fn test_marketplace_multiple_category_search() -> Result<()> {
-    let categories = vec![
-        "integration",
-        "workflow",
-        "database",
-        "devops",
-        "communication",
-    ];
-
-    for category in categories {
-        let query = SearchQuery {
-            query: None,
-            category: Some(category.to_string()),
-            tags: None,
-            min_maturity: None,
-            sort: Some(SearchSort::Downloads),
-            limit: Some(10),
-            offset: Some(0),
-        };
-
-        let json = serde_json::to_string(&query)?;
-        assert!(json.contains(category));
-    }
-
-    Ok(())
-}
-
 // RFC-0003: Cross-Platform Plugin Packaging Tests
 
 #[test]
 fn test_cross_platform_packaging_linux() -> Result<()> {
-    use plugin_packager::{pack_dir, verify_artifact, is_valid_artifact_filename};
     use plugin_packager::platform::Platform;
+    use plugin_packager::{is_valid_artifact_filename, pack_dir, verify_artifact};
 
     let src_dir = tempdir()?;
     let base = src_dir.path();
@@ -901,8 +764,8 @@ description = "Linux test plugin"
 
 #[test]
 fn test_cross_platform_packaging_windows() -> Result<()> {
-    use plugin_packager::{pack_dir, verify_artifact, is_valid_artifact_filename};
     use plugin_packager::platform::Platform;
+    use plugin_packager::{is_valid_artifact_filename, pack_dir, verify_artifact};
 
     let src_dir = tempdir()?;
     let base = src_dir.path();
@@ -939,8 +802,8 @@ description = "Windows test plugin"
 
 #[test]
 fn test_cross_platform_packaging_macos() -> Result<()> {
-    use plugin_packager::{pack_dir, verify_artifact, is_valid_artifact_filename};
     use plugin_packager::platform::Platform;
+    use plugin_packager::{is_valid_artifact_filename, pack_dir, verify_artifact};
 
     let src_dir = tempdir()?;
     let base = src_dir.path();
@@ -977,8 +840,8 @@ description = "macOS test plugin"
 
 #[test]
 fn test_artifact_metadata_parsing() -> Result<()> {
-    use plugin_packager::ArtifactMetadata;
     use plugin_packager::platform::Platform;
+    use plugin_packager::ArtifactMetadata;
 
     // Linux artifact
     let meta = ArtifactMetadata::parse("myplugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz")?;
@@ -1004,8 +867,8 @@ fn test_artifact_metadata_parsing() -> Result<()> {
 
 #[test]
 fn test_artifact_metadata_to_filename() -> Result<()> {
-    use plugin_packager::ArtifactMetadata;
     use plugin_packager::platform::Platform;
+    use plugin_packager::ArtifactMetadata;
 
     let meta = ArtifactMetadata {
         name: "test-plugin".to_string(),
@@ -1027,18 +890,42 @@ fn test_platform_from_target_triple() -> Result<()> {
     use plugin_packager::platform::Platform;
 
     // Linux targets
-    assert_eq!(Platform::from_target_triple("x86_64-unknown-linux-gnu"), Some(Platform::Linux));
-    assert_eq!(Platform::from_target_triple("aarch64-unknown-linux-gnu"), Some(Platform::Linux));
-    assert_eq!(Platform::from_target_triple("i686-unknown-linux-musl"), Some(Platform::Linux));
+    assert_eq!(
+        Platform::from_target_triple("x86_64-unknown-linux-gnu"),
+        Some(Platform::Linux)
+    );
+    assert_eq!(
+        Platform::from_target_triple("aarch64-unknown-linux-gnu"),
+        Some(Platform::Linux)
+    );
+    assert_eq!(
+        Platform::from_target_triple("i686-unknown-linux-musl"),
+        Some(Platform::Linux)
+    );
 
     // Windows targets
-    assert_eq!(Platform::from_target_triple("x86_64-pc-windows-gnu"), Some(Platform::Windows));
-    assert_eq!(Platform::from_target_triple("x86_64-pc-windows-msvc"), Some(Platform::Windows));
-    assert_eq!(Platform::from_target_triple("i686-pc-windows-gnu"), Some(Platform::Windows));
+    assert_eq!(
+        Platform::from_target_triple("x86_64-pc-windows-gnu"),
+        Some(Platform::Windows)
+    );
+    assert_eq!(
+        Platform::from_target_triple("x86_64-pc-windows-msvc"),
+        Some(Platform::Windows)
+    );
+    assert_eq!(
+        Platform::from_target_triple("i686-pc-windows-gnu"),
+        Some(Platform::Windows)
+    );
 
     // macOS targets
-    assert_eq!(Platform::from_target_triple("x86_64-apple-darwin"), Some(Platform::Macos));
-    assert_eq!(Platform::from_target_triple("aarch64-apple-darwin"), Some(Platform::Macos));
+    assert_eq!(
+        Platform::from_target_triple("x86_64-apple-darwin"),
+        Some(Platform::Macos)
+    );
+    assert_eq!(
+        Platform::from_target_triple("aarch64-apple-darwin"),
+        Some(Platform::Macos)
+    );
 
     // Unknown
     assert_eq!(Platform::from_target_triple("unknown-unknown"), None);
@@ -1070,8 +957,8 @@ fn test_artifact_metadata_invalid_cases() -> Result<()> {
 
 #[test]
 fn test_cross_compilation_packaging() -> Result<()> {
-    use plugin_packager::{pack_dir, verify_artifact};
     use plugin_packager::platform::Platform;
+    use plugin_packager::{pack_dir, verify_artifact};
 
     // Test packaging a Windows DLL on Linux (cross-compilation scenario)
     let src_dir = tempdir()?;
@@ -1171,8 +1058,8 @@ abi_version = "2.0"
 
 #[test]
 fn test_pack_dir_includes_optional_changelog() -> Result<()> {
-    use plugin_packager::pack_dir;
     use flate2::read::GzDecoder;
+    use plugin_packager::pack_dir;
     use tar::Archive;
 
     let src_dir = tempdir()?;
@@ -1190,7 +1077,10 @@ abi_version = "2.0"
     fs::write(base.join("README.md"), "Test")?;
     fs::write(base.join("LICENSE"), "MIT")?;
     fs::write(base.join("plugin.so"), b"binary")?;
-    fs::write(base.join("CHANGELOG.md"), "# Changelog\n\n## v1.0.0\n- Initial release")?;
+    fs::write(
+        base.join("CHANGELOG.md"),
+        "# Changelog\n\n## v1.0.0\n- Initial release",
+    )?;
 
     let out_dir = tempdir()?;
     let out_path = out_dir.path().join("with-changelog-1.0.0.tar.gz");
@@ -1209,15 +1099,18 @@ abi_version = "2.0"
             break;
         }
     }
-    assert!(found_changelog, "CHANGELOG.md should be included in artifact");
+    assert!(
+        found_changelog,
+        "CHANGELOG.md should be included in artifact"
+    );
 
     Ok(())
 }
 
 #[test]
 fn test_pack_dir_includes_optional_doc_directory() -> Result<()> {
-    use plugin_packager::pack_dir;
     use flate2::read::GzDecoder;
+    use plugin_packager::pack_dir;
     use tar::Archive;
 
     let src_dir = tempdir()?;
@@ -1291,17 +1184,26 @@ abi_version = "2.0"
     let checksum_path = pack_dir_with_target(base, out_dir.path(), "x86_64-unknown-linux-gnu")?;
 
     // Verify checksum path is correct
-    assert!(checksum_path.file_name().unwrap().to_string_lossy().contains("rfc-test-v2.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256"));
+    assert!(checksum_path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .contains("rfc-test-v2.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256"));
 
     // Verify artifact was created with correct name
-    let artifact_path = out_dir.path().join("rfc-test-v2.0.0-x86_64-unknown-linux-gnu.tar.gz");
-    assert!(artifact_path.exists(), "RFC-0003 compliant artifact should exist");
+    let artifact_path = out_dir
+        .path()
+        .join("rfc-test-v2.0.0-x86_64-unknown-linux-gnu.tar.gz");
+    assert!(
+        artifact_path.exists(),
+        "RFC-0003 compliant artifact should exist"
+    );
 
     Ok(())
 }
 
 // ============================================================================
-// RFC-0003 Task 3: Registry Publishing and skynet-pack CLI Tests
+// RFC-0003 Task 3: Registry Publishing and skylet-pack CLI Tests
 // ============================================================================
 
 /// Test: ArtifactPublisher creation with config
@@ -1310,7 +1212,7 @@ fn test_publish_config_creation() {
     use plugin_packager::publish::{ArtifactPublisher, PublishConfig};
 
     let config = PublishConfig {
-        registry_url: "https://marketplace.example.com".to_string(),
+        registry_url: "https://registry.example.com".to_string(),
         auth_token: "test-token".to_string(),
         skip_verify: false,
         as_draft: false,
@@ -1319,7 +1221,10 @@ fn test_publish_config_creation() {
     };
 
     let publisher = ArtifactPublisher::new(config);
-    assert!(publisher.is_authenticated(), "Publisher should be authenticated with token");
+    assert!(
+        publisher.is_authenticated(),
+        "Publisher should be authenticated with token"
+    );
 }
 
 /// Test: ArtifactPublisher validate method works
@@ -1347,7 +1252,9 @@ abi_version = "2"
     let out_dir = tempdir()?;
     let _checksum = pack_dir_with_target(base, out_dir.path(), "x86_64-unknown-linux-gnu")?;
 
-    let artifact_path = out_dir.path().join("validate-test-v1.0.0-x86_64-unknown-linux-gnu.tar.gz");
+    let artifact_path = out_dir
+        .path()
+        .join("validate-test-v1.0.0-x86_64-unknown-linux-gnu.tar.gz");
     assert!(artifact_path.exists(), "Artifact should be created");
 
     // Create publisher with dummy config
@@ -1396,7 +1303,10 @@ fn test_publish_validate_rejects_invalid_name() -> Result<()> {
 
     // Validate should fail
     let result = publisher.validate(&bad_artifact);
-    assert!(result.is_err(), "Should reject artifact with invalid name format");
+    assert!(
+        result.is_err(),
+        "Should reject artifact with invalid name format"
+    );
 
     Ok(())
 }
@@ -1499,7 +1409,9 @@ abi_version = "2"
     let out_dir = tempdir()?;
     let _checksum = pack_dir_with_target(base, out_dir.path(), "x86_64-pc-windows-gnu")?;
 
-    let artifact_path = out_dir.path().join("metadata-test-v3.2.1-x86_64-pc-windows-gnu.tar.gz");
+    let artifact_path = out_dir
+        .path()
+        .join("metadata-test-v3.2.1-x86_64-pc-windows-gnu.tar.gz");
     assert!(artifact_path.exists(), "Artifact should be created");
 
     let config = PublishConfig {
@@ -1517,24 +1429,17 @@ abi_version = "2"
     // Check metadata is correct
     assert_eq!(local_artifact.metadata.name, "metadata-test");
     assert_eq!(local_artifact.metadata.version, "3.2.1");
-    assert_eq!(local_artifact.metadata.target_triple, "x86_64-pc-windows-gnu");
+    assert_eq!(
+        local_artifact.metadata.target_triple,
+        "x86_64-pc-windows-gnu"
+    );
 
     // Checksum should be 64 hex characters (SHA256)
     assert_eq!(local_artifact.checksum.len(), 64);
-    assert!(local_artifact.checksum.chars().all(|c| c.is_ascii_hexdigit()));
+    assert!(local_artifact
+        .checksum
+        .chars()
+        .all(|c| c.is_ascii_hexdigit()));
 
     Ok(())
-}
-
-/// Test: ArtifactPublisher with_client constructor
-#[test]
-fn test_publish_with_client() {
-    use plugin_packager::marketplace::MarketplaceClient;
-    use plugin_packager::publish::ArtifactPublisher;
-
-    let client = MarketplaceClient::new("https://example.com".to_string());
-    let publisher = ArtifactPublisher::with_client(client);
-
-    // Without auth token, should not be authenticated
-    assert!(!publisher.is_authenticated(), "Should not be authenticated without token");
 }

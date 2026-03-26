@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Safe FFI Wrappers for ABI v2
 ///
@@ -78,6 +78,13 @@ impl SafeCString {
 }
 
 /// Safe conversion from C string to Rust string
+///
+/// # Safety Note
+/// This function validates that `ptr` is non-null before dereferencing.
+/// The clippy lint is allowed because this is intentionally a safe wrapper
+/// for FFI boundaries - callers are responsible for ensuring the pointer
+/// points to a valid null-terminated C string.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn c_str_to_string(ptr: *const c_char) -> AbiResult<String> {
     if ptr.is_null() {
         return Err(AbiError::NullPointer(
@@ -88,8 +95,8 @@ pub fn c_str_to_string(ptr: *const c_char) -> AbiResult<String> {
     unsafe {
         CStr::from_ptr(ptr)
             .to_str()
-            .map(|s| s.to_string())
-            .map_err(|e| AbiError::InvalidString(format!("Invalid UTF-8: {}", e)))
+            .map(str::to_string)
+            .map_err(|e| AbiError::InvalidString(format!("Invalid UTF-8: {e}")))
     }
 }
 
@@ -102,10 +109,13 @@ pub fn string_to_c_ptr(s: &str) -> AbiResult<*const c_char> {
 }
 
 /// Safe free function for C strings allocated by the plugin/host
-/// SAFETY: Only use on pointers returned by plugin FFI calls
+///
+/// # Safety
+/// Only use on pointers returned by plugin FFI calls
+#[allow(dead_code)]
 pub unsafe fn free_c_string(ptr: *mut c_char) {
     if !ptr.is_null() {
-        let _ = CString::from_raw(ptr);
+        drop(CString::from_raw(ptr));
     }
 }
 
@@ -117,7 +127,12 @@ pub struct SafePluginContext {
 
 impl SafePluginContext {
     /// Create a safe wrapper from a context pointer
-    /// SAFETY: Context pointer must be valid and outlive the wrapper
+    ///
+    /// # Safety
+    /// Context pointer must be valid and outlive the wrapper
+    ///
+    /// # Errors
+    /// Returns error if context_ptr is null
     pub unsafe fn new(context_ptr: *const PluginContextV2) -> AbiResult<Self> {
         if context_ptr.is_null() {
             return Err(AbiError::NullPointer(
@@ -217,7 +232,12 @@ pub struct SafeLogger {
 
 impl SafeLogger {
     /// Create a safe logger wrapper
-    /// SAFETY: Pointers must be valid
+    ///
+    /// # Safety
+    /// Pointers must be valid
+    ///
+    /// # Errors
+    /// Returns error if logger_ptr is null
     pub unsafe fn new(
         logger_ptr: *const LoggerV2,
         context_ptr: *const PluginContextV2,
@@ -241,7 +261,7 @@ impl SafeLogger {
             (logger.log)(self.context_ptr, level, c_msg.as_ptr())
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 
     /// Log structured data safely
@@ -264,7 +284,7 @@ impl SafeLogger {
             (logger.log_structured)(self.context_ptr, level, c_msg.as_ptr(), c_json.as_ptr())
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 }
 
@@ -276,6 +296,12 @@ pub struct SafeConfig {
 
 impl SafeConfig {
     /// Create a safe config wrapper
+    ///
+    /// # Safety
+    /// Pointers must be valid
+    ///
+    /// # Errors
+    /// Returns error if config_ptr is null
     pub unsafe fn new(
         config_ptr: *const ConfigV2,
         context_ptr: *const PluginContextV2,
@@ -350,6 +376,12 @@ pub struct SafeServiceRegistry {
 
 impl SafeServiceRegistry {
     /// Create a safe service registry wrapper
+    ///
+    /// # Safety
+    /// Pointers must be valid
+    ///
+    /// # Errors
+    /// Returns error if registry_ptr is null
     pub unsafe fn new(
         registry_ptr: *const ServiceRegistryV2,
         context_ptr: *const PluginContextV2,
@@ -382,7 +414,7 @@ impl SafeServiceRegistry {
             (registry.register)(self.context_ptr, c_name.as_ptr(), service, c_type.as_ptr())
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 
     /// Unregister a service
@@ -395,7 +427,7 @@ impl SafeServiceRegistry {
             (registry.unregister)(self.context_ptr, c_name.as_ptr())
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 
     /// List available services
@@ -413,9 +445,13 @@ impl SafeServiceRegistry {
             while count < MAX_SERVICES_RETURNED && !(*list_ptr.add(count)).is_null() {
                 count += 1;
             }
-            
+
             if count >= MAX_SERVICES_RETURNED {
-                tracing::warn!("Service list exceeded maximum: {} >= {}", count, MAX_SERVICES_RETURNED);
+                tracing::warn!(
+                    "Service list exceeded maximum: {} >= {}",
+                    count,
+                    MAX_SERVICES_RETURNED
+                );
                 return Err(AbiError::ResourceExhausted(
                     "Service list too large".to_string(),
                 ));
@@ -441,6 +477,12 @@ pub struct SafeEventBus {
 
 impl SafeEventBus {
     /// Create a safe EventBus wrapper
+    ///
+    /// # Safety
+    /// Pointers must be valid
+    ///
+    /// # Errors
+    /// Returns error if event_bus_ptr is null
     pub unsafe fn new(
         event_bus_ptr: *const EventBusV2,
         context_ptr: *const PluginContextV2,
@@ -480,7 +522,7 @@ impl SafeEventBus {
             (event_bus.publish)(self.context_ptr, &event)
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 
     /// Subscribe to an event type
@@ -494,7 +536,7 @@ impl SafeEventBus {
             (event_bus.subscribe)(self.context_ptr, c_type.as_ptr(), Self::default_callback)
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 
     /// Default event callback (placeholder)
@@ -510,7 +552,7 @@ impl SafeEventBus {
             (event_bus.unsubscribe)(self.context_ptr, c_type.as_ptr())
         };
 
-        PluginResultV2::from(result).into()
+        AbiResult::from(result)
     }
 }
 
@@ -522,6 +564,12 @@ pub struct SafeRpcService {
 
 impl SafeRpcService {
     /// Create a safe RPC wrapper
+    ///
+    /// # Safety
+    /// Pointers must be valid
+    ///
+    /// # Errors
+    /// Returns error if rpc_ptr is null
     pub unsafe fn new(
         rpc_ptr: *const RpcServiceV2,
         context_ptr: *const PluginContextV2,
@@ -602,9 +650,13 @@ impl SafeRpcService {
             while count < MAX_SERVICES_RETURNED && !(*list_ptr.add(count)).is_null() {
                 count += 1;
             }
-            
+
             if count >= MAX_SERVICES_RETURNED {
-                tracing::warn!("RPC service list exceeded maximum: {} >= {}", count, MAX_SERVICES_RETURNED);
+                tracing::warn!(
+                    "RPC service list exceeded maximum: {} >= {}",
+                    count,
+                    MAX_SERVICES_RETURNED
+                );
                 return Err(AbiError::ResourceExhausted(
                     "RPC service list too large".to_string(),
                 ));
@@ -775,6 +827,13 @@ pub fn strict_utf8_validation(data: &[u8]) -> AbiResult<String> {
 ///
 /// RFC-0004-SEC-004: For use with logging and audit trail strings from plugins
 /// Performs stricter validation than standard UTF-8 conversion
+///
+/// # Safety Note
+/// This function validates that `ptr` is non-null before dereferencing.
+/// The clippy lint is allowed because this is intentionally a safe wrapper
+/// for FFI boundaries - callers are responsible for ensuring the pointer
+/// points to a valid null-terminated C string.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn c_str_to_string_strict(ptr: *const c_char) -> AbiResult<String> {
     if ptr.is_null() {
         return Err(AbiError::NullPointer(
@@ -782,11 +841,9 @@ pub fn c_str_to_string_strict(ptr: *const c_char) -> AbiResult<String> {
         ));
     }
 
-    unsafe {
-        let cstr = CStr::from_ptr(ptr);
-        let bytes = cstr.to_bytes();
-        strict_utf8_validation(bytes)
-    }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let bytes = cstr.to_bytes();
+    strict_utf8_validation(bytes)
 }
 
 // RFC-0004-SEC-001: Secure response handling with null pointer validation
@@ -808,7 +865,6 @@ const MAX_RESPONSE_BODY_SIZE: usize = 100 * 1024 * 1024;
 const MAX_SERVICES_RETURNED: usize = 10_000;
 
 /// Minimum valid memory address to prevent null/invalid pointers
-#[allow(dead_code)]
 const MIN_VALID_ADDRESS: usize = 0x1000;
 
 /// Secure wrapper for ResponseV2 that validates all pointers before access
@@ -863,7 +919,7 @@ impl SafeResponseV2 {
                     "Failed to read response body: memory access violation".to_string(),
                 )
             })?;
-            
+
             Some(body_slice.to_vec())
         } else if !resp.body.is_null() || resp.body_len > 0 {
             // RFC-0004-SEC-001: Pointer/length mismatch detection

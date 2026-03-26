@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Plugin artifact extraction with security checks
 //!
@@ -225,9 +225,10 @@ impl PluginExtractor {
             }
 
             // Check for manifest to extract plugin name/version
-            if entry_path.ends_with("plugin.toml") {
-                let mut content = String::new();
-                entry.read_to_string(&mut content)?;
+            // Read from the extracted file on disk rather than the tar entry,
+            // since extract_file() already consumed the entry's data stream.
+            if entry_path.ends_with("plugin.toml") && dest_path.exists() {
+                let content = fs::read_to_string(&dest_path)?;
                 if let Some((name, version)) = self.parse_manifest_basic(&content)? {
                     plugin_name = name;
                     plugin_version = version;
@@ -343,8 +344,8 @@ impl PluginExtractor {
         }
 
         // Extract file with size validation
-        let mut file = File::create(path)
-            .with_context(|| format!("Creating file {}", path.display()))?;
+        let mut file =
+            File::create(path).with_context(|| format!("Creating file {}", path.display()))?;
 
         let mut bytes_written = 0u64;
         let mut buffer = [0u8; 8192];
@@ -411,8 +412,13 @@ impl PluginExtractor {
         }
 
         // Create symlink
-        std::os::unix::fs::symlink(target, link_path)
-            .with_context(|| format!("Creating symlink {} -> {}", link_path.display(), target.display()))?;
+        std::os::unix::fs::symlink(target, link_path).with_context(|| {
+            format!(
+                "Creating symlink {} -> {}",
+                link_path.display(),
+                target.display()
+            )
+        })?;
 
         Ok(())
     }
@@ -448,15 +454,15 @@ impl PluginExtractor {
                         _ => {}
                     }
                 }
-            } else if !in_package && name.is_empty() && version.is_empty() {
-                // Try flat format
+            } else if !in_package {
+                // Try flat format (top-level keys outside any section)
                 if let Some((key, value)) = trimmed.split_once('=') {
                     let key = key.trim();
                     let value = value.trim().trim_matches('"');
 
                     match key {
-                        "name" => name = value.to_string(),
-                        "version" => version = value.to_string(),
+                        "name" if name.is_empty() => name = value.to_string(),
+                        "version" if version.is_empty() => version = value.to_string(),
                         _ => {}
                     }
                 }
@@ -511,15 +517,28 @@ abi_version = "2.0""#,
         header.set_size(0);
         header.set_cksum();
         builder
-            .append_data(&mut header, Path::new("test-plugin-1.0.0"), std::io::empty())
+            .append_data(
+                &mut header,
+                Path::new("test-plugin-1.0.0"),
+                std::io::empty(),
+            )
             .unwrap();
 
         // Add files
         for (name, content) in [
-            ("plugin.toml", fs::read_to_string(dir.join("plugin.toml")).unwrap()),
-            ("plugin.so", fs::read_to_string(dir.join("plugin.so")).unwrap()),
+            (
+                "plugin.toml",
+                fs::read_to_string(dir.join("plugin.toml")).unwrap(),
+            ),
+            (
+                "plugin.so",
+                fs::read_to_string(dir.join("plugin.so")).unwrap(),
+            ),
             ("LICENSE", fs::read_to_string(dir.join("LICENSE")).unwrap()),
-            ("README.md", fs::read_to_string(dir.join("README.md")).unwrap()),
+            (
+                "README.md",
+                fs::read_to_string(dir.join("README.md")).unwrap(),
+            ),
         ] {
             let mut header = tar::Header::new_gnu();
             header.set_size(content.len() as u64);
@@ -561,9 +580,7 @@ abi_version = "2.0""#,
         let extractor = PluginExtractor::new(config);
 
         // Should reject path traversal
-        assert!(extractor
-            .validate_path(Path::new("../etc/passwd"))
-            .is_err());
+        assert!(extractor.validate_path(Path::new("../etc/passwd")).is_err());
         assert!(extractor
             .validate_path(Path::new("safe/../../../etc/passwd"))
             .is_err());

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Plugin manifest validation framework
 ///
@@ -32,7 +32,7 @@ impl ValidationSeverity {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn try_parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "info" => Some(ValidationSeverity::Info),
             "warning" => Some(ValidationSeverity::Warning),
@@ -100,9 +100,9 @@ impl ValidationReport {
 /// Plugin manifest validator
 pub struct ManifestValidator {
     rules: HashMap<String, ValidationRule>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for validation rules not yet implemented
     max_name_length: usize,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for validation rules not yet implemented
     max_description_length: usize,
 }
 
@@ -456,12 +456,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_severity_from_str() {
+    fn test_validation_severity_try_parse() {
         assert_eq!(
-            ValidationSeverity::from_str("critical"),
+            ValidationSeverity::try_parse("critical"),
             Some(ValidationSeverity::Critical)
         );
-        assert_eq!(ValidationSeverity::from_str("invalid"), None);
+        assert_eq!(ValidationSeverity::try_parse("invalid"), None);
     }
 
     #[test]

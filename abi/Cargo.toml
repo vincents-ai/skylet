@@ -1,11 +1,12 @@
 [package]
 name = "skylet-abi"
 version = "0.2.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Plugin ABI v2 definitions, FFI types, and service interfaces for the Skylet execution engine"
-license = "MIT OR Apache-2.0"
-authors = ["Skylet Team"]
-repository = "https://github.com/vincents-ai/skylet"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "skylet_abi"
@@ -26,7 +27,7 @@ sha2 = "0.10"
 hex = "0.4"
 aes-gcm = "0.10"
 rand = "0.8"
-zeroize = "1.7"
+zeroize = { version = "1.7", features = ["derive"] }
 md5 = "0.7"
 sha1 = "0.10"
 tokio = { workspace = true }
@@ -44,6 +45,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 ed25519-dalek = "2.2"
+ureq = { version = "2.9", features = ["json"] }
 parking_lot = { workspace = true }
  
 # OpenTelemetry (feature-gated)
@@ -58,4 +60,3 @@ default = ["standalone"]
 standalone = []
 opentelemetry = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:opentelemetry-jaeger-propagator", "dep:opentelemetry-semantic-conventions"]
 postgres = []
-proprietary = []

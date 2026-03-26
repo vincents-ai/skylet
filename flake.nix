@@ -7,9 +7,10 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, fenix }:
+  outputs = { self, nixpkgs, fenix, flake-utils }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
@@ -117,6 +118,7 @@
             pkgs.openssl.dev
             pkgs.zlib
             pkgs.mdbook      # For documentation building
+            pkgs.inotify-tools  # For hot reload testing
           ];
           shellHook = ''
             echo "Execution Engine Dev Shell"
@@ -144,6 +146,7 @@
             pkgs.openssl.dev
             pkgs.zlib
             pkgs.mdbook      # For documentation building
+            pkgs.inotify-tools  # For hot reload testing
 
             # The restricted interface - wrapper scripts only
             agentBuild
@@ -204,6 +207,9 @@
 
       checks.${system} = {
         build = self.packages.${system}.default;
+        
+        # Hot reload VM test - run with: nix run .#hydraJobs.x86_64-linux.hotReloadTest
+        # Or manually: nix-build tests/hot-reload-vm.nix
         
         clippy = pkgs.rustPlatform.buildRustPackage {
           pname = "execution-engine-clippy";

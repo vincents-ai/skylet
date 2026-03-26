@@ -1,0 +1,52 @@
+# Stale Issue and PR Management
+# https://github.com/actions/stale
+
+daysUntilStale: 60
+daysUntilClose: 7
+staleLabel: stale
+exemptLabels:
+  - pinned
+  - security
+  - "good first issue"
+  - "help wanted"
+  - "in progress"
+
+# Issues
+staleIssueMessage: |
+  This issue has been automatically marked as stale because it has not had 
+  recent activity. It will be closed if no further activity occurs.
+  
+  If this issue is still relevant:
+  - Add a comment with any new information
+  - Remove the `stale` label
+  
+  Thank you for your contributions to Skylet!
+closeIssueMessage: |
+  This issue has been automatically closed due to inactivity.
+  
+  If you believe this was closed in error, please:
+  - Reopen the issue
+  - Provide updated information
+  
+  We appreciate your interest in improving Skylet!
+
+# Pull Requests
+stalePrMessage: |
+  This pull request has been automatically marked as stale due to inactivity.
+  
+  If this PR is still being worked on:
+  - Push new commits or add a comment
+  - Remove the `stale` label
+  
+  PRs without activity for an extended period may be closed.
+closePrMessage: |
+  This pull request has been automatically closed due to inactivity.
+  
+  If you'd like to continue this work:
+  - Reopen the PR
+  - Ensure it's up to date with the main branch
+  
+  Thank you for your contribution!
+
+# Rate limiting
+operationsPerRun: 30

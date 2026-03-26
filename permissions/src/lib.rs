@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Permissions Plugin - RFC-0023 User-Level Permissions and Context
 //!
@@ -12,7 +12,7 @@
 //!
 //! ## V2 ABI Implementation
 //!
-//! This plugin implements RFC-0004 v2 ABI from the start (production-ready).
+//! This plugin implements RFC-0004 v2 ABI.
 //!
 //! ## HTTP Endpoints (GAP-003)
 //!

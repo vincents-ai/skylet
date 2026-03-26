@@ -1,11 +1,12 @@
 [package]
 name = "execution-engine-core"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Core test framework, service registry, and database utilities for execution engine"
-license = "MIT OR Apache-2.0"
-authors = ["Skylet Team"]
-repository = "https://github.com/vincents-ai/skylet"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "execution_engine_core"

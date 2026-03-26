@@ -1,11 +1,11 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Instance Management Abstraction - RFC-0100 (Phase 2.1)
 //!
 //! This module provides trait-based abstractions for instance identity and lifecycle
 //! management, allowing the execution engine to work with different instance backends
-//! without being tightly coupled to proprietary implementations.
+//! without being tightly coupled to any specific implementation.
 //!
 //! # Overview
 //!
@@ -18,13 +18,12 @@
 //! # Default Implementation
 //!
 //! A `StandaloneInstanceManager` implementation is provided for single-instance
-//! deployments without proprietary cluster or multi-instance management.
+//! deployments without external cluster management.
 //!
-//! # Feature-Gated Proprietary Support
+//! # Extensible Design
 //!
-//! When the `proprietary` feature is enabled, implementations can be swapped to use
-//! proprietary instance management systems like Skynet's zone-based hierarchy and
-//! multi-instance orchestration.
+//! Custom implementations can be swapped in to use alternative instance management
+//! systems (e.g., zone-based hierarchies, multi-instance orchestration).
 //!
 //! # Example
 //!
@@ -46,8 +45,8 @@
 //! # }
 //! ```
 
-use std::collections::HashMap;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use thiserror::Error;
 
 /// Error type for instance management operations
@@ -260,7 +259,9 @@ impl InstanceManager for StandaloneInstanceManager {
     }
 
     async fn get_peer(&self, peer_id: &str) -> InstanceManagementResult<InstancePeerInfo> {
-        Err(InstanceManagementError::InstanceNotFound(peer_id.to_string()))
+        Err(InstanceManagementError::InstanceNotFound(
+            peer_id.to_string(),
+        ))
     }
 
     async fn peer_online(&self, _peer_info: InstancePeerInfo) -> InstanceManagementResult<()> {
@@ -339,16 +340,21 @@ mod tests {
     #[test]
     fn test_metadata_operations() {
         let manager = StandaloneInstanceManager::new("test-id");
-        
-        manager.set_metadata("key1".to_string(), "value1".to_string()).unwrap();
-        assert_eq!(manager.get_metadata().get("key1"), Some(&"value1".to_string()));
+
+        manager
+            .set_metadata("key1".to_string(), "value1".to_string())
+            .unwrap();
+        assert_eq!(
+            manager.get_metadata().get("key1"),
+            Some(&"value1".to_string())
+        );
     }
 
     #[test]
     fn test_capabilities() {
         let manager = StandaloneInstanceManager::new("test-id");
         let capabilities = manager.get_capabilities();
-        
+
         assert!(!capabilities.is_empty());
         assert!(capabilities.contains(&"plugin.load".to_string()));
     }

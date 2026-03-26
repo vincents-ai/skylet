@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerabilities
+    url: mailto:shift+security@someone.section.me
+    about: For critical security issues, please email us directly
+  - name: Discussions
+    url: https://github.com/vincents-ai/skylet/discussions
+    about: Ask questions and discuss ideas
+  - name: Documentation
+    url: https://vincents-ai.github.io/skylet/
+    about: Read the documentation before opening an issue

@@ -12,33 +12,68 @@
 
 - **Secure Plugin Runtime**: Sandboxed execution of untrusted plugins
 - **ABI Stability**: v2.0.0 frozen for backwards compatibility
-- **Production Ready**: 1,079+ tests, zero compiler warnings
-- **Open Source**: Apache 2.0, zero proprietary dependencies
+- **Well Tested**: 1,079+ tests, zero compiler warnings
+- **Open Source**: MIT OR Apache-2.0, zero external dependencies
 - **Performance**: Async/await, efficient job queue, hot reload
 
-### Quick Links
+## Getting Started
 
-- [API Reference](API_REFERENCE.md) - Complete API documentation
-- [Plugin Development](PLUGIN_DEVELOPMENT.md) - Start building plugins
-- [Configuration Reference](CONFIG_REFERENCE.md) - Learn configuration options
-- [Security Guide](SECURITY.md) - Security best practices
-- [Migration Guide](MIGRATION_GUIDE.md) - Upgrade from previous versions
+New to Skylet? Start here:
 
-### Documentation Sections
+| Document | Description |
+|----------|-------------|
+| [Quick Start Guide](QUICK_START.md) | Get running in 5 minutes |
+| [Architecture Overview](ARCHITECTURE.md) | Understand the system |
+| [FAQ](FAQ.md) | Common questions answered |
 
-| Section | Purpose |
-|---------|---------|
-| **Getting Started** | API and plugin development basics |
-| **Core** | ABI, configuration, security, and contracts |
-| **Guides** | Migration, performance tuning, and branding |
+## Plugin Development
 
-### Support
+| Document | Description |
+|----------|-------------|
+| [Plugin Development Guide](PLUGIN_DEVELOPMENT.md) | Complete plugin tutorial |
+| [API Reference](API_REFERENCE.md) | API documentation |
+| [Plugin Contract](PLUGIN_CONTRACT.md) | ABI specification |
+| [ABI Stability](ABI_STABILITY.md) | Version guarantees |
 
-- 📖 [Full Documentation](index.html)
-- 🐛 [Report Issues](https://github.com/vincents-ai/execution-engine/issues)
-- 💬 [Discussions](https://github.com/vincents-ai/execution-engine/discussions)
+## Configuration
 
-### License
+| Document | Description |
+|----------|-------------|
+| [Configuration Reference](CONFIG_REFERENCE.md) | All configuration options |
+| [Advanced Configuration](CONFIGURATION.md) | Schema validation, hot reload |
+
+## Core Systems
+
+| Document | Description |
+|----------|-------------|
+| [Security Guide](SECURITY.md) | Security best practices |
+| [Performance Tuning](PERFORMANCE.md) | Optimization techniques |
+| [Testing Guide](TESTING.md) | Testing strategies |
+| [Event System](EVENTS.md) | Pub-sub communication |
+| [Metrics Collection](METRICS.md) | Observability |
+| [Enhanced Hot Reload](ENHANCED_HOT_RELOAD.md) | Zero-downtime updates |
+
+## Troubleshooting & Support
+
+| Document | Description |
+|----------|-------------|
+| [Troubleshooting Guide](TROUBLESHOOTING.md) | Common issues and solutions |
+| [FAQ](FAQ.md) | Frequently asked questions |
+
+## Resources
+
+| Resource | Description |
+|----------|-------------|
+| [Examples](../examples/README.md) | Example plugins |
+| [Branding Guide](BRANDING.md) | Visual identity guidelines |
+
+## Support
+
+- [Full Documentation](index.html) (mdBook)
+- [Report Issues](https://github.com/vincents-ai/execution-engine/issues)
+- [Discussions](https://github.com/vincents-ai/execution-engine/discussions)
+
+## License
 
 Skylet is licensed under the [Apache 2.0 License](../LICENSE).
 

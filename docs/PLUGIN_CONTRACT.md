@@ -21,7 +21,7 @@ This document defines the contract between plugins and the Execution Engine for 
 
 Every plugin built for Execution Engine ABI v2 must export the following FFI functions. All functions must use `#[no_mangle]` and `extern "C"` calling convention.
 
-### 1. `plugin_init_v2(context: *const PluginContextV2) -> PluginResult`
+### 1. `plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2`
 
 Called when the plugin is loaded by the execution engine.
 
@@ -35,16 +35,16 @@ Called when the plugin is loaded by the execution engine.
 - `context`: Pointer to the plugin context (valid for the plugin's lifetime)
 
 **Returns:**
-- `PluginResult::Success` (0) if initialization succeeded
-- `PluginResult::Error` (-1) for initialization failures
-- `PluginResult::InvalidRequest` (-2) if context is invalid
+- `PluginResultV2::Success` (0) if initialization succeeded
+- `PluginResultV2::Error` (-1) for initialization failures
+- `PluginResultV2::InvalidRequest` (-2) if context is invalid
 
 **Example:**
 ```rust
 #[no_mangle]
-pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResultV2 {
     if context.is_null() {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     
     unsafe {
@@ -53,15 +53,15 @@ pub extern "C" fn plugin_init_v2(context: *const PluginContextV2) -> PluginResul
         
         // Initialize plugin state
         if let Err(e) = initialize_plugin_state() {
-            return PluginResult::Error;
+            return PluginResultV2::Error;
         }
     }
     
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
-### 2. `plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResult`
+### 2. `plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2`
 
 Called when the plugin is unloaded or the engine is shutting down.
 
@@ -75,19 +75,19 @@ Called when the plugin is unloaded or the engine is shutting down.
 - `context`: Pointer to the plugin context
 
 **Returns:**
-- `PluginResult::Success` if shutdown succeeded
-- `PluginResult::Error` if shutdown failed
+- `PluginResultV2::Success` if shutdown succeeded
+- `PluginResultV2::Error` if shutdown failed
 
 **Example:**
 ```rust
 #[no_mangle]
-pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_shutdown_v2(context: *const PluginContextV2) -> PluginResultV2 {
     unsafe {
         PLUGIN_CONTEXT = None;
     }
     
     // Gracefully shut down
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -121,7 +121,7 @@ pub extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {
 }
 ```
 
-### 4. `plugin_handle_request_v2(request: *mut PluginRequestV2, response: *mut PluginResponseV2) -> PluginResult`
+### 4. `plugin_handle_request_v2(request: *mut PluginRequestV2, response: *mut PluginResponseV2) -> PluginResultV2`
 
 Handles service requests from other plugins or the engine.
 
@@ -136,10 +136,10 @@ Handles service requests from other plugins or the engine.
 - `response`: Mutable pointer to the response (must be filled with results)
 
 **Returns:**
-- `PluginResult::Success` if request was handled
-- `PluginResult::Error` for processing errors
-- `PluginResult::InvalidRequest` for malformed requests
-- `PluginResult::Timeout` if processing took too long
+- `PluginResultV2::Success` if request was handled
+- `PluginResultV2::Error` for processing errors
+- `PluginResultV2::InvalidRequest` for malformed requests
+- `PluginResultV2::Timeout` if processing took too long
 
 **Example:**
 ```rust
@@ -147,9 +147,9 @@ Handles service requests from other plugins or the engine.
 pub extern "C" fn plugin_handle_request_v2(
     request: *mut PluginRequestV2,
     response: *mut PluginResponseV2,
-) -> PluginResult {
+) -> PluginResultV2 {
     if request.is_null() || response.is_null() {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     
     unsafe {
@@ -157,11 +157,11 @@ pub extern "C" fn plugin_handle_request_v2(
         // ...
     }
     
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
-### 5. `plugin_prepare_hot_reload_v2(context: *const PluginContextV2) -> PluginResult`
+### 5. `plugin_prepare_hot_reload_v2(context: *const PluginContextV2) -> PluginResultV2`
 
 Called before the plugin is reloaded to allow state migration.
 
@@ -174,20 +174,20 @@ Called before the plugin is reloaded to allow state migration.
 - `context`: Pointer to the plugin context
 
 **Returns:**
-- `PluginResult::Success` if hot reload is safe
-- `PluginResult::Error` if hot reload cannot proceed
-- `PluginResult::NotImplemented` if hot reload is not supported
+- `PluginResultV2::Success` if hot reload is safe
+- `PluginResultV2::Error` if hot reload cannot proceed
+- `PluginResultV2::NotImplemented` if hot reload is not supported
 
 **Example:**
 ```rust
 #[no_mangle]
-pub extern "C" fn plugin_prepare_hot_reload_v2(context: *const PluginContextV2) -> PluginResult {
+pub extern "C" fn plugin_prepare_hot_reload_v2(context: *const PluginContextV2) -> PluginResultV2 {
     // Save any persistent state before reload
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
-### 6. `plugin_init_from_state_v2(context: *const PluginContextV2, state: *const c_char) -> PluginResult`
+### 6. `plugin_init_from_state_v2(context: *const PluginContextV2, state: *const c_char) -> PluginResultV2`
 
 Called after hot reload to restore the plugin state.
 
@@ -201,9 +201,9 @@ Called after hot reload to restore the plugin state.
 - `state`: C-string containing serialized state
 
 **Returns:**
-- `PluginResult::Success` if state was restored
-- `PluginResult::Error` if state is corrupt or incompatible
-- `PluginResult::NotImplemented` if hot reload is not supported
+- `PluginResultV2::Success` if state was restored
+- `PluginResultV2::Error` if state is corrupt or incompatible
+- `PluginResultV2::NotImplemented` if hot reload is not supported
 
 **Example:**
 ```rust
@@ -211,13 +211,13 @@ Called after hot reload to restore the plugin state.
 pub extern "C" fn plugin_init_from_state_v2(
     context: *const PluginContextV2,
     state: *const c_char,
-) -> PluginResult {
+) -> PluginResultV2 {
     if state.is_null() {
-        return PluginResult::InvalidRequest;
+        return PluginResultV2::InvalidRequest;
     }
     
     // Restore state
-    PluginResult::Success
+    PluginResultV2::Success
 }
 ```
 
@@ -232,14 +232,6 @@ Returns a JSON Schema describing the plugin's configuration.
 **Returns:**
 - Pointer to a C-string containing valid JSON Schema
 - Must never return NULL (return empty schema `{}` if no config needed)
-
-### `plugin_get_billing_metrics() -> BillingMetrics`
-
-Returns information about resource usage for billing purposes.
-
-**Returns:**
-- Structure containing CPU, memory, network, and storage usage
-- Should be called periodically to get accurate metrics
 
 ### `plugin_mcp_tools() -> *const MCPToolSchema`
 
@@ -309,7 +301,7 @@ unsafe {
 
 ## Error Codes
 
-Plugins should return appropriate `PluginResult` codes:
+Plugins should return appropriate `PluginResultV2` codes:
 
 | Value | Name | Meaning |
 |-------|------|---------|
@@ -436,7 +428,7 @@ fn test_plugin_exports() {
     // Verify all required symbols are exported
     let lib = dlopen("target/release/my_plugin.so", RTLD_NOW).unwrap();
     
-    let init: extern "C" fn(*const PluginContextV2) -> PluginResult = 
+    let init: extern "C" fn(*const PluginContextV2) -> PluginResultV2 = 
         dlsym(&lib, "plugin_init_v2").unwrap().transmute();
     
     let info: extern "C" fn() -> *const PluginInfoV2 = 
@@ -452,7 +444,7 @@ Use the provided test framework in the `core` crate to test your plugin with a l
 
 ## See Also
 
-- [Plugin Development Guide](../PLUGIN_DEVELOPMENT.md)
-- [ABI Reference](../API_REFERENCE.md)
-- [Security Model](../SECURITY.md)
-- [Configuration Reference](../CONFIG_REFERENCE.md)
+- [Plugin Development Guide](./PLUGIN_DEVELOPMENT.md)
+- [ABI Reference](./API_REFERENCE.md)
+- [Security Model](./SECURITY.md)
+- [Configuration Reference](./CONFIG_REFERENCE.md)

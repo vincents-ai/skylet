@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Job Queue Plugin - Background job processing system
 //!
@@ -10,7 +10,7 @@
 //!
 //! ## V2 ABI Implementation
 //!
-//! This plugin implements RFC-0004 v2 ABI from the start (production-ready).
+//! This plugin implements RFC-0004 v2 ABI.
 
 #[cfg(feature = "plugin")]
 mod v2_ffi;

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Cross-platform plugin artifact support
 //!
@@ -134,10 +134,7 @@ impl ArtifactMetadata {
     pub fn parse(filename: &str) -> Result<Self> {
         // Must end with .tar.gz
         if !filename.ends_with(".tar.gz") {
-            bail!(
-                "Artifact filename must end with .tar.gz: {}",
-                filename
-            );
+            bail!("Artifact filename must end with .tar.gz: {}", filename);
         }
 
         // Strip .tar.gz suffix
@@ -158,19 +155,32 @@ impl ArtifactMetadata {
         // Find the version part (starts with 'v' followed by digit)
         let version_idx = parts
             .iter()
-            .position(|p| p.starts_with('v') && p.len() > 1 && p[1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false))
-            .ok_or_else(|| anyhow::anyhow!(
-                "Artifact filename must contain version with 'v' prefix (e.g., -v1.0.0-)\n\
+            .position(|p| {
+                p.starts_with('v')
+                    && p.len() > 1
+                    && p[1..]
+                        .chars()
+                        .next()
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false)
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Artifact filename must contain version with 'v' prefix (e.g., -v1.0.0-)\n\
                  Got: {}",
-                filename
-            ))?;
+                    filename
+                )
+            })?;
 
         // Name is everything before the version (joined by '-')
         let name = parts[..version_idx].join("-");
 
         // Validate name format
         if name.is_empty() {
-            bail!("Plugin name cannot be empty in artifact filename: {}", filename);
+            bail!(
+                "Plugin name cannot be empty in artifact filename: {}",
+                filename
+            );
         }
         if !name
             .chars()
@@ -179,7 +189,8 @@ impl ArtifactMetadata {
             bail!(
                 "Plugin name must be lowercase with hyphens/underscores only: {}\n\
                  Got: {}",
-                filename, name
+                filename,
+                name
             );
         }
 
@@ -197,10 +208,7 @@ impl ArtifactMetadata {
         }
         for part in &version_parts[..3] {
             if part.parse::<u32>().is_err() {
-                bail!(
-                    "Version parts must be numeric: {}",
-                    version
-                );
+                bail!("Version parts must be numeric: {}", version);
             }
         }
 
@@ -208,16 +216,20 @@ impl ArtifactMetadata {
         let target_triple = parts[version_idx + 1..].join("-");
 
         if target_triple.is_empty() {
-            bail!("Target triple cannot be empty in artifact filename: {}", filename);
+            bail!(
+                "Target triple cannot be empty in artifact filename: {}",
+                filename
+            );
         }
 
         // Detect platform from target triple
-        let platform = Platform::from_target_triple(&target_triple)
-            .ok_or_else(|| anyhow::anyhow!(
+        let platform = Platform::from_target_triple(&target_triple).ok_or_else(|| {
+            anyhow::anyhow!(
                 "Unknown platform in target triple: {}\n\
                  Supported: linux, windows, apple/darwin",
                 target_triple
-            ))?;
+            )
+        })?;
 
         Ok(ArtifactMetadata {
             name,
@@ -324,7 +336,8 @@ mod tests {
 
     #[test]
     fn test_artifact_metadata_parse_linux() {
-        let meta = ArtifactMetadata::parse("myplugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz").unwrap();
+        let meta =
+            ArtifactMetadata::parse("myplugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz").unwrap();
         assert_eq!(meta.name, "myplugin");
         assert_eq!(meta.version, "1.0.0");
         assert_eq!(meta.target_triple, "x86_64-unknown-linux-gnu");
@@ -351,7 +364,9 @@ mod tests {
 
     #[test]
     fn test_artifact_metadata_parse_with_hyphenated_name() {
-        let meta = ArtifactMetadata::parse("my-awesome-plugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz").unwrap();
+        let meta =
+            ArtifactMetadata::parse("my-awesome-plugin-v1.0.0-x86_64-unknown-linux-gnu.tar.gz")
+                .unwrap();
         assert_eq!(meta.name, "my-awesome-plugin");
         assert_eq!(meta.version, "1.0.0");
     }

@@ -1,5 +1,5 @@
 // Copyright 2024 Vincents AI
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! RFC-0004 Phase 6.3.2: Service Registry Clustering
 //!
@@ -9,11 +9,11 @@
 //! - Health checking and automatic recovery
 //! - Cross-node synchronization
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
 use tracing;
 
 /// Health status of a service node
@@ -235,7 +235,11 @@ impl ServiceCluster {
             if node_id == &self.local_node_id {
                 continue;
             }
-            // TODO: Sync with remote node
+        // TODO(#github-issue): Implement remote node sync via HTTP/gRPC
+        // Currently only local node services are available. Remote sync requires:
+        // - HTTP/gRPC client for fetching remote service registries
+        // - Conflict resolution strategy (last-write-wins, CRDT, etc.)
+        // - Authentication/authorization for cross-node communication
         }
 
         if !conflicts.is_empty() {
@@ -318,6 +322,138 @@ impl ServiceCluster {
         services.remove(service_id);
         Ok(())
     }
+
+    /// Sync services from a remote node's service registry.
+    ///
+    /// This method merges remote services into the local registry using
+    /// version vector comparison for conflict detection and last-write-wins
+    /// for conflict resolution.
+    pub async fn sync_from_remote_services(
+        &self,
+        _remote_node_id: &str,
+        remote_services: Vec<ClusterService>,
+    ) -> Result<(), String> {
+        let mut services = self.services.write().await;
+
+        for remote_service in remote_services {
+            match services.get(&remote_service.service_id) {
+                Some(local_service) => {
+                    if Self::detect_version_conflict_static(
+                        &local_service.version_vector,
+                        &remote_service.version_vector,
+                    )
+                    .is_some()
+                    {
+                        let resolved = self.resolve_conflict_last_write_wins_internal(
+                            local_service,
+                            &remote_service,
+                        );
+                        services.insert(resolved.service_id.clone(), resolved);
+                    }
+                }
+                None => {
+                    services.insert(remote_service.service_id.clone(), remote_service);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Detect version conflict between local service and a remote service.
+    ///
+    /// Returns `Some(ServiceConflict)` if the version vectors are concurrent
+    /// (neither dominates the other), indicating a true conflict.
+    pub async fn detect_version_conflict(
+        &self,
+        remote_service: &ClusterService,
+    ) -> Option<ServiceConflict> {
+        let services = self.services.read().await;
+
+        match services.get(&remote_service.service_id) {
+            Some(local_service) => {
+                Self::detect_version_conflict_static(
+                    &local_service.version_vector,
+                    &remote_service.version_vector,
+                )
+                .map(|(vector_a, vector_b)| ServiceConflict {
+                    service_id: remote_service.service_id.clone(),
+                    vector_a,
+                    vector_b,
+                })
+            }
+            None => None,
+        }
+    }
+
+    fn detect_version_conflict_static(
+        local_vector: &HashMap<String, u64>,
+        remote_vector: &HashMap<String, u64>,
+    ) -> Option<(HashMap<String, u64>, HashMap<String, u64>)> {
+        let local_dominates = Self::version_vector_dominates(local_vector, remote_vector);
+        let remote_dominates = Self::version_vector_dominates(remote_vector, local_vector);
+
+        if !local_dominates && !remote_dominates && local_vector != remote_vector {
+            Some((local_vector.clone(), remote_vector.clone()))
+        } else {
+            None
+        }
+    }
+
+    /// Resolve conflict using last-write-wins strategy.
+    ///
+    /// Compares `registered_at` timestamps and returns the service with
+    /// the later timestamp. If equal, remote service wins.
+    pub fn resolve_conflict_last_write_wins(
+        &self,
+        local_service: &ClusterService,
+        remote_service: &ClusterService,
+        _conflict: &ServiceConflict,
+    ) -> ClusterService {
+        self.resolve_conflict_last_write_wins_internal(local_service, remote_service)
+    }
+
+    fn resolve_conflict_last_write_wins_internal(
+        &self,
+        local_service: &ClusterService,
+        remote_service: &ClusterService,
+    ) -> ClusterService {
+        if remote_service.registered_at >= local_service.registered_at {
+            remote_service.clone()
+        } else {
+            local_service.clone()
+        }
+    }
+
+    /// Check if one version vector dominates another.
+    ///
+    /// Returns `true` if `vec_a` dominates `vec_b`, meaning:
+    /// - For all keys, `vec_a[key] >= vec_b[key]`
+    /// - For at least one key, `vec_a[key] > vec_b[key]`
+    pub fn version_vector_dominates(
+        vec_a: &HashMap<String, u64>,
+        vec_b: &HashMap<String, u64>,
+    ) -> bool {
+        let all_keys: std::collections::HashSet<_> = vec_a.keys().chain(vec_b.keys()).collect();
+
+        let mut a_greater_or_equal = true;
+        let mut a_strictly_greater = false;
+
+        for key in all_keys {
+            let val_a = vec_a.get(key).copied().unwrap_or(0);
+            let val_b = vec_b.get(key).copied().unwrap_or(0);
+
+            if val_a < val_b {
+                a_greater_or_equal = false;
+                break;
+            }
+            if val_a > val_b {
+                a_strictly_greater = true;
+            }
+        }
+
+        a_greater_or_equal && a_strictly_greater
+    }
 }
 
 /// Service conflict (version vector divergence)
@@ -350,11 +486,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cluster_initialization() {
-        let cluster = ServiceCluster::new(
-            "node-1",
-            ConsensusType::EventualConsistency,
-            2,
-        );
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         assert_eq!(cluster.local_node_id, "node-1");
         assert_eq!(cluster.quorum_size, 2);
     }
@@ -363,7 +495,7 @@ mod tests {
     async fn test_add_node() {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let node = ServiceNode::new("node-2", "192.168.1.2", 8080);
-        
+
         assert!(cluster.add_node(node).await.is_ok());
     }
 
@@ -378,7 +510,7 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         assert!(cluster.register_service(service).await.is_ok());
     }
 
@@ -393,9 +525,9 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         cluster.register_service(service).await.unwrap();
-        
+
         let found = cluster.discover_services("my-service").await.unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].service_id, "svc-1");
@@ -406,7 +538,7 @@ mod tests {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let mut node = ServiceNode::new("node-2", "192.168.1.2", 8080);
         node.health_status = HealthStatus::Healthy;
-        
+
         cluster.add_node(node).await.unwrap();
         assert!(cluster.health_check().await.is_ok());
     }
@@ -415,9 +547,9 @@ mod tests {
     async fn test_cluster_status() {
         let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
         let node = ServiceNode::new("node-2", "192.168.1.2", 8080);
-        
+
         cluster.add_node(node).await.unwrap();
-        
+
         let status = cluster.get_cluster_status().await.unwrap();
         assert_eq!(status.total_nodes, 1);
         assert_eq!(status.total_services, 0);
@@ -434,11 +566,157 @@ mod tests {
             "192.168.1.1",
             8080,
         );
-        
+
         cluster.register_service(service).await.unwrap();
         cluster.deregister_service("svc-1").await.unwrap();
-        
+
         let services = cluster.list_services().await.unwrap();
         assert_eq!(services.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_sync_remote_node_services() {
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+        let remote_node = ServiceNode::new("node-2", "192.168.1.2", 8080);
+        cluster.add_node(remote_node).await.unwrap();
+
+        let mut remote_service = ClusterService::new(
+            "svc-remote-1",
+            "remote-service",
+            "1.0.0",
+            "node-2",
+            "192.168.1.2",
+            8080,
+        );
+        remote_service.version_vector.insert("node-2".to_string(), 1);
+
+        let remote_services = vec![remote_service.clone()];
+
+        let result = cluster.sync_from_remote_services("node-2", remote_services).await;
+        assert!(result.is_ok());
+
+        let services = cluster.list_services().await.unwrap();
+        assert_eq!(services.len(), 1);
+        assert_eq!(services[0].service_id, "svc-remote-1");
+    }
+
+    #[tokio::test]
+    async fn test_detect_version_conflicts() {
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+
+        let mut local_service = ClusterService::new(
+            "svc-conflict",
+            "conflict-service",
+            "1.0.0",
+            "node-1",
+            "192.168.1.1",
+            8080,
+        );
+        local_service.version_vector.insert("node-1".to_string(), 2);
+        local_service.version_vector.insert("node-2".to_string(), 1);
+
+        let mut remote_service = local_service.clone();
+        remote_service.node_id = "node-2".to_string();
+        remote_service.version_vector.insert("node-1".to_string(), 1);
+        remote_service.version_vector.insert("node-2".to_string(), 2);
+
+        cluster.register_service(local_service).await.unwrap();
+
+        let conflict = cluster.detect_version_conflict(&remote_service).await;
+        assert!(conflict.is_some());
+        let conflict = conflict.unwrap();
+        assert_eq!(conflict.service_id, "svc-conflict");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_conflict_last_write_wins() {
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+
+        let mut local_service = ClusterService::new(
+            "svc-lww",
+            "lww-service",
+            "1.0.0",
+            "node-1",
+            "192.168.1.1",
+            8080,
+        );
+        local_service.registered_at = 1000;
+        local_service.version_vector.insert("node-1".to_string(), 1);
+
+        let mut remote_service = ClusterService::new(
+            "svc-lww",
+            "lww-service",
+            "2.0.0",
+            "node-2",
+            "192.168.1.2",
+            8080,
+        );
+        remote_service.registered_at = 2000;
+        remote_service.version_vector.insert("node-2".to_string(), 1);
+
+        let conflict = ServiceConflict {
+            service_id: "svc-lww".to_string(),
+            vector_a: local_service.version_vector.clone(),
+            vector_b: remote_service.version_vector.clone(),
+        };
+
+        let resolved = cluster.resolve_conflict_last_write_wins(&local_service, &remote_service, &conflict);
+        assert_eq!(resolved.version, "2.0.0");
+        assert_eq!(resolved.node_id, "node-2");
+    }
+
+    #[tokio::test]
+    async fn test_sync_with_conflict_resolution() {
+        let cluster = ServiceCluster::new("node-1", ConsensusType::EventualConsistency, 2);
+
+        let mut local_service = ClusterService::new(
+            "svc-sync",
+            "sync-service",
+            "1.0.0",
+            "node-1",
+            "192.168.1.1",
+            8080,
+        );
+        local_service.registered_at = 1000;
+        local_service.version_vector.insert("node-1".to_string(), 1);
+
+        cluster.register_service(local_service.clone()).await.unwrap();
+
+        let mut remote_service = ClusterService::new(
+            "svc-sync",
+            "sync-service",
+            "2.0.0",
+            "node-2",
+            "192.168.1.2",
+            8080,
+        );
+        remote_service.registered_at = 2000;
+        remote_service.version_vector.insert("node-2".to_string(), 1);
+
+        let result = cluster.sync_from_remote_services("node-2", vec![remote_service]).await;
+        assert!(result.is_ok());
+
+        let service = cluster.get_service("svc-sync").await.unwrap().unwrap();
+        assert_eq!(service.version, "2.0.0");
+    }
+
+    #[tokio::test]
+    async fn test_version_vector_comparison() {
+        let mut vec_a: HashMap<String, u64> = HashMap::new();
+        vec_a.insert("node-1".to_string(), 2);
+        vec_a.insert("node-2".to_string(), 1);
+
+        let mut vec_b: HashMap<String, u64> = HashMap::new();
+        vec_b.insert("node-1".to_string(), 1);
+        vec_b.insert("node-2".to_string(), 2);
+
+        assert!(!ServiceCluster::version_vector_dominates(&vec_a, &vec_b));
+        assert!(!ServiceCluster::version_vector_dominates(&vec_b, &vec_a));
+
+        let mut vec_c: HashMap<String, u64> = HashMap::new();
+        vec_c.insert("node-1".to_string(), 3);
+        vec_c.insert("node-2".to_string(), 2);
+
+        assert!(ServiceCluster::version_vector_dominates(&vec_c, &vec_a));
     }
 }
