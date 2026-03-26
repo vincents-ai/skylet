@@ -69,7 +69,7 @@ The trait-based `KeyManagement` interface allows for different implementations:
 The trait-based `InstanceManager` interface allows for different implementations:
 
 - **Default** (`StandaloneInstanceManager`): Single instance with no clustering
-- **Custom**: Implement the `InstanceManager` trait to integrate with cluster management systems (available as paid plugin) (or use the paid clustering plugin, published separately)
+- **Custom**: Implement the `InstanceManager` trait to integrate with cluster management systems
 
 ## Choosing Features
 
