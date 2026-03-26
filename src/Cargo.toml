@@ -25,9 +25,9 @@ path = "lib.rs"
 
 [dependencies]
 # Core dependencies
-skylet-abi = { path = "../abi" }
-plugin-packager = { path = "../plugin-packager" }
-permissions = { path = "../permissions" }
+skylet-abi = { version = "0.2", path = "../abi" }
+plugin-packager = { version = "0.1", path = "../plugin-packager" }
+permissions = { version = "0.2", path = "../permissions" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

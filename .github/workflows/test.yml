@@ -30,12 +30,6 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: cachix/cachix-action@v15
-        with:
-          name: skylet
-          skipPush: true
-        continue-on-error: true
-
       - name: Cache cargo registry & build
         uses: actions/cache@v4
         with:
@@ -54,7 +48,6 @@ jobs:
 
       - name: Clippy
         run: nix develop --command cargo clippy --all-targets -- -D warnings
-        continue-on-error: true  # Until clippy warnings are fully resolved
 
   test:
     name: Tests
@@ -66,12 +59,6 @@ jobs:
       - uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: cachix/cachix-action@v15
-        with:
-          name: skylet
-          skipPush: true
-        continue-on-error: true
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -105,12 +92,6 @@ jobs:
       - uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: cachix/cachix-action@v15
-        with:
-          name: skylet
-          skipPush: true
-        continue-on-error: true
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -156,4 +137,3 @@ jobs:
         run: nix develop --command cargo doc --no-deps
         env:
           RUSTDOCFLAGS: '-D warnings'
-        continue-on-error: true  # Until doc warnings are fully resolved

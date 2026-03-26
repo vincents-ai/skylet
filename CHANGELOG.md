@@ -41,7 +41,6 @@ This is the first public beta release of the Skylet Execution Engine. The core p
   - Instance metadata management (name, version, state)
   - Role support (Master, Member, Observer, Replica)
   - Peer discovery and zone management
-  - Multi-instance deployment support (paid plugin)
 
 #### Feature Flags
 - **`standalone` flag (default)**: Run with no external dependencies

@@ -49,7 +49,7 @@ Perfect for building:
 
 ### Security
 - **Cryptographic Operations**: Ed25519 signatures, AES-GCM encryption, SHA-256
-- **Secret Management**: Environment variables, file-based secrets (HashiCorp Vault available as paid plugin)
+- **Secret Management**: Environment variables, file-based secrets
 - **Input Validation**: Strict FFI boundary validation
 - **Memory Safety**: RAII patterns and zeroization of sensitive data
 - **Access Control**: Capability-based permission system

@@ -12,7 +12,7 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-skylet-abi = { path = "../abi" }
+skylet-abi = { version = "0.2", path = "../abi" }
 tokio = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }

@@ -9,15 +9,6 @@ members = [
     "plugin-test-harness",
     "permissions",
     "src",
-    "plugins/config-manager",
-    "plugins/logging",
-    "plugins/registry",
-    "plugins/secrets-manager",
-    "plugins/skylet-plugin-common",
-    "plugins/chatbot",
-    "plugins/telegram-bot",
-    "plugins/workflow",
-    "plugins/onboarding",
 ]
 
 [workspace.package]
