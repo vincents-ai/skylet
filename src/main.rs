@@ -24,7 +24,7 @@ use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 
 // GAP-003: Import auth HTTP handlers from permissions crate
-use permissions::http::{auth_router, AuthState};
+use skylet_permissions::http::{auth_router, AuthState};
 
 // Plugin lifecycle orchestrator (wraps discovery, dep resolution, and loading)
 use plugin_manager::lifecycle::{LifecycleConfig, PluginLifecycleManager};

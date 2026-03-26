@@ -1,5 +1,5 @@
 [package]
-name = "job-queue"
+name = "skylet-job-queue"
 version = "0.2.0"
 edition = "2021"
 description = "Background job processing plugin with persistent storage and scheduled execution"
@@ -16,7 +16,7 @@ plugin = []
 crate-type = ["rlib"]
 
 [dependencies]
-skylet-abi = { path = "../abi" }
+skylet-abi = { version = "0.2", path = "../abi" }
 rusqlite = { version = "0.30", features = ["bundled"] }
 base64 = { workspace = true }
 tokio = { workspace = true }

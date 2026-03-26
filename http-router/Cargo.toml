@@ -1,5 +1,5 @@
 [package]
-name = "http-router"
+name = "skylet-http-router"
 version = "0.1.0"
 edition = "2021"
 description = "HTTP routing with regex pattern matching for plugin-provided API endpoints"
@@ -12,7 +12,7 @@ name = "http_router"
 path = "src/lib.rs"
 
 [dependencies]
-skylet-abi = { path = "../abi" }
+skylet-abi = { version = "0.2", path = "../abi" }
 regex = "1"
 once_cell = "1"
 serde_json = { workspace = true }

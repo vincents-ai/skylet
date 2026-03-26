@@ -367,7 +367,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 skylet-abi = {{ version = "0.2" }}
-skylet-plugin-common = {{ version = "0.5" }}
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
 anyhow = "1.0"
@@ -417,109 +416,115 @@ fn get_lib_rs_template(name: &str, _snake_name: &str, template: &str, descriptio
 //!
 //! This plugin was generated with `skylet-plugin plugin new`.
 
-use skylet_plugin_common::{{
-    skylet_plugin_v2, CapabilityBuilder, ServiceInfoBuilder, TagsBuilder,
-    static_cstr, cstr_ptr,
-}};
 use skylet_abi::v2::*;
 use serde_json::json;
 use std::ffi::{{CStr, CString}};
 use std::os::raw::c_char;
 
 // Plugin static strings
-static_cstr!(PLUGIN_NAME, "{name}");
-static_cstr!(PLUGIN_VERSION, "0.1.0");
-static_cstr!(PLUGIN_DESCRIPTION, "{description}");
-static_cstr!(PLUGIN_AUTHOR, "Plugin Author");
+static PLUGIN_NAME: &CStr = unsafe {{ CStr::from_bytes_with_nul(b"{name}\0") }};
+static PLUGIN_VERSION: &CStr = unsafe {{ CStr::from_bytes_with_nul(b"0.1.0\0") }};
+static PLUGIN_DESCRIPTION: &CStr = unsafe {{ CStr::from_bytes_with_nul(b"{description}\0") }};
+static PLUGIN_AUTHOR: &CStr = unsafe {{ CStr::from_bytes_with_nul(b"Plugin Author\0") }};
 
 // Define capabilities
-static CAPABILITIES: &[&CStr] = &[
-    // Add your plugin capabilities here
-    // Example: c"read_config", c"write_data"
-];
+static CAPABILITIES: &[&CStr] = &[];
 
 // Define tags
-static TAGS: &[&CStr] = &[
-    // Add your plugin tags here
-    // Example: c"{template}", c"skylet"
-];
+static TAGS: &[&CStr] = &[];
 
-/// Generate the V2 ABI entry points
-skylet_plugin_v2!(
-    name: PLUGIN_NAME,
-    version: PLUGIN_VERSION,
-    description: PLUGIN_DESCRIPTION,
-    author: PLUGIN_AUTHOR,
+// Plugin state
+static mut PLUGIN_STATE: Option<PluginState> = None;
+
+/// Plugin state storage
+struct PluginState {{
+    context: *const PluginContextV2,
+}}
+
+/// Static plugin info
+static PLUGIN_INFO: PluginInfoV2 = PluginInfoV2 {{
+    name: PluginString {{ ptr: std::ptr::null() }},
+    version: PluginString {{ ptr: std::ptr::null() }},
+    description: PluginString {{ ptr: std::ptr::null() }},
+    author: PluginString {{ ptr: std::ptr::null() }},
     plugin_type: PluginType::{plugin_type},
-    capabilities: CAPABILITIES,
-    tags: TAGS,
-    init: plugin_init_impl,
-    shutdown: plugin_shutdown_impl,
-    execute: plugin_execute_impl,
-);
+    capabilities: PluginStringArray {{ ptr: std::ptr::null(), len: 0 }},
+    tags: PluginStringArray {{ ptr: std::ptr::null(), len: 0 }},
+}};
 
-/// Plugin initialization
-fn plugin_init_impl(_ctx: *const PluginContextV2) -> PluginResultV2 {{
-    // Initialize your plugin state here
-    // Example: set up connections, load config, etc.
+#[no_mangle]
+pub unsafe extern "C" fn plugin_create_v2(ctx: *const PluginContextV2) -> *mut PluginApiV2 {{
+    PLUGIN_STATE = Some(PluginState {{ context: ctx }});
+    Box::new(PluginApiV2 {{
+        get_info: Some(plugin_get_info_v2),
+        init: Some(plugin_init_v2),
+        shutdown: Some(plugin_shutdown_v2),
+        handle_request: Some(plugin_handle_request_v2),
+        destroy: Some(plugin_destroy_v2),
+    }})
+}}
+
+#[no_mangle]
+pub unsafe extern "C" fn plugin_get_info_v2() -> *const PluginInfoV2 {{
+    &PLUGIN_INFO
+}}
+
+#[no_mangle]
+pub unsafe extern "C" fn plugin_init_v2(_ctx: *const PluginContextV2) -> PluginResultV2 {{
     PluginResultV2::Success
 }}
 
-/// Plugin shutdown
-fn plugin_shutdown_impl(_ctx: *const PluginContextV2) -> PluginResultV2 {{
-    // Clean up plugin resources here
-    // Example: close connections, flush buffers, etc.
+#[no_mangle]
+pub unsafe extern "C" fn plugin_shutdown_v2(_ctx: *const PluginContextV2) -> PluginResultV2 {{
     PluginResultV2::Success
 }}
 
-/// Plugin execute - main entry point for plugin actions
-fn plugin_execute_impl(
+#[no_mangle]
+pub unsafe extern "C" fn plugin_handle_request_v2(
     _ctx: *const PluginContextV2,
     action: *const c_char,
     args: *const c_char,
 ) -> *mut c_char {{
-    // Parse action and arguments
     let action_str = if action.is_null() {{
         ""
     }} else {{
-        unsafe {{ CStr::from_ptr(action) }}.to_str().unwrap_or("")
+        CStr::from_ptr(action).to_str().unwrap_or("")
     }};
 
     let args_str = if args.is_null() {{
         "{{}}"
     }} else {{
-        unsafe {{ CStr::from_ptr(args) }}.to_str().unwrap_or("{{}}")
+        CStr::from_ptr(args).to_str().unwrap_or("{{}}")
     }};
 
-    // Parse JSON arguments
     let args_json: serde_json::Value = serde_json::from_str(args_str).unwrap_or(json!({{}}));
 
-    // Handle different actions
     let result = match action_str {{
         "ping" => handle_ping(&args_json),
         "info" => handle_info(),
         _ => Err(format!("Unknown action: {{}}", action_str)),
     }};
 
-    // Convert result to JSON string
     let response = match result {{
         Ok(value) => json!({{ "success": true, "data": value }}),
         Err(error) => json!({{ "success": false, "error": error }}),
     }};
 
-    // Return as C string (caller must free)
     match CString::new(response.to_string()) {{
         Ok(cstr) => cstr.into_raw(),
         Err(_) => std::ptr::null_mut(),
     }}
 }}
 
-/// Handle ping action
+#[no_mangle]
+pub unsafe extern "C" fn plugin_destroy_v2(_api: *mut PluginApiV2) {{
+    PLUGIN_STATE = None;
+}}
+
 fn handle_ping(args: &serde_json::Value) -> Result<serde_json::Value, String> {{
     let message = args.get("message")
         .and_then(|v| v.as_str())
         .unwrap_or("pong");
-    
     Ok(json!({{
         "response": message,
         "plugin": "{name}",
@@ -527,7 +532,6 @@ fn handle_ping(args: &serde_json::Value) -> Result<serde_json::Value, String> {{
     }}))
 }}
 
-/// Handle info action
 fn handle_info() -> Result<serde_json::Value, String> {{
     Ok(json!({{
         "name": "{name}",
@@ -560,7 +564,6 @@ mod tests {{
         name = name,
         description = description,
         plugin_type = plugin_type,
-        template = template,
     )
 }
 

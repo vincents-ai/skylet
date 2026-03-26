@@ -1,5 +1,5 @@
 [package]
-name = "permissions"
+name = "skylet-permissions"
 version = "0.2.0"
 edition = "2021"
 description = "User-Level Permissions and Context plugin implementing RFC-0023"
@@ -11,7 +11,7 @@ repository = "https://github.com/vincents-ai/skylet"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-skylet-abi = { path = "../abi" }
+skylet-abi = { version = "0.2", path = "../abi" }
 tokio = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
