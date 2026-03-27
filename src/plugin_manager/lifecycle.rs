@@ -304,6 +304,16 @@ impl PluginLifecycleManager {
         info!("PluginLifecycleManager: PluginManager reference set");
     }
 
+    /// Get the PluginManager reference (HR-ARCH-2)
+    ///
+    /// Returns the PluginManager for hot-reload state serialization operations.
+    pub fn get_plugin_manager(&self) -> Option<Arc<PluginManager>> {
+        self.plugin_manager
+            .blocking_read()
+            .as_ref()
+            .cloned()
+    }
+
     /// Register an already-loaded plugin for hot-reload tracking
     /// This is used when plugins are loaded by PluginManager in main.rs
     /// and need to be tracked by the lifecycle manager for hot reload.

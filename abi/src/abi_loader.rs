@@ -109,6 +109,7 @@ pub struct PluginDependencyEntry {
 }
 
 /// ABI V2 Plugin Loader
+#[allow(dead_code)]
 pub struct AbiV2PluginLoader {
     #[allow(dead_code)] // Must be kept alive to maintain valid FFI function pointers
     library: Library,
@@ -121,6 +122,12 @@ pub struct AbiV2PluginLoader {
     metrics_fn: Option<PluginGetMetricsFnV2>,
     /// Configuration schema function - Optional (RFC-0006)
     config_schema_fn: Option<PluginGetConfigSchemaJsonFn>,
+    /// State serialization function - Optional (HR-ARCH-2)
+    serialize_state_fn: Option<PluginSerializeStateFnV2>,
+    /// State deserialization function - Optional (HR-ARCH-2)
+    deserialize_state_fn: Option<PluginDeserializeStateFnV2>,
+    /// Free state memory function - Optional (HR-ARCH-2)
+    free_state_fn: Option<PluginFreeStateFnV2>,
 }
 
 impl AbiV2PluginLoader {
@@ -226,6 +233,28 @@ impl AbiV2PluginLoader {
                 .map(|sym| *(addr_of!(*sym) as *const _))
         };
 
+        // Load optional state transfer functions (HR-ARCH-2)
+        let serialize_state_fn: Option<PluginSerializeStateFnV2> = unsafe {
+            library
+                .get::<Symbol<PluginSerializeStateFnV2>>(b"plugin_serialize_state_v2")
+                .ok()
+                .map(|sym| *(addr_of!(*sym) as *const _))
+        };
+
+        let deserialize_state_fn: Option<PluginDeserializeStateFnV2> = unsafe {
+            library
+                .get::<Symbol<PluginDeserializeStateFnV2>>(b"plugin_deserialize_state_v2")
+                .ok()
+                .map(|sym| *(addr_of!(*sym) as *const _))
+        };
+
+        let free_state_fn: Option<PluginFreeStateFnV2> = unsafe {
+            library
+                .get::<Symbol<PluginFreeStateFnV2>>(b"plugin_free_state_v2")
+                .ok()
+                .map(|sym| *(addr_of!(*sym) as *const _))
+        };
+
         Ok(AbiV2PluginLoader {
             library,
             info,
@@ -236,6 +265,9 @@ impl AbiV2PluginLoader {
             health_check_fn,
             metrics_fn,
             config_schema_fn,
+            serialize_state_fn,
+            deserialize_state_fn,
+            free_state_fn,
         })
     }
 
@@ -539,6 +571,109 @@ impl AbiV2PluginLoader {
     /// Check if plugin exports a configuration schema (RFC-0006)
     pub fn has_config_schema(&self) -> bool {
         self.config_schema_fn.is_some()
+    }
+
+    // ========================================================================
+    // HR-ARCH-2: State Serialization Support
+    // ========================================================================
+
+    /// Serialize plugin state (HR-ARCH-2)
+    ///
+    /// Calls the plugin's serialize_state function to capture its current state.
+    /// Returns the serialized state data as raw bytes, or None if the plugin
+    /// doesn't support state serialization.
+    ///
+    /// # Safety
+    ///
+    /// This function involves unsafe FFI calls. The returned bytes are copied
+    /// from the plugin's memory before the plugin's free_state is called.
+    pub fn serialize_state(
+        &self,
+        context: *const PluginContextV2,
+    ) -> AbiLoaderResult<Option<Vec<u8>>> {
+        if let Some(serialize_fn) = self.serialize_state_fn {
+            unsafe {
+                let result = serialize_fn(context);
+
+                if result.status == PluginResultV2::Success {
+                    if !result.state.is_null() {
+                        let state = &*result.state;
+                        if !state.data.is_null() && state.data_len > 0 {
+                            let state_data =
+                                std::slice::from_raw_parts(state.data, state.data_len).to_vec();
+
+                            if let Some(free_fn) = self.free_state_fn {
+                                free_fn(result.state);
+                            }
+
+                            Ok(Some(state_data))
+                        } else {
+                            if let Some(free_fn) = self.free_state_fn {
+                                free_fn(result.state);
+                            }
+                            Ok(None)
+                        }
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Err(AbiLoaderError::ValidationFailed(format!(
+                        "State serialization failed: {:?}",
+                        result.status
+                    )))
+                }
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Deserialize plugin state (HR-ARCH-2)
+    ///
+    /// Calls the plugin's deserialize_state function to restore state from
+    /// previously serialized data.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - The plugin context
+    /// * `state_data` - The serialized state bytes from a previous serialize call
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) on success, or an error if deserialization fails.
+    /// Returns Ok(()) if the plugin doesn't support state deserialization.
+    pub fn deserialize_state(
+        &self,
+        context: *const PluginContextV2,
+        state_data: &[u8],
+    ) -> AbiLoaderResult<()> {
+        if let Some(deserialize_fn) = self.deserialize_state_fn {
+            let state = PluginStateV2 {
+                format: std::ptr::null(),
+                data: state_data.as_ptr(),
+                data_len: state_data.len(),
+                schema_version: 0,
+                checksum: 0,
+            };
+
+            let result = deserialize_fn(context, &state);
+
+            if result.status == PluginResultV2::Success {
+                Ok(())
+            } else {
+                Err(AbiLoaderError::ValidationFailed(format!(
+                    "State deserialization failed: {:?}",
+                    result.status
+                )))
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Check if plugin supports state serialization (HR-ARCH-2)
+    pub fn supports_state_serialization(&self) -> bool {
+        self.serialize_state_fn.is_some()
     }
 }
 
