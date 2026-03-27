@@ -30,7 +30,7 @@ use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 
 // GAP-003: Import auth HTTP handlers from permissions crate
-use skylet_permissions::http::{auth_router, AuthState};
+use permissions::http::{auth_router, AuthState};
 
 // CQ-003: Import dynamic plugin discovery
 use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
