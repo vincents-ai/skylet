@@ -162,7 +162,14 @@ async fn main() -> Result<()> {
             format,
             fail_fast,
         } => {
-            run_bdd_tests(&feature_path, plugin_path.as_deref(), tags.as_deref(), &format, fail_fast).await?;
+            run_bdd_tests(
+                &feature_path,
+                plugin_path.as_deref(),
+                tags.as_deref(),
+                &format,
+                fail_fast,
+            )
+            .await?;
         }
         Commands::Execute {
             plugin_path,
@@ -259,8 +266,14 @@ async fn run_test_suite(config_file: Option<&str>, verbose: bool) -> Result<()> 
         match harness.load_plugin().await {
             Ok(_) => {
                 let results = harness.run_bdd_tests().await?;
-                let passed = results.iter().filter(|r| r.status == TestStatus::Passed).count();
-                let failed = results.iter().filter(|r| r.status == TestStatus::Failed).count();
+                let passed = results
+                    .iter()
+                    .filter(|r| r.status == TestStatus::Passed)
+                    .count();
+                let failed = results
+                    .iter()
+                    .filter(|r| r.status == TestStatus::Failed)
+                    .count();
                 total_passed += passed;
                 total_failed += failed;
                 println!("  [OK] {} passed, {} failed", passed, failed);
@@ -327,9 +340,9 @@ async fn run_bdd_tests(
     fail_fast: bool,
 ) -> Result<()> {
     println!("Running BDD tests from: {}", feature_path);
-    
+
     let features_path = PathBuf::from(feature_path);
-    
+
     if !features_path.exists() {
         println!("[ERROR] Feature path not found: {}", feature_path);
         std::process::exit(1);
@@ -348,9 +361,7 @@ async fn run_bdd_tests(
         "json" => {
             // JSON output for CI/CD integration
             PluginTestWorld::cucumber()
-                .with_writer(
-                    writer::Json::new(std::io::stdout())
-                )
+                .with_writer(writer::Json::new(std::io::stdout()))
                 .fail_on_skipped()
                 .run(feature_path)
                 .await;
@@ -358,18 +369,15 @@ async fn run_bdd_tests(
         "junit" => {
             // JUnit XML output
             PluginTestWorld::cucumber()
-                .with_writer(
-                    writer::JUnit::new(std::io::stdout(), 0)
-                )
+                .with_writer(writer::JUnit::new(std::io::stdout(), 0))
                 .fail_on_skipped()
                 .run(feature_path)
                 .await;
         }
         _ => {
             // Pretty/default output
-            let runner = PluginTestWorld::cucumber()
-                .fail_on_skipped();
-            
+            let runner = PluginTestWorld::cucumber().fail_on_skipped();
+
             if fail_fast {
                 runner
                     .with_writer(writer::Basic::stdout().fail_on_skipped())
@@ -436,7 +444,7 @@ async fn validate_plugin(plugin_path: &str) -> Result<()> {
         ..Default::default()
     };
     let mut harness = PluginTestHarness::new(config);
-    
+
     match harness.load_plugin().await {
         Ok(_) => {
             println!("OK");
@@ -510,8 +518,14 @@ fn print_test_results(results: &[TestResult]) {
     println!("\n--- Test Results ---");
     println!("Total: {}", results.len());
 
-    let passed = results.iter().filter(|r| r.status == TestStatus::Passed).count();
-    let failed = results.iter().filter(|r| r.status == TestStatus::Failed).count();
+    let passed = results
+        .iter()
+        .filter(|r| r.status == TestStatus::Passed)
+        .count();
+    let failed = results
+        .iter()
+        .filter(|r| r.status == TestStatus::Failed)
+        .count();
 
     println!("Passed: {}", passed);
     println!("Failed: {}", failed);
@@ -540,7 +554,9 @@ struct TestSuiteConfig {
 
 impl Default for TestSuiteConfig {
     fn default() -> Self {
-        Self { plugins: Vec::new() }
+        Self {
+            plugins: Vec::new(),
+        }
     }
 }
 

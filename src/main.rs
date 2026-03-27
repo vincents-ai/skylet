@@ -9,7 +9,14 @@ mod plugin_manager;
 
 use crate::config::AppConfig;
 use anyhow::Result;
-use axum::{extract::{State, Path}, http::StatusCode, response::Json, routing::{get, post}, Router, body::Bytes};
+use axum::{
+    body::Bytes,
+    extract::{Path, State},
+    http::StatusCode,
+    response::Json,
+    routing::{get, post},
+    Router,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -152,7 +159,7 @@ async fn rpc_handler(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let registry = get_global_rpc_registry();
     let params = body.to_vec();
-    
+
     match registry.call(&service, &params) {
         Ok(result_bytes) => {
             let result_str = String::from_utf8_lossy(&result_bytes);
@@ -161,21 +168,23 @@ async fn rpc_handler(
                 Err(_) => Ok(Json(json!({
                     "success": true,
                     "result": result_str
-                })))
+                }))),
             }
         }
-        Err(skylet_abi::v2_spec::PluginResultV2::ServiceUnavailable) => {
-            Err((StatusCode::NOT_FOUND, Json(json!({
+        Err(skylet_abi::v2_spec::PluginResultV2::ServiceUnavailable) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({
                 "success": false,
                 "error": format!("Service '{}' not found", service)
-            }))))
-        }
-        Err(e) => {
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+            })),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
                 "success": false,
                 "error": format!("RPC error: {:?}", e)
-            }))))
-        }
+            })),
+        )),
     }
 }
 
@@ -345,17 +354,32 @@ async fn run_server(config: AppConfig) -> Result<()> {
     info!("Re-initializing bootstrap plugins with full context...");
     for plugin_name in bootstrap_context.loaded_plugin_names() {
         if let Some(library) = bootstrap_context.get_loaded_library(&plugin_name) {
-            match plugin_manager.init_bootstrap_plugin(&plugin_name, library).await {
-                Ok(_) => info!("Re-initialized bootstrap plugin '{}' with full context", plugin_name),
-                Err(e) => warn!("Failed to re-initialize bootstrap plugin '{}': {}", plugin_name, e),
+            match plugin_manager
+                .init_bootstrap_plugin(&plugin_name, library)
+                .await
+            {
+                Ok(_) => info!(
+                    "Re-initialized bootstrap plugin '{}' with full context",
+                    plugin_name
+                ),
+                Err(e) => warn!(
+                    "Failed to re-initialize bootstrap plugin '{}': {}",
+                    plugin_name, e
+                ),
             }
         }
     }
 
     for discovered in &ordered_plugins {
         // Skip bootstrap plugins that were already loaded and re-initialized
-        if bootstrap_context.loaded_plugin_names().contains(&discovered.name) {
-            info!("Skipping '{}' - already loaded as bootstrap plugin", discovered.name);
+        if bootstrap_context
+            .loaded_plugin_names()
+            .contains(&discovered.name)
+        {
+            info!(
+                "Skipping '{}' - already loaded as bootstrap plugin",
+                discovered.name
+            );
             continue;
         }
         match plugin_manager
@@ -390,47 +414,64 @@ async fn run_server(config: AppConfig) -> Result<()> {
         exclude_dirs: config.plugins.hot_reload_exclude_dirs.clone(),
         ..Default::default()
     };
-    
+
     // Create lifecycle manager from plugins directory
-    let lifecycle_config = plugin_manager::lifecycle::LifecycleConfig::new(
-        config.plugins.directory.clone()
-    );
-    let lifecycle_manager: Option<Arc<plugin_manager::lifecycle::PluginLifecycleManager>> = 
+    let lifecycle_config =
+        plugin_manager::lifecycle::LifecycleConfig::new(config.plugins.directory.clone());
+    let lifecycle_manager: Option<Arc<plugin_manager::lifecycle::PluginLifecycleManager>> =
         match plugin_manager::lifecycle::PluginLifecycleManager::new(lifecycle_config) {
-        Ok(manager) => Some(Arc::new(manager)),
-        Err(e) => {
-            warn!("Failed to create lifecycle manager: {}, hot reload disabled", e);
-            None
-        }
-    };
-    
-    let hot_reload_service: Option<Arc<HotReloadService>> = if let Some(ref lifecycle_mgr) = lifecycle_manager {
-        // HR-ARCH-1: Wire PluginManager to lifecycle_manager
-        lifecycle_mgr.set_plugin_manager(Arc::clone(&plugin_manager)).await;
-        
-        // Register already-loaded plugins for hot-reload tracking
-        for plugin_name in plugin_manager.list_plugins().await.unwrap_or_default() {
-            let plugin_path = config.plugins.directory.join(&plugin_name);
-            if let Err(e) = lifecycle_mgr.register_loaded_plugin(&plugin_name, plugin_path).await {
-                warn!("Failed to register loaded plugin '{}' for hot-reload: {}", plugin_name, e);
-            }
-        }
-        
-        let service = Arc::new(HotReloadService::new(hot_reload_config, Arc::clone(lifecycle_mgr)));
-        match service.start(&config.plugins.directory).await {
-            Ok(_) => {
-                info!("Hot reload service started, watching: {:?}", config.plugins.directory);
-                Some(service)
-            }
+            Ok(manager) => Some(Arc::new(manager)),
             Err(e) => {
-                warn!("Failed to start hot reload service: {}", e);
+                warn!(
+                    "Failed to create lifecycle manager: {}, hot reload disabled",
+                    e
+                );
                 None
             }
-        }
-    } else {
-        None
-    };
-    
+        };
+
+    let hot_reload_service: Option<Arc<HotReloadService>> =
+        if let Some(ref lifecycle_mgr) = lifecycle_manager {
+            // HR-ARCH-1: Wire PluginManager to lifecycle_manager
+            lifecycle_mgr
+                .set_plugin_manager(Arc::clone(&plugin_manager))
+                .await;
+
+            // Register already-loaded plugins for hot-reload tracking
+            for plugin_name in plugin_manager.list_plugins().await.unwrap_or_default() {
+                let plugin_path = config.plugins.directory.join(&plugin_name);
+                if let Err(e) = lifecycle_mgr
+                    .register_loaded_plugin(&plugin_name, plugin_path)
+                    .await
+                {
+                    warn!(
+                        "Failed to register loaded plugin '{}' for hot-reload: {}",
+                        plugin_name, e
+                    );
+                }
+            }
+
+            let service = Arc::new(HotReloadService::new(
+                hot_reload_config,
+                Arc::clone(lifecycle_mgr),
+            ));
+            match service.start(&config.plugins.directory).await {
+                Ok(_) => {
+                    info!(
+                        "Hot reload service started, watching: {:?}",
+                        config.plugins.directory
+                    );
+                    Some(service)
+                }
+                Err(e) => {
+                    warn!("Failed to start hot reload service: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
     // Store hot reload service in app state for later use
     // For now, just log the status
     if hot_reload_service.is_some() {

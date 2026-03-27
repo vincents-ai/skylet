@@ -54,10 +54,20 @@ impl PrometheusExporter {
             MetricValue::Counter(v) => v.to_string(),
             MetricValue::Gauge(v) => v.to_string(),
             MetricValue::Histogram(v) => {
-                format!("{{{}}}", v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
+                format!(
+                    "{{{}}}",
+                    v.iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
             }
             MetricValue::Summary {
-                count, sum, min, max, ..
+                count,
+                sum,
+                min,
+                max,
+                ..
             } => {
                 format!("count={}, sum={}, min={}, max={}", count, sum, min, max)
             }
@@ -168,11 +178,17 @@ impl OpenTelemetryExporter {
         let value = match &metric.value {
             MetricValue::Counter(v) => v.to_string(),
             MetricValue::Gauge(v) => v.to_string(),
-            MetricValue::Histogram(v) => {
-                v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")
-            }
+            MetricValue::Histogram(v) => v
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
             MetricValue::Summary {
-                count, sum, min, max, quantiles,
+                count,
+                sum,
+                min,
+                max,
+                quantiles,
             } => {
                 format!(
                     "count={}, sum={}, min={}, max={}, quantiles={}",

@@ -124,14 +124,20 @@ impl VersionBasedHotReload {
                 inode,
             },
         );
-        debug!("Registered plugin '{}' with version '{}' for version-based-reload (mtime: {:?})", plugin_id, version, modified_time);
+        debug!(
+            "Registered plugin '{}' with version '{}' for version-based-reload (mtime: {:?})",
+            plugin_id, version, modified_time
+        );
     }
 
     /// Unregister a plugin when it's unloaded
     pub async fn unregister_plugin(&self, plugin_id: &str) {
         let mut versions = self.loaded_versions.write().await;
         versions.remove(plugin_id);
-        debug!("Unregistered plugin '{}' from version-based-reload", plugin_id);
+        debug!(
+            "Unregistered plugin '{}' from version-based-reload",
+            plugin_id
+        );
     }
 
     /// Check all loaded plugins for version changes
@@ -159,7 +165,10 @@ impl VersionBasedHotReload {
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    warn!("Failed to check version for plugin '{}': {}", info.plugin_id, e);
+                    warn!(
+                        "Failed to check version for plugin '{}': {}",
+                        info.plugin_id, e
+                    );
                 }
             }
         }
@@ -168,24 +177,30 @@ impl VersionBasedHotReload {
     }
 
     /// Check a single plugin for version changes using file mtime
-    async fn check_single_plugin(&self, info: &PluginVersionInfo) -> Result<Option<VersionCheckResult>> {
+    async fn check_single_plugin(
+        &self,
+        info: &PluginVersionInfo,
+    ) -> Result<Option<VersionCheckResult>> {
         if !info.path.exists() {
             debug!("Plugin path no longer exists: {:?}", info.path);
             return Ok(None);
         }
 
         // Check file modification time first (fast, no library load)
-        let fs_metadata = std::fs::metadata(&info.path)
-            .map_err(|e| anyhow!("Failed to get file metadata for plugin '{}': {}", info.plugin_id, e))?;
-        
+        let fs_metadata = std::fs::metadata(&info.path).map_err(|e| {
+            anyhow!(
+                "Failed to get file metadata for plugin '{}': {}",
+                info.plugin_id,
+                e
+            )
+        })?;
+
         if let Ok(modified) = fs_metadata.modified() {
             if modified <= info.modified_time {
                 // File not modified, skip version check
                 debug!(
                     "Plugin '{}' file not modified: {:?} <= {:?}",
-                    info.plugin_id,
-                    modified,
-                    info.modified_time
+                    info.plugin_id, modified, info.modified_time
                 );
                 return Ok(None);
             }
@@ -331,7 +346,13 @@ impl VersionBasedHotReload {
         let versions = self.loaded_versions.read().await;
         versions
             .values()
-            .map(|info| (info.plugin_id.clone(), info.version.clone(), info.path.clone()))
+            .map(|info| {
+                (
+                    info.plugin_id.clone(),
+                    info.version.clone(),
+                    info.path.clone(),
+                )
+            })
             .collect()
     }
 }
@@ -489,12 +510,8 @@ mod tests {
         std::fs::write(&path_a, b"test").unwrap();
         std::fs::write(&path_b, b"test").unwrap();
 
-        reload
-            .register_plugin("plugin-a", "1.0.0", path_a)
-            .await;
-        reload
-            .register_plugin("plugin-b", "2.0.0", path_b)
-            .await;
+        reload.register_plugin("plugin-a", "1.0.0", path_a).await;
+        reload.register_plugin("plugin-b", "2.0.0", path_b).await;
 
         let list = reload.list_registered().await;
         assert_eq!(list.len(), 2);
@@ -507,9 +524,7 @@ mod tests {
         let path = temp_dir.path().join("test.so");
         std::fs::write(&path, b"test").unwrap();
 
-        reload
-            .register_plugin("test-plugin", "1.0.0", path)
-            .await;
+        reload.register_plugin("test-plugin", "1.0.0", path).await;
 
         reload.update_version("test-plugin", "2.0.0").await;
 

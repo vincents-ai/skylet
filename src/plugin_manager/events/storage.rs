@@ -39,10 +39,9 @@ impl EventStorage {
     pub fn new(retention_period: Duration) -> Self {
         Self {
             events: Arc::new(RwLock::new(HashMap::new())),
-            retention_period: TimeDelta::from_std(retention_period).unwrap_or_else(|_| TimeDelta::hours(1)),
-            cache: Arc::new(RwLock::new(LruCache::new(
-                NonZeroUsize::new(1000).unwrap(),
-            ))),
+            retention_period: TimeDelta::from_std(retention_period)
+                .unwrap_or_else(|_| TimeDelta::hours(1)),
+            cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(1000).unwrap()))),
             max_cache_size: 1000,
             dead_letters: Arc::new(RwLock::new(Vec::new())),
         }
@@ -65,10 +64,7 @@ impl EventStorage {
     }
 
     #[allow(dead_code)] // Phase 2 event system — not yet wired up
-    pub async fn get_events_for_type(
-        &self,
-        event_type: &str,
-    ) -> Result<Vec<Event>> {
+    pub async fn get_events_for_type(&self, event_type: &str) -> Result<Vec<Event>> {
         let events = self.events.read().await;
         let filtered: Vec<Event> = events
             .values()
@@ -178,11 +174,7 @@ impl EventStorage {
     }
 
     #[allow(dead_code)] // Phase 2 event system — not yet wired up
-    pub async fn get_cached_events(
-        &self,
-        event_type: &str,
-        limit: usize,
-    ) -> Vec<Event> {
+    pub async fn get_cached_events(&self, event_type: &str, limit: usize) -> Vec<Event> {
         let mut cache = self.cache.write().await;
 
         if let Some(events) = cache.get_mut(event_type) {
@@ -201,7 +193,10 @@ impl EventStorage {
     #[allow(dead_code)] // Phase 2 event system — not yet wired up
     pub async fn get_event_count_for_type(&self, event_type: &str) -> usize {
         let events = self.events.read().await;
-        events.values().filter(|e| e.event_type == event_type).count()
+        events
+            .values()
+            .filter(|e| e.event_type == event_type)
+            .count()
     }
 
     #[allow(dead_code)] // Phase 2 event system — not yet wired up

@@ -184,13 +184,15 @@ impl RateLimiter {
         let mut events = self.events.write().await;
         let now = std::time::Instant::now();
 
-        events.retain(|(timestamp, _)| {
-            now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0
-        });
+        events
+            .retain(|(timestamp, _)| now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0);
 
         let count = events.len();
         if count as f64 >= self.max_events_per_second {
-            return Err(format!("Rate limit exceeded: {}/s", self.max_events_per_second));
+            return Err(format!(
+                "Rate limit exceeded: {}/s",
+                self.max_events_per_second
+            ));
         }
 
         events.push((now, event.clone()));
@@ -204,9 +206,7 @@ impl RateLimiter {
 
         let recent_count = events
             .iter()
-            .filter(|(timestamp, _)| {
-                now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0
-            })
+            .filter(|(timestamp, _)| now.saturating_duration_since(*timestamp).as_secs_f64() < 1.0)
             .count();
 
         recent_count as f64
@@ -256,11 +256,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter() {
-        let limiter = RateLimiter::new(
-            "test-limiter".to_string(),
-            "test.event".to_string(),
-            10.0,
-        );
+        let limiter = RateLimiter::new("test-limiter".to_string(), "test.event".to_string(), 10.0);
 
         let event = Event::new(
             "test.event".to_string(),
@@ -271,13 +267,13 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let limiter = Arc::new(limiter);
 
-        let checks = (0..10).map(|_| {
-            let event = event.clone();
-            let limiter = limiter.clone();
-            rt.block_on(async move {
-                limiter.check(&event).await.unwrap()
+        let checks = (0..10)
+            .map(|_| {
+                let event = event.clone();
+                let limiter = limiter.clone();
+                rt.block_on(async move { limiter.check(&event).await.unwrap() })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
 
         assert_eq!(checks.iter().filter(|x| **x).count(), 10);
     }
@@ -323,7 +319,8 @@ mod tests {
         )
         .with_header("X-Custom".to_string(), "value123".to_string());
 
-        let condition = FilterCondition::HeaderEquals("X-Custom".to_string(), "value123".to_string());
+        let condition =
+            FilterCondition::HeaderEquals("X-Custom".to_string(), "value123".to_string());
         assert!(EventFilter::check_condition(&condition, &event));
 
         let condition = FilterCondition::HeaderEquals("X-Custom".to_string(), "other".to_string());

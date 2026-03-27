@@ -235,11 +235,11 @@ impl ServiceCluster {
             if node_id == &self.local_node_id {
                 continue;
             }
-        // TODO(#github-issue): Implement remote node sync via HTTP/gRPC
-        // Currently only local node services are available. Remote sync requires:
-        // - HTTP/gRPC client for fetching remote service registries
-        // - Conflict resolution strategy (last-write-wins, CRDT, etc.)
-        // - Authentication/authorization for cross-node communication
+            // TODO(#github-issue): Implement remote node sync via HTTP/gRPC
+            // Currently only local node services are available. Remote sync requires:
+            // - HTTP/gRPC client for fetching remote service registries
+            // - Conflict resolution strategy (last-write-wins, CRDT, etc.)
+            // - Authentication/authorization for cross-node communication
         }
 
         if !conflicts.is_empty() {
@@ -371,17 +371,15 @@ impl ServiceCluster {
         let services = self.services.read().await;
 
         match services.get(&remote_service.service_id) {
-            Some(local_service) => {
-                Self::detect_version_conflict_static(
-                    &local_service.version_vector,
-                    &remote_service.version_vector,
-                )
-                .map(|(vector_a, vector_b)| ServiceConflict {
-                    service_id: remote_service.service_id.clone(),
-                    vector_a,
-                    vector_b,
-                })
-            }
+            Some(local_service) => Self::detect_version_conflict_static(
+                &local_service.version_vector,
+                &remote_service.version_vector,
+            )
+            .map(|(vector_a, vector_b)| ServiceConflict {
+                service_id: remote_service.service_id.clone(),
+                vector_a,
+                vector_b,
+            }),
             None => None,
         }
     }
@@ -588,11 +586,15 @@ mod tests {
             "192.168.1.2",
             8080,
         );
-        remote_service.version_vector.insert("node-2".to_string(), 1);
+        remote_service
+            .version_vector
+            .insert("node-2".to_string(), 1);
 
         let remote_services = vec![remote_service.clone()];
 
-        let result = cluster.sync_from_remote_services("node-2", remote_services).await;
+        let result = cluster
+            .sync_from_remote_services("node-2", remote_services)
+            .await;
         assert!(result.is_ok());
 
         let services = cluster.list_services().await.unwrap();
@@ -617,8 +619,12 @@ mod tests {
 
         let mut remote_service = local_service.clone();
         remote_service.node_id = "node-2".to_string();
-        remote_service.version_vector.insert("node-1".to_string(), 1);
-        remote_service.version_vector.insert("node-2".to_string(), 2);
+        remote_service
+            .version_vector
+            .insert("node-1".to_string(), 1);
+        remote_service
+            .version_vector
+            .insert("node-2".to_string(), 2);
 
         cluster.register_service(local_service).await.unwrap();
 
@@ -652,7 +658,9 @@ mod tests {
             8080,
         );
         remote_service.registered_at = 2000;
-        remote_service.version_vector.insert("node-2".to_string(), 1);
+        remote_service
+            .version_vector
+            .insert("node-2".to_string(), 1);
 
         let conflict = ServiceConflict {
             service_id: "svc-lww".to_string(),
@@ -660,7 +668,8 @@ mod tests {
             vector_b: remote_service.version_vector.clone(),
         };
 
-        let resolved = cluster.resolve_conflict_last_write_wins(&local_service, &remote_service, &conflict);
+        let resolved =
+            cluster.resolve_conflict_last_write_wins(&local_service, &remote_service, &conflict);
         assert_eq!(resolved.version, "2.0.0");
         assert_eq!(resolved.node_id, "node-2");
     }
@@ -680,7 +689,10 @@ mod tests {
         local_service.registered_at = 1000;
         local_service.version_vector.insert("node-1".to_string(), 1);
 
-        cluster.register_service(local_service.clone()).await.unwrap();
+        cluster
+            .register_service(local_service.clone())
+            .await
+            .unwrap();
 
         let mut remote_service = ClusterService::new(
             "svc-sync",
@@ -691,9 +703,13 @@ mod tests {
             8080,
         );
         remote_service.registered_at = 2000;
-        remote_service.version_vector.insert("node-2".to_string(), 1);
+        remote_service
+            .version_vector
+            .insert("node-2".to_string(), 1);
 
-        let result = cluster.sync_from_remote_services("node-2", vec![remote_service]).await;
+        let result = cluster
+            .sync_from_remote_services("node-2", vec![remote_service])
+            .await;
         assert!(result.is_ok());
 
         let service = cluster.get_service("svc-sync").await.unwrap().unwrap();

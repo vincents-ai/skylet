@@ -61,7 +61,17 @@ impl<T> Response<T> {
 /// Request-response manager for plugin communication
 #[allow(dead_code)] // Phase 2 event system — not yet wired up
 pub struct RequestResponseManager {
-    pending: Arc<RwLock<HashMap<String, (tokio::sync::oneshot::Sender<Response<serde_json::Value>>, std::time::Instant)>>>,
+    pending: Arc<
+        RwLock<
+            HashMap<
+                String,
+                (
+                    tokio::sync::oneshot::Sender<Response<serde_json::Value>>,
+                    std::time::Instant,
+                ),
+            >,
+        >,
+    >,
     timeout: std::time::Duration,
 }
 
@@ -101,7 +111,10 @@ impl RequestResponseManager {
                 .with_reply_to(format!("{}.response", target_plugin)),
         );
 
-        event_system.publish(event).await.map_err(|e| e.to_string())?;
+        event_system
+            .publish(event)
+            .await
+            .map_err(|e| e.to_string())?;
 
         tokio::select! {
             result = receiver => {
@@ -113,10 +126,7 @@ impl RequestResponseManager {
         }
     }
 
-    pub async fn handle_response(
-        &self,
-        response_event: &Event,
-    ) -> Result<(), String> {
+    pub async fn handle_response(&self, response_event: &Event) -> Result<(), String> {
         let correlation_id = response_event
             .metadata
             .correlation_id
@@ -165,14 +175,14 @@ impl BroadcastManager {
         event_type: String,
         payload: serde_json::Value,
     ) -> Result<usize, String> {
-        let event = Event::new(
-            event_type.clone(),
-            "broadcast-manager".to_string(),
-            payload,
-        )
-        .with_metadata(EventMetadata::default().with_tags(vec!["broadcast".to_string()]));
+        let event = Event::new(event_type.clone(), "broadcast-manager".to_string(), payload)
+            .with_metadata(EventMetadata::default().with_tags(vec!["broadcast".to_string()]));
 
-        let result = self.event_system.publish(event).await.map_err(|e| e.to_string())?;
+        let result = self
+            .event_system
+            .publish(event)
+            .await
+            .map_err(|e| e.to_string())?;
 
         match result {
             EventResult::Published { subscriber_count } => Ok(subscriber_count),
@@ -195,12 +205,15 @@ impl BroadcastManager {
                 payload.clone(),
             );
 
-            let result = self.event_system.publish(event).await.map_err(|e| e.to_string()).and_then(|r| {
-                match r {
+            let result = self
+                .event_system
+                .publish(event)
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|r| match r {
                     EventResult::Published { subscriber_count } => Ok(subscriber_count),
                     EventResult::Filtered => Ok(0),
-                }
-            });
+                });
             results.push(result);
         }
 
@@ -224,12 +237,12 @@ impl EventBus {
         }
     }
 
-    pub async fn publish(&self, event_type: String, payload: serde_json::Value) -> Result<(), String> {
-        let event = Event::new(
-            event_type,
-            self.plugin_name.clone(),
-            payload,
-        );
+    pub async fn publish(
+        &self,
+        event_type: String,
+        payload: serde_json::Value,
+    ) -> Result<(), String> {
+        let event = Event::new(event_type, self.plugin_name.clone(), payload);
 
         self.event_system
             .publish(event)
@@ -244,11 +257,7 @@ impl EventBus {
         event_types: Vec<String>,
         callback: Arc<dyn EventCallback>,
     ) -> Result<(), String> {
-        let subscriber = EventSubscriber::new(
-            self.plugin_name.clone(),
-            event_types,
-            callback,
-        );
+        let subscriber = EventSubscriber::new(self.plugin_name.clone(), event_types, callback);
 
         self.event_system
             .subscribe(subscriber)
@@ -273,9 +282,14 @@ impl EventBus {
             payload,
         );
 
-        self.event_system.publish(event).await.map_err(|e| e.to_string())?;
+        self.event_system
+            .publish(event)
+            .await
+            .map_err(|e| e.to_string())?;
 
-        manager.send_request(self.event_system.clone(), target_plugin, request_obj).await
+        manager
+            .send_request(self.event_system.clone(), target_plugin, request_obj)
+            .await
     }
 
     pub fn broadcast_manager(&self) -> BroadcastManager {
@@ -304,11 +318,8 @@ mod tests {
 
     #[test]
     fn test_request_with_timeout() {
-        let request = Request::new(
-            serde_json::json!({}),
-            "test.response".to_string(),
-        )
-        .with_timeout(5000);
+        let request =
+            Request::new(serde_json::json!({}), "test.response".to_string()).with_timeout(5000);
 
         assert_eq!(request.timeout_ms, Some(5000));
     }

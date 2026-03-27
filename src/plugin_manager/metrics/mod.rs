@@ -107,10 +107,7 @@ impl MetricsManager {
 
     pub async fn register_plugin(&self, plugin_name: String) {
         let mut metrics = self.plugin_metrics.write().await;
-        metrics.insert(
-            plugin_name.clone(),
-            PluginMetrics::new(plugin_name.clone()),
-        );
+        metrics.insert(plugin_name.clone(), PluginMetrics::new(plugin_name.clone()));
     }
 
     pub async fn unregister_plugin(&self, plugin_name: &str) {

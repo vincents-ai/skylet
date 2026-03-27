@@ -25,22 +25,21 @@ use std::sync::Arc;
 use super::epoch_guard::EpochGuardedPlugin;
 
 // ABI v2 imports
+use libloading::{Library, Symbol};
+use serde_json::Value;
 #[allow(unused_imports)]
 use skylet_abi::{
     config_schema::{ConfigSchemaValidator, ConfigValidationResult},
     http::{HttpMethod, HttpRouterV2, MiddlewareConfigV2, RouteConfigV2, RouteMetadata},
     security::{DefaultSecretsProvider, SecretsProvider},
     v2_spec::{
-        ConfigV2, EventBusV2, EventV2, LoggerV2, PluginContextV2, PluginInfoV2,
-        PluginInitFnV2, PluginResultV2, RpcRequestV2, RpcResponseV2, RpcServiceV2,
-        ServiceRegistryV2,
+        ConfigV2, EventBusV2, EventV2, LoggerV2, PluginContextV2, PluginInfoV2, PluginInitFnV2,
+        PluginResultV2, RpcRequestV2, RpcResponseV2, RpcServiceV2, ServiceRegistryV2,
     },
     AbiV2PluginLoader, Event, EventBus as TypedEventBusTrait, ExporterConfig, OtelTracer, Plugin,
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-use libloading::{Library, Symbol};
-use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
@@ -665,10 +664,12 @@ pub struct PluginServices {
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,
@@ -913,7 +914,6 @@ impl PluginManager {
             global_registry.register_plugin(name, services.rpc_registry.clone());
         }
 
-        
         // Wrap in epoch guard for safe hot-reload
         let guarded = EpochGuardedPlugin::new(name, loader);
 
@@ -937,7 +937,13 @@ impl PluginManager {
         let init_fn = unsafe {
             library
                 .get::<Symbol<PluginInitFnV2>>(b"plugin_init_v2")
-                .map_err(|e| anyhow!("Bootstrap plugin '{}' does not have plugin_init_v2: {}", name, e))?
+                .map_err(|e| {
+                    anyhow!(
+                        "Bootstrap plugin '{}' does not have plugin_init_v2: {}",
+                        name,
+                        e
+                    )
+                })?
         };
 
         // Create a full PluginContextV2 with all services
@@ -978,7 +984,7 @@ impl PluginManager {
         _plugin_name: &str,
     ) -> Result<(PluginContextV2, PluginResources)> {
         let per_plugin_rpc_registry = Arc::new(RpcRegistry::new());
-        
+
         let per_plugin_services = Arc::new(PluginServices {
             config: self.services.config.clone(),
             service_registry: self.services.service_registry.clone(),
@@ -1485,15 +1491,18 @@ impl PluginManager {
         }
 
         let service_str = unsafe { CStr::from_ptr(service).to_string_lossy() };
-        
+
         let params_bytes = unsafe {
             if (*request).params.is_null() {
                 Vec::new()
             } else {
-                CStr::from_ptr((*request).params).to_string_lossy().as_bytes().to_vec()
+                CStr::from_ptr((*request).params)
+                    .to_string_lossy()
+                    .as_bytes()
+                    .to_vec()
             }
         };
-        
+
         let global_registry = get_global_rpc_registry();
         match global_registry.call(&service_str, &params_bytes) {
             Ok(result_bytes) => {
@@ -1587,10 +1596,14 @@ impl PluginManager {
             // Free the allocated strings if necessary (handler owns them)
             // Note: The C handler allocated these with CString::into_raw, so we need to free them
             if !rpc_response.result.is_null() {
-                unsafe { drop(CString::from_raw(rpc_response.result as *mut c_char)); }
+                unsafe {
+                    drop(CString::from_raw(rpc_response.result as *mut c_char));
+                }
             }
             if !rpc_response.error.is_null() {
-                unsafe { drop(CString::from_raw(rpc_response.error as *mut c_char)); }
+                unsafe {
+                    drop(CString::from_raw(rpc_response.error as *mut c_char));
+                }
             }
 
             (status, result_bytes)

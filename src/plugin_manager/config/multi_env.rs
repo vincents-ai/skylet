@@ -45,9 +45,12 @@ impl EnvironmentConfig {
     }
 
     pub fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
-        self.env_specific_paths.insert(ConfigEnvironment::Development, base_dir.join("dev"));
-        self.env_specific_paths.insert(ConfigEnvironment::Staging, base_dir.join("staging"));
-        self.env_specific_paths.insert(ConfigEnvironment::Production, base_dir.join("prod"));
+        self.env_specific_paths
+            .insert(ConfigEnvironment::Development, base_dir.join("dev"));
+        self.env_specific_paths
+            .insert(ConfigEnvironment::Staging, base_dir.join("staging"));
+        self.env_specific_paths
+            .insert(ConfigEnvironment::Production, base_dir.join("prod"));
         self
     }
 
@@ -109,7 +112,11 @@ impl MultiEnvConfigManager {
             current_environment: ConfigEnvironment::Development,
         };
 
-        for env in [ConfigEnvironment::Development, ConfigEnvironment::Staging, ConfigEnvironment::Production] {
+        for env in [
+            ConfigEnvironment::Development,
+            ConfigEnvironment::Staging,
+            ConfigEnvironment::Production,
+        ] {
             let env_config = EnvironmentConfig::new(env).with_base_dir(base_dir.clone());
             manager.environments.insert(env, env_config);
         }
@@ -174,8 +181,13 @@ impl MultiEnvConfigManager {
             }
 
             for (key, override_value) in &env_config.overrides {
-                if let Some(stripped_key) = key.strip_prefix(&format!("{}.", env_config.environment.as_str())) {
-                    obj.insert(stripped_key.to_string(), serde_json::Value::String(override_value.clone()));
+                if let Some(stripped_key) =
+                    key.strip_prefix(&format!("{}.", env_config.environment.as_str()))
+                {
+                    obj.insert(
+                        stripped_key.to_string(),
+                        serde_json::Value::String(override_value.clone()),
+                    );
                 }
             }
         }
@@ -195,7 +207,10 @@ impl MultiEnvConfigManager {
         } else if path.extension().map(|e| e == "json").unwrap_or(false) {
             Ok(serde_json::from_str(&content)?)
         } else {
-            Err(anyhow::anyhow!("Unsupported config file format: {:?}", path))
+            Err(anyhow::anyhow!(
+                "Unsupported config file format: {:?}",
+                path
+            ))
         }
     }
 
@@ -224,7 +239,10 @@ impl MultiEnvConfigManager {
         }
     }
 
-    pub fn compare_env_configs(&self, plugin_name: &str) -> HashMap<ConfigEnvironment, serde_json::Value> {
+    pub fn compare_env_configs(
+        &self,
+        plugin_name: &str,
+    ) -> HashMap<ConfigEnvironment, serde_json::Value> {
         let mut configs = HashMap::new();
 
         for (env, env_config) in &self.environments {
@@ -345,9 +363,15 @@ mod tests {
             ConfigEnvironment::Development
         );
 
-        assert!(manager.environments.contains_key(&ConfigEnvironment::Development));
-        assert!(manager.environments.contains_key(&ConfigEnvironment::Staging));
-        assert!(manager.environments.contains_key(&ConfigEnvironment::Production));
+        assert!(manager
+            .environments
+            .contains_key(&ConfigEnvironment::Development));
+        assert!(manager
+            .environments
+            .contains_key(&ConfigEnvironment::Staging));
+        assert!(manager
+            .environments
+            .contains_key(&ConfigEnvironment::Production));
     }
 
     #[test]
@@ -357,26 +381,26 @@ mod tests {
 
         let result = manager.switch_environment(ConfigEnvironment::Production);
         assert!(result.is_ok());
-        assert_eq!(
-            manager.current_environment(),
-            ConfigEnvironment::Production
-        );
+        assert_eq!(manager.current_environment(), ConfigEnvironment::Production);
     }
 
     #[test]
     fn test_config_override() {
         let mut config = EnvironmentConfig::new(ConfigEnvironment::Production);
 
-        config.add_override("api_url".to_string(), "https://api.prod.example.com".to_string());
         config.add_override(
-            "production.api_key".to_string(),
-            "prod_secret".to_string(),
+            "api_url".to_string(),
+            "https://api.prod.example.com".to_string(),
         );
+        config.add_override("production.api_key".to_string(), "prod_secret".to_string());
 
         assert_eq!(
             config.get_override("api_url"),
             Some("https://api.prod.example.com".to_string())
         );
-        assert_eq!(config.get_override("api_key"), Some("prod_secret".to_string()));
+        assert_eq!(
+            config.get_override("api_key"),
+            Some("prod_secret".to_string())
+        );
     }
 }

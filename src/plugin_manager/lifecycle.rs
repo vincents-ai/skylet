@@ -308,16 +308,17 @@ impl PluginLifecycleManager {
     ///
     /// Returns the PluginManager for hot-reload state serialization operations.
     pub fn get_plugin_manager(&self) -> Option<Arc<PluginManager>> {
-        self.plugin_manager
-            .blocking_read()
-            .as_ref()
-            .cloned()
+        self.plugin_manager.blocking_read().as_ref().cloned()
     }
 
     /// Register an already-loaded plugin for hot-reload tracking
     /// This is used when plugins are loaded by PluginManager in main.rs
     /// and need to be tracked by the lifecycle manager for hot reload.
-    pub async fn register_loaded_plugin(&self, plugin_id: &str, install_path: PathBuf) -> Result<()> {
+    pub async fn register_loaded_plugin(
+        &self,
+        plugin_id: &str,
+        install_path: PathBuf,
+    ) -> Result<()> {
         let state = PluginState {
             id: plugin_id.to_string(),
             name: plugin_id.to_string(),
@@ -334,7 +335,10 @@ impl PluginLifecycleManager {
         let mut plugins = self.plugins.write().await;
         plugins.insert(plugin_id.to_string(), state);
 
-        info!("Registered loaded plugin '{}' for hot-reload tracking", plugin_id);
+        info!(
+            "Registered loaded plugin '{}' for hot-reload tracking",
+            plugin_id
+        );
         Ok(())
     }
 
@@ -587,7 +591,7 @@ impl PluginLifecycleManager {
 
         // Load plugin using plugin_manager if available, otherwise fall back to load_pipeline
         debug!("Loading plugin binary: {:?}", binary_path);
-        
+
         let pm_guard = self.plugin_manager.read().await;
         if let Some(ref pm) = *pm_guard {
             let load_result = pm.load_plugin_instance_v2(plugin_id, &binary_path).await;
@@ -602,8 +606,11 @@ impl PluginLifecycleManager {
                 }
                 return Err(anyhow!(error));
             }
-            
-            info!("Plugin '{}' loaded successfully via PluginManager", plugin_id);
+
+            info!(
+                "Plugin '{}' loaded successfully via PluginManager",
+                plugin_id
+            );
 
             let mut plugins = self.plugins.write().await;
             if let Some(state) = plugins.get_mut(plugin_id) {

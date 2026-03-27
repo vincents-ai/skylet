@@ -172,7 +172,11 @@ impl ConfigHotReload {
             .await
             .context("Failed to read config file")?;
 
-        let new_config: serde_json::Value = if config_path.extension().map(|e| e == "toml").unwrap_or(false) {
+        let new_config: serde_json::Value = if config_path
+            .extension()
+            .map(|e| e == "toml")
+            .unwrap_or(false)
+        {
             let toml_value: toml::Value = toml::from_str(&config_content)?;
             Self::toml_to_json(toml_value)
         } else {
@@ -274,7 +278,11 @@ impl ConfigHotReload {
 
         let config_content = tokio::fs::read_to_string(&config_path).await?;
 
-        let new_config: serde_json::Value = if config_path.extension().map(|e| e == "toml").unwrap_or(false) {
+        let new_config: serde_json::Value = if config_path
+            .extension()
+            .map(|e| e == "toml")
+            .unwrap_or(false)
+        {
             let toml_value: toml::Value = toml::from_str(&config_content)?;
             Self::toml_to_json(toml_value)
         } else {
@@ -337,7 +345,13 @@ mod tests {
     #[test]
     fn test_reload_status_eq() {
         assert_eq!(ReloadStatus::Success, ReloadStatus::Success);
-        assert_eq!(ReloadStatus::Failed("test".to_string()), ReloadStatus::Failed("test".to_string()));
-        assert_ne!(ReloadStatus::Success, ReloadStatus::Failed("error".to_string()));
+        assert_eq!(
+            ReloadStatus::Failed("test".to_string()),
+            ReloadStatus::Failed("test".to_string())
+        );
+        assert_ne!(
+            ReloadStatus::Success,
+            ReloadStatus::Failed("error".to_string())
+        );
     }
 }

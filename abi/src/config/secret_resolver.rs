@@ -371,12 +371,18 @@ impl VaultSecretBackend {
 
 impl SecretResolverBackend for VaultSecretBackend {
     fn resolve(&self, path: &str, key: Option<&str>) -> Result<String, SecretError> {
-        let address = self.address.as_ref().ok_or_else(|| SecretError::BackendUnavailable {
-            backend: "vault".to_string(),
-        })?;
-        let token = self.token.as_ref().ok_or_else(|| SecretError::BackendUnavailable {
-            backend: "vault".to_string(),
-        })?;
+        let address = self
+            .address
+            .as_ref()
+            .ok_or_else(|| SecretError::BackendUnavailable {
+                backend: "vault".to_string(),
+            })?;
+        let token = self
+            .token
+            .as_ref()
+            .ok_or_else(|| SecretError::BackendUnavailable {
+                backend: "vault".to_string(),
+            })?;
 
         let url = format!("{}/v1/{}", address.trim_end_matches('/'), path);
 
@@ -398,12 +404,13 @@ impl SecretResolverBackend for VaultSecretBackend {
             error: e.to_string(),
         })?;
 
-        let data: &serde_json::Value = json.get("data").and_then(|d: &serde_json::Value| d.get("data")).ok_or_else(|| {
-            SecretError::ReadError {
+        let data: &serde_json::Value = json
+            .get("data")
+            .and_then(|d: &serde_json::Value| d.get("data"))
+            .ok_or_else(|| SecretError::ReadError {
                 path: url.clone(),
                 error: "No data field in response".to_string(),
-            }
-        })?;
+            })?;
 
         if let Some(k) = key {
             data.get(k)
