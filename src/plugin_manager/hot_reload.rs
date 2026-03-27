@@ -208,7 +208,7 @@ impl HotReloadService {
         {
             let mut w = self.watcher.write().await;
             if let Some(ref mut watcher) = *w {
-                watcher.watch(plugin_path, RecursiveMode::NonRecursive)?;
+                watcher.watch(plugin_path, RecursiveMode::Recursive)?;
             }
         }
 
@@ -301,7 +301,7 @@ impl HotReloadService {
         )?;
 
         // Watch the directory
-        watcher.watch(watch_dir, RecursiveMode::NonRecursive)?;
+        watcher.watch(watch_dir, RecursiveMode::Recursive)?;
 
         // Store watcher
         {

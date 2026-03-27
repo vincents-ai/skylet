@@ -23,7 +23,7 @@ use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 
 // GAP-003: Import auth HTTP handlers from permissions crate
-use permissions::http::{auth_router, AuthState};
+use skylet_permissions::http::{auth_router, AuthState};
 
 // CQ-003: Import dynamic plugin discovery
 use plugin_manager::discovery::{DiscoveryConfig, PluginDiscovery};
@@ -338,7 +338,7 @@ async fn run_server(config: AppConfig) -> Result<()> {
 
     // Load application plugins via PluginManager (provides real FFI services:
     // logging, config, event bus, RPC, tracing, secrets, HTTP routing)
-    let plugin_manager = PluginManager::new();
+    let plugin_manager = Arc::new(PluginManager::new());
 
     // Re-initialize bootstrap plugins with full PluginManager context
     // This allows them to register services in the shared service registry
@@ -383,8 +383,11 @@ async fn run_server(config: AppConfig) -> Result<()> {
     // HR-008: Initialize and start hot reload service
     info!("Initializing hot reload service...");
     let hot_reload_config = HotReloadConfig {
-        enabled: true,
-        auto_reload: true,
+        enabled: config.plugins.hot_reload_enabled,
+        auto_reload: config.plugins.hot_reload_auto_reload,
+        debounce_ms: config.plugins.hot_reload_debounce_ms,
+        watch_patterns: config.plugins.hot_reload_watch_patterns.clone(),
+        exclude_dirs: config.plugins.hot_reload_exclude_dirs.clone(),
         ..Default::default()
     };
     
@@ -401,8 +404,19 @@ async fn run_server(config: AppConfig) -> Result<()> {
         }
     };
     
-    let hot_reload_service: Option<Arc<HotReloadService>> = if let Some(ref manager) = lifecycle_manager {
-        let service = Arc::new(HotReloadService::new(hot_reload_config, Arc::clone(manager)));
+    let hot_reload_service: Option<Arc<HotReloadService>> = if let Some(ref lifecycle_mgr) = lifecycle_manager {
+        // HR-ARCH-1: Wire PluginManager to lifecycle_manager
+        lifecycle_mgr.set_plugin_manager(Arc::clone(&plugin_manager)).await;
+        
+        // Register already-loaded plugins for hot-reload tracking
+        for plugin_name in plugin_manager.list_plugins().await.unwrap_or_default() {
+            let plugin_path = config.plugins.directory.join(&plugin_name);
+            if let Err(e) = lifecycle_mgr.register_loaded_plugin(&plugin_name, plugin_path).await {
+                warn!("Failed to register loaded plugin '{}' for hot-reload: {}", plugin_name, e);
+            }
+        }
+        
+        let service = Arc::new(HotReloadService::new(hot_reload_config, Arc::clone(lifecycle_mgr)));
         match service.start(&config.plugins.directory).await {
             Ok(_) => {
                 info!("Hot reload service started, watching: {:?}", config.plugins.directory);

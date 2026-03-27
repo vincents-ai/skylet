@@ -34,6 +34,8 @@ use plugin_packager::{
 // Integration with RFC-0004 (ABI loading)
 use skylet_abi::{PluginLoadConfig, PluginLoadPipeline};
 
+use super::manager::PluginManager;
+
 /// Plugin status for tracking in the lifecycle manager
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginStatus {
@@ -241,8 +243,12 @@ pub struct PluginLifecycleManager {
     health_checker: PluginHealthChecker,
     /// Signature manager (optional)
     _signature_manager: Option<SignatureManager>,
-    /// Load pipeline for ABI loading
+    /// Load pipeline for ABI loading (fallback when plugin_manager not set)
     load_pipeline: PluginLoadPipeline,
+    /// Reference to the main PluginManager for actual plugin loading
+    /// This is the critical fix for HR-ARCH-1: unifies lifecycle with actual plugin management
+    /// Uses RwLock for interior mutability so we can set it after wrapping in Arc
+    plugin_manager: RwLock<Option<Arc<PluginManager>>>,
 }
 
 impl PluginLifecycleManager {
@@ -285,7 +291,41 @@ impl PluginLifecycleManager {
             health_checker,
             _signature_manager: signature_manager,
             load_pipeline,
+            plugin_manager: RwLock::new(None),
         })
+    }
+
+    /// Set the PluginManager for actual plugin operations
+    /// This is the critical for HR-ARCH-1: enables lifecycle manager to delegate
+    /// to the actual PluginManager instead of using a separate load_pipeline
+    pub async fn set_plugin_manager(&self, manager: Arc<PluginManager>) {
+        let mut pm = self.plugin_manager.write().await;
+        *pm = Some(manager);
+        info!("PluginLifecycleManager: PluginManager reference set");
+    }
+
+    /// Register an already-loaded plugin for hot-reload tracking
+    /// This is used when plugins are loaded by PluginManager in main.rs
+    /// and need to be tracked by the lifecycle manager for hot reload.
+    pub async fn register_loaded_plugin(&self, plugin_id: &str, install_path: PathBuf) -> Result<()> {
+        let state = PluginState {
+            id: plugin_id.to_string(),
+            name: plugin_id.to_string(),
+            version: "unknown".to_string(),
+            status: PluginStatus::Active,
+            artifact_path: None,
+            install_path: Some(install_path),
+            dependencies: vec![],
+            health_status: None,
+            last_status_change: chrono::Utc::now(),
+            error_message: None,
+        };
+
+        let mut plugins = self.plugins.write().await;
+        plugins.insert(plugin_id.to_string(), state);
+
+        info!("Registered loaded plugin '{}' for hot-reload tracking", plugin_id);
+        Ok(())
     }
 
     /// Install a plugin from an artifact
@@ -535,35 +575,92 @@ impl PluginLifecycleManager {
         // Find plugin binary
         let binary_path = self.find_plugin_binary(&install_path)?;
 
-        // Load plugin using ABI loader
+        // Load plugin using plugin_manager if available, otherwise fall back to load_pipeline
         debug!("Loading plugin binary: {:?}", binary_path);
-        match self.load_pipeline.load(&binary_path) {
-            Ok(load_result) => {
-                if load_result.success {
-                    info!("Plugin '{}' loaded successfully", plugin_id);
+        
+        let pm_guard = self.plugin_manager.read().await;
+        if let Some(ref pm) = *pm_guard {
+            let load_result = pm.load_plugin_instance_v2(plugin_id, &binary_path).await;
+            if load_result.is_err() {
+                let e = load_result.unwrap_err();
+                let error = format!("Plugin manager load failed: {}", e);
+                error!("{}", error);
+                let mut plugins = self.plugins.write().await;
+                if let Some(state) = plugins.get_mut(plugin_id) {
+                    state.status = PluginStatus::Error(error.clone());
+                    state.error_message = Some(error.clone());
+                }
+                return Err(anyhow!(error));
+            }
+            
+            info!("Plugin '{}' loaded successfully via PluginManager", plugin_id);
 
-                    // Update state
-                    let mut plugins = self.plugins.write().await;
-                    if let Some(state) = plugins.get_mut(plugin_id) {
-                        state.status = PluginStatus::Active;
-                        state.last_status_change = chrono::Utc::now();
+            let mut plugins = self.plugins.write().await;
+            if let Some(state) = plugins.get_mut(plugin_id) {
+                state.status = PluginStatus::Active;
+                state.last_status_change = chrono::Utc::now();
+            }
+
+            let duration_ms = start.elapsed().as_millis() as u64;
+            info!(
+                "Activation complete for '{}' in {}ms",
+                plugin_id, duration_ms
+            );
+
+            Ok(ActivationResult {
+                plugin_id: plugin_id.to_string(),
+                success: true,
+                resolved_dependencies: resolved_deps,
+                error: None,
+                duration_ms,
+            })
+        } else {
+            drop(pm_guard);
+            match self.load_pipeline.load(&binary_path) {
+                Ok(load_result) => {
+                    if load_result.success {
+                        info!("Plugin '{}' loaded successfully", plugin_id);
+
+                        let mut plugins = self.plugins.write().await;
+                        if let Some(state) = plugins.get_mut(plugin_id) {
+                            state.status = PluginStatus::Active;
+                            state.last_status_change = chrono::Utc::now();
+                        }
+
+                        let duration_ms = start.elapsed().as_millis() as u64;
+                        info!(
+                            "Activation complete for '{}' in {}ms",
+                            plugin_id, duration_ms
+                        );
+
+                        Ok(ActivationResult {
+                            plugin_id: plugin_id.to_string(),
+                            success: true,
+                            resolved_dependencies: resolved_deps,
+                            error: None,
+                            duration_ms,
+                        })
+                    } else {
+                        let error = format!("Load failed: {:?}", load_result.failed_stage());
+                        error!("{}", error);
+
+                        let mut plugins = self.plugins.write().await;
+                        if let Some(state) = plugins.get_mut(plugin_id) {
+                            state.status = PluginStatus::Error(error.clone());
+                            state.error_message = Some(error.clone());
+                        }
+
+                        Ok(ActivationResult {
+                            plugin_id: plugin_id.to_string(),
+                            success: false,
+                            resolved_dependencies: vec![],
+                            error: Some("Load failed".to_string()),
+                            duration_ms: start.elapsed().as_millis() as u64,
+                        })
                     }
-
-                    let duration_ms = start.elapsed().as_millis() as u64;
-                    info!(
-                        "Activation complete for '{}' in {}ms",
-                        plugin_id, duration_ms
-                    );
-
-                    Ok(ActivationResult {
-                        plugin_id: plugin_id.to_string(),
-                        success: true,
-                        resolved_dependencies: resolved_deps,
-                        error: None,
-                        duration_ms,
-                    })
-                } else {
-                    let error = format!("Load failed: {:?}", load_result.failed_stage());
+                }
+                Err(e) => {
+                    let error = format!("Load error: {}", e);
                     error!("{}", error);
 
                     let mut plugins = self.plugins.write().await;
@@ -576,28 +673,10 @@ impl PluginLifecycleManager {
                         plugin_id: plugin_id.to_string(),
                         success: false,
                         resolved_dependencies: vec![],
-                        error: Some("Load failed".to_string()),
+                        error: Some(e.to_string()),
                         duration_ms: start.elapsed().as_millis() as u64,
                     })
                 }
-            }
-            Err(e) => {
-                let error = format!("Load error: {}", e);
-                error!("{}", error);
-
-                let mut plugins = self.plugins.write().await;
-                if let Some(state) = plugins.get_mut(plugin_id) {
-                    state.status = PluginStatus::Error(error.clone());
-                    state.error_message = Some(error.clone());
-                }
-
-                Ok(ActivationResult {
-                    plugin_id: plugin_id.to_string(),
-                    success: false,
-                    resolved_dependencies: vec![],
-                    error: Some(e.to_string()),
-                    duration_ms: start.elapsed().as_millis() as u64,
-                })
             }
         }
     }
@@ -669,6 +748,15 @@ impl PluginLifecycleManager {
 
         // Perform shutdown (would call plugin_shutdown in real implementation)
         debug!("Shutting down plugin: {}", plugin_id);
+
+        // Call plugin_manager unload if available
+        let pm_guard = self.plugin_manager.read().await;
+        if let Some(ref pm) = *pm_guard {
+            if let Err(e) = pm.unload_plugin(plugin_id).await {
+                warn!("Plugin manager unload failed for {}: {}", plugin_id, e);
+            }
+        }
+        drop(pm_guard);
 
         // Update state
         {
