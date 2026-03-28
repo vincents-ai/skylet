@@ -119,6 +119,8 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-registry-
 
       - name: Generate docs
-        run: nix develop --command cargo doc --no-deps
+        run: |
+          rm -rf ~/.cargo/registry ~/.cargo/git target
+          nix develop --command cargo doc --no-deps
         env:
           RUSTDOCFLAGS: '-D warnings'
