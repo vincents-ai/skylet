@@ -716,7 +716,7 @@ impl Default for PluginServices {
 /// This struct holds pointers to resources that were allocated during plugin
 /// initialization and must be freed when the plugin is unloaded.
 struct PluginResources {
-    /// The raw pointer to the Arc<PluginServices> that was passed via user_data
+    /// The raw pointer to the `Arc<PluginServices>` that was passed via user_data
     /// Created with Arc::into_raw(), must be reclaimed with Arc::from_raw()
     services_ptr: *const PluginServices,
     /// Raw pointers to Box'd service structs that must be freed
@@ -1976,7 +1976,7 @@ impl PluginManager {
     ///
     /// This properly cleans up all resources allocated during plugin initialization:
     /// - Removes the plugin loader from the map (deferred via epoch reclamation)
-    /// - Reclaims the Arc<PluginServices> pointer (decrements refcount)
+    /// - Reclaims the `Arc<PluginServices>` pointer (decrements refcount)
     /// - Frees all Box'd service structs (LoggerV2, ConfigV2, etc.)
     ///
     /// Note: The actual plugin destruction is deferred via epoch-based reclamation
@@ -2033,7 +2033,7 @@ impl PluginManager {
     /// Shutdown all loaded plugins and clean up resources
     ///
     /// Unloads every loaded plugin in reverse insertion order, cleaning up
-    /// FFI resources (Box'd service structs, Arc<PluginServices> refs) for each.
+    /// FFI resources (Box'd service structs, `Arc<PluginServices>` refs) for each.
     pub async fn shutdown_all(&self) {
         let plugin_names: Vec<String> = {
             let plugins = self.loaded_plugins_v2.read().await;

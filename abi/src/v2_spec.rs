@@ -887,12 +887,12 @@ impl HostEventBusV2 {
         }
     }
 
-    /// Store the Arc<Self> in a way that can be retrieved from user_data
+    /// Store the `Arc<Self>` in a way that can be retrieved from user_data
     pub fn into_raw(self) -> *mut std::ffi::c_void {
         Box::into_raw(Box::new(self)) as *mut std::ffi::c_void
     }
 
-    /// Retrieve Arc<Self> from raw pointer
+    /// Retrieve `Arc<Self>` from raw pointer
     ///
     /// # Safety
     ///
@@ -1016,7 +1016,7 @@ impl HostRpcServiceV2 {
         }
     }
 
-    /// Store the Arc<Self> in a way that can be retrieved from user_data
+    /// Store the `Arc<Self>` in a way that can be retrieved from user_data
     pub fn into_raw(self) -> *mut std::ffi::c_void {
         Box::into_raw(Box::new(self)) as *mut std::ffi::c_void
     }

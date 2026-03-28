@@ -5,7 +5,7 @@
 //! Usage:
 //!   skylet-chat                    - Interactive chat mode
 //!   skylet-chat "Research AI"      - Single message mode
-//!   skylet-chat --status <id>      - Check workflow status
+//!   skylet-chat --status `<id>`    - Check workflow status
 //!   skylet-chat --list             - List workflows
 
 use anyhow::Result;
