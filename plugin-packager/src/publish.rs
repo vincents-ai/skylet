@@ -25,7 +25,7 @@ pub struct ArtifactPublisher {
 /// Configuration for artifact publishing
 #[derive(Debug, Clone)]
 pub struct PublishConfig {
-    /// Registry base URL (e.g., "https://registry.example.com")
+    /// Registry base URL (e.g., `<https://registry.example.com>`)
     pub registry_url: String,
     /// Authentication token (required for publishing)
     pub auth_token: String,
