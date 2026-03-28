@@ -64,10 +64,10 @@ impl PluginLoaderRegistry {
 
     pub async fn load_all(&self) {
         let loaders = self.loaders.read().await.clone();
-        
+
         if self.parallel_loading {
             use tokio::task;
-            
+
             let handles: Vec<_> = loaders
                 .iter()
                 .filter(|l| !l.is_loaded())
@@ -200,34 +200,33 @@ mod tests {
     #[test]
     fn test_lazy_plugin_loader() {
         let loader = LazyPluginLoader::new(PathBuf::from("/tmp/plugin"));
-        
+
         assert!(!loader.is_loaded());
         assert!(loader.should_load());
-        
+
         loader.mark_loaded();
-        
+
         assert!(loader.is_loaded());
         assert!(!loader.should_load());
     }
 
     #[test]
     fn test_lazy_plugin_loader_eager() {
-        let loader = LazyPluginLoader::new(PathBuf::from("/tmp/plugin"))
-            .with_eager_loading();
-        
+        let loader = LazyPluginLoader::new(PathBuf::from("/tmp/plugin")).with_eager_loading();
+
         assert!(!loader.should_load());
     }
 
     #[tokio::test]
     async fn test_plugin_loader_registry() {
         let registry = PluginLoaderRegistry::new(true);
-        
+
         let loader1 = LazyPluginLoader::new(PathBuf::from("/plugin1"));
         let loader2 = LazyPluginLoader::new(PathBuf::from("/plugin2"));
-        
+
         registry.register(loader1).await;
         registry.register(loader2).await;
-        
+
         assert_eq!(registry.get_pending_count().await, 2);
         assert_eq!(registry.get_loaded_count().await, 0);
     }
@@ -235,12 +234,12 @@ mod tests {
     #[tokio::test]
     async fn test_delayed_initializer() {
         let init = DelayedInitializer::new(|| 42);
-        
+
         assert!(!init.is_ready().await);
-        
+
         let value_ref = init.get().await;
         let value = value_ref.read().await;
-        
+
         assert!(init.is_ready().await);
         assert_eq!(*value, Some(42));
     }

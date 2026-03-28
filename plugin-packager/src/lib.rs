@@ -37,8 +37,7 @@ pub use upgrade::{BackupManager, BackupRecord, SemanticVersion, UpgradeInfo, Upg
 pub mod abi_compat;
 pub use abi_compat::{
     ABICompatibleInfo, ABIValidationResult, ABIValidator, ABIVersion, CapabilityInfo,
-    DependencyInfo, MaturityLevel, PluginCategory,
-    ResourceRequirements,
+    DependencyInfo, MaturityLevel, PluginCategory, ResourceRequirements,
 };
 
 // Plugin signature verification and cryptographic signing module
@@ -173,7 +172,7 @@ pub fn read_manifest(path: &Path) -> Result<Manifest> {
 }
 
 /// Create a .tar.gz artifact from a plugin directory. The archive will contain a single
-/// root directory named "<name>-<version>/" and all files from `src_dir` will be placed
+/// root directory named `\<name\>-\<version\>/` and all files from `src_dir` will be placed
 /// under that root preserving relative layout.
 ///
 /// # RFC-0003 Compliance

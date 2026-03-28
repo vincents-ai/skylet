@@ -43,7 +43,7 @@
 //! - [`security`] - Security policies, secrets, and credential management (RFC-0008)
 //! - [`logging`] - Structured logging schema (RFC-0018)
 //! - [`http`] - Plugin-provided HTTP endpoints (RFC-0019)
-//! - [`tracing_mod`] - Distributed tracing and telemetry (RFC-0017)
+//! - `tracing` - Distributed tracing and telemetry (RFC-0017)
 //! - [`network_transport`] - Overlay network plugin unification (RFC-0068)
 //! - [`clustering`] - Service discovery and clustering support
 //! - [`mcp_schema`] - MCP tool schema types for LLM agent integration
@@ -583,7 +583,7 @@ impl StateHeader {
 }
 
 impl PluginState {
-    /// Create a new PluginState from a Vec<u8>
+    /// Create a new PluginState from a `Vec<u8>`
     ///
     /// This allocates memory that must be freed using the `free` function pointer.
     /// The returned state includes a default free function that deallocates the memory.

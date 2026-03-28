@@ -60,7 +60,7 @@ impl RpcRegistry {
             let m = self.inner.lock().unwrap();
             m.get(name).map(|entry| entry.handler.clone())
         };
-        
+
         if let Some(handler) = handler {
             let (res, resp) = handler(request);
             match res {

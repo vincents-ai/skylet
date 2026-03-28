@@ -17,7 +17,7 @@ use crate::registry::{LocalRegistry, PluginRegistryEntry};
 /// Remote registry client configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteRegistryConfig {
-    /// Registry URL (e.g., "https://registry.example.com")
+    /// Registry URL (e.g., `<https://registry.example.com>`)
     pub url: String,
 
     /// Authentication token (optional)

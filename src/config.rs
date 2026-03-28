@@ -72,6 +72,45 @@ pub struct PluginConfig {
     /// Whether to include debug builds (target/debug) in discovery
     #[serde(default)]
     pub include_debug_builds: bool,
+    /// Whether hot reload is enabled
+    #[serde(default)]
+    pub hot_reload_enabled: bool,
+    /// Whether to auto-reload on file changes
+    #[serde(default = "default_hot_reload_auto_reload")]
+    pub hot_reload_auto_reload: bool,
+    /// Debounce interval for file changes (ms)
+    #[serde(default = "default_hot_reload_debounce_ms")]
+    pub hot_reload_debounce_ms: u64,
+    /// File patterns to watch (glob patterns)
+    #[serde(default = "default_hot_reload_watch_patterns")]
+    pub hot_reload_watch_patterns: Vec<String>,
+    /// Directories to exclude from watching
+    #[serde(default = "default_hot_reload_exclude_dirs")]
+    pub hot_reload_exclude_dirs: Vec<String>,
+}
+
+fn default_hot_reload_auto_reload() -> bool {
+    true
+}
+
+fn default_hot_reload_debounce_ms() -> u64 {
+    500
+}
+
+fn default_hot_reload_watch_patterns() -> Vec<String> {
+    vec![
+        "*.so".to_string(),
+        "*.dylib".to_string(),
+        "*.dll".to_string(),
+    ]
+}
+
+fn default_hot_reload_exclude_dirs() -> Vec<String> {
+    vec![
+        ".git".to_string(),
+        "target".to_string(),
+        "build".to_string(),
+    ]
 }
 
 impl Default for PluginConfig {
@@ -92,6 +131,11 @@ impl Default for PluginConfig {
             include_patterns: vec![],
             probe_abi_version: true,
             include_debug_builds: false,
+            hot_reload_enabled: false,
+            hot_reload_auto_reload: true,
+            hot_reload_debounce_ms: 500,
+            hot_reload_watch_patterns: default_hot_reload_watch_patterns(),
+            hot_reload_exclude_dirs: default_hot_reload_exclude_dirs(),
         }
     }
 }

@@ -56,7 +56,7 @@ pub struct HotReloadConfig {
 impl Default for HotReloadConfig {
     fn default() -> Self {
         Self {
-            enabled: false,  // Disabled by default, opt-in
+            enabled: false, // Disabled by default, opt-in
             debounce_ms: 500,
             serialization_timeout_ms: 5000,
             reload_timeout_ms: 30000,
@@ -208,7 +208,7 @@ impl HotReloadService {
         {
             let mut w = self.watcher.write().await;
             if let Some(ref mut watcher) = *w {
-                watcher.watch(plugin_path, RecursiveMode::NonRecursive)?;
+                watcher.watch(plugin_path, RecursiveMode::Recursive)?;
             }
         }
 
@@ -267,12 +267,16 @@ impl HotReloadService {
         let mut watcher = RecommendedWatcher::new(
             move |res: Result<notify::Event, notify::Error>| {
                 if let Ok(event) = res {
-                    if matches!(event.kind, notify::EventKind::Modify(_) | notify::EventKind::Create(_)) {
+                    if matches!(
+                        event.kind,
+                        notify::EventKind::Modify(_) | notify::EventKind::Create(_)
+                    ) {
                         for path in event.paths {
                             // Check if it's a plugin file
-                            let is_plugin = path.extension().map(|ext| {
-                                ext == "so" || ext == "dylib" || ext == "dll"
-                            }).unwrap_or(false);
+                            let is_plugin = path
+                                .extension()
+                                .map(|ext| ext == "so" || ext == "dylib" || ext == "dll")
+                                .unwrap_or(false);
 
                             if is_plugin {
                                 // Find which plugin this belongs to
@@ -301,7 +305,7 @@ impl HotReloadService {
         )?;
 
         // Watch the directory
-        watcher.watch(watch_dir, RecursiveMode::NonRecursive)?;
+        watcher.watch(watch_dir, RecursiveMode::Recursive)?;
 
         // Store watcher
         {

@@ -31,7 +31,10 @@ async fn plugin_loaded_by_name(world: &mut PluginTestWorld, plugin_name: String)
         format!("./target/release/lib{}.dylib", plugin_name),
         format!("./target/debug/lib{}.so", plugin_name),
         format!("./target/debug/lib{}.dylib", plugin_name),
-        format!("../plugins/{}/target/release/lib{}.so", plugin_name, plugin_name),
+        format!(
+            "../plugins/{}/target/release/lib{}.so",
+            plugin_name, plugin_name
+        ),
     ];
 
     for path in &possible_paths {
@@ -42,7 +45,10 @@ async fn plugin_loaded_by_name(world: &mut PluginTestWorld, plugin_name: String)
         }
     }
 
-    panic!("Could not find plugin '{}' in any expected location", plugin_name);
+    panic!(
+        "Could not find plugin '{}' in any expected location",
+        plugin_name
+    );
 }
 
 /// Plugin is initialized (already done during load, but explicit step)
@@ -50,7 +56,10 @@ async fn plugin_loaded_by_name(world: &mut PluginTestWorld, plugin_name: String)
 async fn plugin_initialized(world: &mut PluginTestWorld) {
     // Plugin is already initialized during load
     // This step is for documentation in scenarios
-    assert!(world.plugin.is_some(), "Plugin should be loaded and initialized");
+    assert!(
+        world.plugin.is_some(),
+        "Plugin should be loaded and initialized"
+    );
 }
 
 /// Configure the plugin with key-value pairs
@@ -271,7 +280,9 @@ async fn response_has_field(world: &mut PluginTestWorld, field: String) {
 #[then(regex = r#"^the response field "([^"]+)" should equal "([^"]+)"$"#)]
 async fn response_field_equals(world: &mut PluginTestWorld, field: String, expected: String) {
     let json = world.response_as_json().expect("Response should be JSON");
-    let value = json.get(&field).expect(&format!("Field '{}' should exist", field));
+    let value = json
+        .get(&field)
+        .expect(&format!("Field '{}' should exist", field));
 
     let value_str = match value {
         serde_json::Value::String(s) => s.clone(),
@@ -290,10 +301,7 @@ async fn response_field_equals(world: &mut PluginTestWorld, field: String, expec
 /// Assert error message contains text
 #[then(regex = r#"^the error should contain "([^"]+)"$"#)]
 async fn error_contains(world: &mut PluginTestWorld, expected: String) {
-    let error = world
-        .last_error
-        .as_ref()
-        .expect("There should be an error");
+    let error = world.last_error.as_ref().expect("There should be an error");
     assert!(
         error.contains(&expected),
         "Error should contain '{}'. Actual: {}",
@@ -329,11 +337,7 @@ async fn tests_passed(world: &mut PluginTestWorld, expected: usize) {
 #[then("all tests should pass")]
 async fn all_tests_pass(world: &mut PluginTestWorld) {
     let (_, failed) = world.get_result_summary();
-    assert_eq!(
-        failed, 0,
-        "All tests should pass, but {} failed",
-        failed
-    );
+    assert_eq!(failed, 0, "All tests should pass, but {} failed", failed);
 
     // Print failures for debugging
     for result in &world.results {
@@ -359,7 +363,9 @@ async fn logs_contain(world: &mut PluginTestWorld, message: String, level: Strin
 #[then(regex = r#"^I store the response field "([^"]+)" as "([^"]+)"$"#)]
 async fn store_response_field(world: &mut PluginTestWorld, field: String, key: String) {
     let json = world.response_as_json().expect("Response should be JSON");
-    let value = json.get(&field).expect(&format!("Field '{}' should exist", field));
+    let value = json
+        .get(&field)
+        .expect(&format!("Field '{}' should exist", field));
 
     let value_str = match value {
         serde_json::Value::String(s) => s.clone(),

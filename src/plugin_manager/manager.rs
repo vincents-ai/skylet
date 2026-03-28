@@ -25,22 +25,21 @@ use std::sync::Arc;
 use super::epoch_guard::EpochGuardedPlugin;
 
 // ABI v2 imports
+use libloading::{Library, Symbol};
+use serde_json::Value;
 #[allow(unused_imports)]
 use skylet_abi::{
     config_schema::{ConfigSchemaValidator, ConfigValidationResult},
     http::{HttpMethod, HttpRouterV2, MiddlewareConfigV2, RouteConfigV2, RouteMetadata},
     security::{DefaultSecretsProvider, SecretsProvider},
     v2_spec::{
-        ConfigV2, EventBusV2, EventV2, LoggerV2, PluginContextV2, PluginInfoV2,
-        PluginInitFnV2, PluginResultV2, RpcRequestV2, RpcResponseV2, RpcServiceV2,
-        ServiceRegistryV2,
+        ConfigV2, EventBusV2, EventV2, LoggerV2, PluginContextV2, PluginInfoV2, PluginInitFnV2,
+        PluginResultV2, RpcRequestV2, RpcResponseV2, RpcServiceV2, ServiceRegistryV2,
     },
     AbiV2PluginLoader, Event, EventBus as TypedEventBusTrait, ExporterConfig, OtelTracer, Plugin,
     PluginLogLevel, PluginSecrets, PluginTracer, RpcRegistry, SamplerConfig, Span, SpanBuilder,
     SpanHandle, SpanManager, Subscription, TracerConfig, TypedEventBus,
 };
-use libloading::{Library, Symbol};
-use serde_json::Value;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::Mutex;
 use tokio::sync::RwLock;
@@ -665,10 +664,12 @@ pub struct PluginServices {
     pub event_bus: Arc<PluginEventBusBackend>,
     pub rpc_registry: Arc<RpcRegistry>,
     /// Distributed tracing backend (RFC-0017)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub tracer: Arc<PluginTracerBackend>,
     /// Secrets management backend (RFC-0029)
-    #[allow(dead_code)] // Allocated for future use — FFI callbacks currently have inline implementations
+    #[allow(dead_code)]
+    // Allocated for future use — FFI callbacks currently have inline implementations
     pub secrets: Arc<PluginSecretsBackend>,
     /// HTTP router backend (RFC-0019)
     pub http_router: Arc<PluginHttpRouterBackend>,
@@ -715,7 +716,7 @@ impl Default for PluginServices {
 /// This struct holds pointers to resources that were allocated during plugin
 /// initialization and must be freed when the plugin is unloaded.
 struct PluginResources {
-    /// The raw pointer to the Arc<PluginServices> that was passed via user_data
+    /// The raw pointer to the `Arc<PluginServices>` that was passed via user_data
     /// Created with Arc::into_raw(), must be reclaimed with Arc::from_raw()
     services_ptr: *const PluginServices,
     /// Raw pointers to Box'd service structs that must be freed
@@ -913,7 +914,6 @@ impl PluginManager {
             global_registry.register_plugin(name, services.rpc_registry.clone());
         }
 
-        
         // Wrap in epoch guard for safe hot-reload
         let guarded = EpochGuardedPlugin::new(name, loader);
 
@@ -937,7 +937,13 @@ impl PluginManager {
         let init_fn = unsafe {
             library
                 .get::<Symbol<PluginInitFnV2>>(b"plugin_init_v2")
-                .map_err(|e| anyhow!("Bootstrap plugin '{}' does not have plugin_init_v2: {}", name, e))?
+                .map_err(|e| {
+                    anyhow!(
+                        "Bootstrap plugin '{}' does not have plugin_init_v2: {}",
+                        name,
+                        e
+                    )
+                })?
         };
 
         // Create a full PluginContextV2 with all services
@@ -978,7 +984,7 @@ impl PluginManager {
         _plugin_name: &str,
     ) -> Result<(PluginContextV2, PluginResources)> {
         let per_plugin_rpc_registry = Arc::new(RpcRegistry::new());
-        
+
         let per_plugin_services = Arc::new(PluginServices {
             config: self.services.config.clone(),
             service_registry: self.services.service_registry.clone(),
@@ -1347,13 +1353,10 @@ impl PluginManager {
             );
         }
 
-        // Allocate array of C string pointers
-        // Note: This leaks memory - caller must use free_service_list
         if service_names.is_empty() {
             return std::ptr::null();
         }
 
-        // Filter out any names with null bytes and convert to CStrings
         let c_strings: Vec<CString> = service_names
             .into_iter()
             .filter_map(|s| CString::new(s).ok())
@@ -1363,10 +1366,13 @@ impl PluginManager {
             return std::ptr::null();
         }
 
-        let mut ptrs: Vec<*const c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
-        ptrs.push(std::ptr::null()); // Null terminator
+        // Use into_raw() to transfer ownership - caller must free via free_service_list
+        let mut ptrs: Vec<*const c_char> = c_strings
+            .into_iter()
+            .map(|s| s.into_raw() as *const c_char)
+            .collect();
+        ptrs.push(std::ptr::null());
 
-        // Box the vector and leak it - caller must free
         let boxed = ptrs.into_boxed_slice();
         Box::into_raw(boxed) as *const *const c_char
     }
@@ -1394,9 +1400,16 @@ impl PluginManager {
         }
 
         unsafe {
-            // Free the array itself
-            let _ = Vec::from_raw_parts(list as *mut *const c_char, count, count);
-            // Note: Individual C strings are not freed as they point to static data
+            // Free each individual CString (created with into_raw)
+            let slice = std::slice::from_raw_parts(list, count);
+            for &ptr in slice {
+                if !ptr.is_null() {
+                    let _ = CString::from_raw(ptr as *mut c_char);
+                }
+            }
+
+            // Free the pointer array itself (including null terminator, so count+1)
+            let _ = Vec::from_raw_parts(list as *mut *const c_char, count + 1, count + 1);
         }
     }
 
@@ -1478,15 +1491,18 @@ impl PluginManager {
         }
 
         let service_str = unsafe { CStr::from_ptr(service).to_string_lossy() };
-        
+
         let params_bytes = unsafe {
             if (*request).params.is_null() {
                 Vec::new()
             } else {
-                CStr::from_ptr((*request).params).to_string_lossy().as_bytes().to_vec()
+                CStr::from_ptr((*request).params)
+                    .to_string_lossy()
+                    .as_bytes()
+                    .to_vec()
             }
         };
-        
+
         let global_registry = get_global_rpc_registry();
         match global_registry.call(&service_str, &params_bytes) {
             Ok(result_bytes) => {
@@ -1580,10 +1596,14 @@ impl PluginManager {
             // Free the allocated strings if necessary (handler owns them)
             // Note: The C handler allocated these with CString::into_raw, so we need to free them
             if !rpc_response.result.is_null() {
-                unsafe { drop(CString::from_raw(rpc_response.result as *mut c_char)); }
+                unsafe {
+                    drop(CString::from_raw(rpc_response.result as *mut c_char));
+                }
             }
             if !rpc_response.error.is_null() {
-                unsafe { drop(CString::from_raw(rpc_response.error as *mut c_char)); }
+                unsafe {
+                    drop(CString::from_raw(rpc_response.error as *mut c_char));
+                }
             }
 
             (status, result_bytes)
@@ -1604,12 +1624,10 @@ impl PluginManager {
         let services = services.unwrap();
         let service_names = services.rpc_registry.list_services();
 
-        // Allocate array of C string pointers
         if service_names.is_empty() {
             return std::ptr::null();
         }
 
-        // Filter out any names with null bytes
         let c_strings: Vec<CString> = service_names
             .into_iter()
             .filter_map(|s| CString::new(s).ok())
@@ -1619,10 +1637,13 @@ impl PluginManager {
             return std::ptr::null();
         }
 
-        let mut ptrs: Vec<*const c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
-        ptrs.push(std::ptr::null()); // Null terminator
+        // Use into_raw() to transfer ownership - caller must free via rpc_v2_free_strings
+        let mut ptrs: Vec<*const c_char> = c_strings
+            .into_iter()
+            .map(|s| s.into_raw() as *const c_char)
+            .collect();
+        ptrs.push(std::ptr::null());
 
-        // Box the vector and leak it - caller must free with rpc_v2_free_strings
         let boxed = ptrs.into_boxed_slice();
         Box::into_raw(boxed) as *const *const c_char
     }
@@ -1672,10 +1693,16 @@ impl PluginManager {
         }
 
         unsafe {
-            // Free the array itself
-            let _ = Vec::from_raw_parts(list as *mut *const c_char, count, count);
-            // Note: Individual C strings are owned by their respective CStrings
-            // and will be freed when those are dropped
+            // Free each individual CString (created with into_raw)
+            let slice = std::slice::from_raw_parts(list, count);
+            for &ptr in slice {
+                if !ptr.is_null() {
+                    let _ = CString::from_raw(ptr as *mut c_char);
+                }
+            }
+
+            // Free the pointer array itself (including null terminator, so count+1)
+            let _ = Vec::from_raw_parts(list as *mut *const c_char, count + 1, count + 1);
         }
     }
 
@@ -1949,7 +1976,7 @@ impl PluginManager {
     ///
     /// This properly cleans up all resources allocated during plugin initialization:
     /// - Removes the plugin loader from the map (deferred via epoch reclamation)
-    /// - Reclaims the Arc<PluginServices> pointer (decrements refcount)
+    /// - Reclaims the `Arc<PluginServices>` pointer (decrements refcount)
     /// - Frees all Box'd service structs (LoggerV2, ConfigV2, etc.)
     ///
     /// Note: The actual plugin destruction is deferred via epoch-based reclamation
@@ -2006,7 +2033,7 @@ impl PluginManager {
     /// Shutdown all loaded plugins and clean up resources
     ///
     /// Unloads every loaded plugin in reverse insertion order, cleaning up
-    /// FFI resources (Box'd service structs, Arc<PluginServices> refs) for each.
+    /// FFI resources (Box'd service structs, `Arc<PluginServices>` refs) for each.
     pub async fn shutdown_all(&self) {
         let plugin_names: Vec<String> = {
             let plugins = self.loaded_plugins_v2.read().await;
