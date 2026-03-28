@@ -34,7 +34,9 @@ jobs:
         run: nix develop --command cargo fmt -- --check
 
       - name: Clippy (includes check)
-        run: nix develop --command cargo clippy --all-targets -- -D warnings
+        run: |
+          rm -rf ~/.cargo/registry ~/.cargo/git target
+          nix develop --command cargo clippy --all-targets -- -D warnings
 
   test:
     name: Tests
