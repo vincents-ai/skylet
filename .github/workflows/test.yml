@@ -42,10 +42,7 @@ jobs:
       - name: Check formatting
         run: nix develop --command cargo fmt -- --check
 
-      - name: Cargo check
-        run: nix develop --command cargo check --message-format short
-
-      - name: Clippy
+      - name: Clippy (includes check)
         run: nix develop --command cargo clippy --all-targets -- -D warnings
 
   test:
