@@ -28,7 +28,7 @@ hmac = "0.12"
 jsonwebtoken = "9.3"
 argon2 = "0.5"
 rand = "0.8"
-password-hash = "0.5"
+password-hash = "0.6"
 subtle = "2.5"
 age = "0.10"
 ed25519-dalek = { workspace = true }
