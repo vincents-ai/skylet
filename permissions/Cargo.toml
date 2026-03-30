@@ -24,7 +24,7 @@ thiserror = { workspace = true }
 parking_lot = { workspace = true }
 base64 = "0.21"
 sha2 = "0.10"
-hmac = "0.12"
+hmac = "0.13"
 jsonwebtoken = "9.3"
 argon2 = "0.5"
 rand = "0.8"
