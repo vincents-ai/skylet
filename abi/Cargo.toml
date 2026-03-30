@@ -37,7 +37,7 @@ url = "2.5"
 regex-lite = "0.1"
 thiserror = { workspace = true }
 semver = { workspace = true }
-jsonschema = "0.42.0"
+jsonschema = "0.45.0"
 chrono = { workspace = true }
 uuid = { workspace = true }
 blake3 = "1.5"
