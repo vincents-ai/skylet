@@ -31,7 +31,7 @@ tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 thiserror = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
 dirs = "5.0"
 toml = { version = "0.8", features = ["preserve_order"] }

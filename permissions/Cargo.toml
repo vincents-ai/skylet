@@ -23,7 +23,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 parking_lot = { workspace = true }
 base64 = "0.21"
-sha2 = "0.10"
+sha2 = "0.11"
 hmac = "0.12"
 jsonwebtoken = "9.3"
 argon2 = "0.5"
