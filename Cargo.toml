@@ -50,7 +50,7 @@ rand = "0.8"
 sysinfo = "0.30"
 axum = "0.7"
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 tokio-test = "0.4"
 rusqlite = { version = "0.30", features = ["bundled"] }
 lru = "0.12"
