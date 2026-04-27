@@ -34,7 +34,7 @@ thiserror = "1.0"
 sha2 = "0.10"
 ed25519-dalek = { version = "2.0", features = ["serde", "rand_core"] }
 dirs = "5.0"
-toml = { version = "0.8", features = ["preserve_order"] }
+toml = { version = "1.1", features = ["preserve_order"] }
 reqwest = { version = "0.11", features = ["rustls-tls", "json"], default-features = false }
 semver = "1.0"
 parking_lot = "0.12"
